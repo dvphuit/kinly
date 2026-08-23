@@ -39,7 +39,8 @@ describe('passkey Google session architecture', () => {
     expect(drive).toContain('USE_FIREBASE_BACKEND || USE_PASSKEY_GOOGLE_AUTH');
     expect(sync).toContain('unlockGoogleRefreshTokenFromPasskeyVault');
     expect(sync).toContain('/api/google/local-token/commit');
-    expect(vault).toContain("purpose: 'google-refresh-token'");
+    expect(vault).toContain("PasskeyTokenVaultPurpose = 'prototype' | 'google-refresh-token'");
+    expect(vault).toContain("replacePasskeyTokenVaultSecret(refreshToken, 'google-refresh-token')");
     expect(vault).not.toContain('localStorage.setItem');
   });
 });
