@@ -306,3 +306,7 @@ export async function startAutoSync(): Promise<() => void> {
   const module = await loadGoogleDriveSync();
   return module.startAutoSync();
 }
+
+export function loadPasskeyVaultPrototypeView() {
+  return import('./PasskeyVaultPrototypeView');
+}

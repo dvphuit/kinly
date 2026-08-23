@@ -9,6 +9,12 @@ const GrowthView = lazy(async () => ({ default: (await loadGrowthFeature()).Grow
 const ExpensesView = lazy(async () => ({ default: (await loadExpensesFeature()).ExpensesView }));
 const ProfileView = lazy(async () => ({ default: (await loadProfileFeature()).ProfileView }));
 const GoogleDriveDataView = lazy(async () => ({ default: (await loadProfileFeature()).GoogleDriveDataView }));
+const PasskeyVaultPrototypeView = lazy(async () => {
+  const sync = await import('@/features/sync');
+  const prototype = await sync.loadPasskeyVaultPrototypeView();
+  return { default: prototype.PasskeyVaultPrototypeView };
+});
+const PASSKEY_VAULT_PROTOTYPE_ENABLED = import.meta.env.VITE_PASSKEY_VAULT_PROTOTYPE === 'true';
 
 const RouteLoadingFallback = () => <div className="route-loading-state" role="status" aria-live="polite">Đang mở trang…</div>;
 
@@ -55,6 +61,9 @@ export const AppRoutes = memo(function AppRoutes({
           <Route path="/expenses" element={<ExpensesView onOpenAddExpense={onOpenAddExpense} onShowToast={onShowToast} />} />
           <Route path="/profile" element={<ProfileView onOpenEditProfile={onOpenEditProfile} onOpenNotifications={onOpenNotifications} onShowToast={onShowToast} />} />
           <Route path="/profile/google-drive" element={<GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={onShowToast} />} />
+          {PASSKEY_VAULT_PROTOTYPE_ENABLED && (
+            <Route path="/experiments/passkey-vault" element={<PasskeyVaultPrototypeView />} />
+          )}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
