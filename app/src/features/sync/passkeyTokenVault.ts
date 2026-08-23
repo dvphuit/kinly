@@ -38,11 +38,19 @@ interface StoredPasskeyTokenVaultV1 {
   createdAt: string;
 }
 
-interface PrfExtensionInput {
+interface PrfCreationExtensionInput {
   prf: {
     eval: {
       first: BufferSource;
     };
+  };
+}
+
+interface PrfRequestExtensionInput {
+  prf: {
+    evalByCredential: Record<string, {
+      first: BufferSource;
+    }>;
   };
 }
 
@@ -59,11 +67,11 @@ interface PublicKeyCredentialLike extends Credential {
 }
 
 type PrfCreationOptions = Omit<PublicKeyCredentialCreationOptions, 'extensions'> & {
-  extensions: AuthenticationExtensionsClientInputs & PrfExtensionInput;
+  extensions: AuthenticationExtensionsClientInputs & PrfCreationExtensionInput;
 };
 
 type PrfRequestOptions = Omit<PublicKeyCredentialRequestOptions, 'extensions'> & {
-  extensions: AuthenticationExtensionsClientInputs & PrfExtensionInput;
+  extensions: AuthenticationExtensionsClientInputs & PrfRequestExtensionInput;
 };
 
 const textEncoder = new TextEncoder();
@@ -199,7 +207,9 @@ async function requestPrfOutput(credentialId: string, rpId: string, prfInput: Ui
     timeout: 60_000,
     extensions: {
       prf: {
-        eval: { first: toArrayBuffer(prfInput) },
+        evalByCredential: {
+          [credentialId]: { first: toArrayBuffer(prfInput) },
+        },
       },
     },
   };
@@ -210,6 +220,9 @@ async function requestPrfOutput(credentialId: string, rpId: string, prfInput: Ui
   } catch (error) {
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
       throw new PasskeyTokenVaultError('unlock-cancelled', 'Đã hủy hoặc hết thời gian xác thực passkey.', { cause: error });
+    }
+    if (error instanceof DOMException && error.name === 'NotSupportedError') {
+      throw new PasskeyTokenVaultError('prf-unavailable', 'Trình duyệt hoặc passkey này không hỗ trợ WebAuthn PRF khi xác thực.', { cause: error });
     }
     throw error;
   }
@@ -263,6 +276,9 @@ async function createCredentialAndPrf(rpId: string, prfInput: Uint8Array): Promi
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
       throw new PasskeyTokenVaultError('unlock-cancelled', 'Đã hủy hoặc hết thời gian tạo passkey.', { cause: error });
     }
+    if (error instanceof DOMException && error.name === 'NotSupportedError') {
+      throw new PasskeyTokenVaultError('prf-unavailable', 'Trình duyệt hoặc platform authenticator không hỗ trợ WebAuthn PRF.', { cause: error });
+    }
     throw error;
   }
 
@@ -271,11 +287,6 @@ async function createCredentialAndPrf(rpId: string, prfInput: Uint8Array): Promi
   }
 
   const credentialId = bytesToBase64Url(new Uint8Array(credential.rawId));
-  const extension = readPrfExtension(credential);
-  if (extension.enabled === false) {
-    throw new PasskeyTokenVaultError('prf-unavailable', 'Passkey vừa tạo không hỗ trợ WebAuthn PRF.');
-  }
-
   const creationOutput = readPrfOutput(credential);
   const prfOutput = creationOutput ?? await requestPrfOutput(credentialId, rpId, prfInput);
   return { credentialId, prfOutput };
