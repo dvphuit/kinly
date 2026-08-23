@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
-import { reloadPage } from '@/services/appRuntime';
 import { scheduleIdleTask } from '@/shared/lib/idleTask';
 
 const AUTO_SYNC_START_IDLE_TIMEOUT_MS = 3_000;
 const AUTO_SYNC_START_FALLBACK_MS = 750;
 
-export function useAutoSyncLifecycle(): void {
+export function useAutoSyncLifecycle(enabled = true): void {
   useEffect(() => {
+    if (!enabled) return undefined;
+
     let disposed = false;
     let stopAutoSync: (() => void) | undefined;
 
@@ -28,14 +29,10 @@ export function useAutoSyncLifecycle(): void {
       fallbackDelayMs: AUTO_SYNC_START_FALLBACK_MS,
     });
 
-    const handleRemoteUpdate = () => reloadPage();
-    window.addEventListener('babygrowth:remote-updated', handleRemoteUpdate);
-
     return () => {
       disposed = true;
       cancelStart();
       stopAutoSync?.();
-      window.removeEventListener('babygrowth:remote-updated', handleRemoteUpdate);
     };
-  }, []);
+  }, [enabled]);
 }
