@@ -11,8 +11,11 @@ vi.mock('@/data/localDb', () => ({
 import {
   clearPasskeyTokenVault,
   createPasskeyTokenVault,
+  hasGoogleRefreshTokenInPasskeyVault,
   hasPasskeyTokenVault,
   isPasskeyTokenVaultSupported,
+  storeGoogleRefreshTokenInPasskeyVault,
+  unlockGoogleRefreshTokenFromPasskeyVault,
   unlockPasskeyTokenVault,
 } from './passkeyTokenVault';
 
@@ -127,12 +130,14 @@ describe('passkeyTokenVault', () => {
     await createPasskeyTokenVault(secret);
 
     await expect(hasPasskeyTokenVault()).resolves.toBe(true);
+    await expect(hasGoogleRefreshTokenInPasskeyVault()).resolves.toBe(false);
     const stored = [...localRecords.values()][0];
     expect(stored).toBeTruthy();
     expect(stored).not.toContain(secret);
     expect(JSON.parse(stored!)).toMatchObject({
       version: 1,
       rpId: window.location.hostname,
+      purpose: 'prototype',
     });
   });
 
@@ -159,6 +164,32 @@ describe('passkeyTokenVault', () => {
     await expect(unlockPasskeyTokenVault()).resolves.toBe(secret);
   });
 
+  it('upgrades an existing prototype vault to hold a real Google refresh token without creating another credential', async () => {
+    const { create, get } = installWebAuthn();
+    await createPasskeyTokenVault('local-only-probe');
+    const refreshToken = '1//google-refresh-token';
+
+    await storeGoogleRefreshTokenInPasskeyVault(refreshToken);
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(1);
+    await expect(hasGoogleRefreshTokenInPasskeyVault()).resolves.toBe(true);
+    const stored = [...localRecords.values()][0];
+    expect(stored).not.toContain(refreshToken);
+    expect(JSON.parse(stored!)).toMatchObject({ purpose: 'google-refresh-token' });
+    await expect(unlockGoogleRefreshTokenFromPasskeyVault()).resolves.toBe(refreshToken);
+  });
+
+  it('creates a Google-purpose vault when no prototype exists', async () => {
+    installWebAuthn();
+    const refreshToken = '1//first-google-refresh-token';
+
+    await storeGoogleRefreshTokenInPasskeyVault(refreshToken);
+
+    await expect(hasGoogleRefreshTokenInPasskeyVault()).resolves.toBe(true);
+    await expect(unlockGoogleRefreshTokenFromPasskeyVault()).resolves.toBe(refreshToken);
+  });
+
   it('decrypts the payload only when the passkey returns the matching PRF output', async () => {
     installWebAuthn();
     const secret = 'local-only-probe';
@@ -180,6 +211,15 @@ describe('passkeyTokenVault', () => {
 
     await expect(unlockPasskeyTokenVault()).rejects.toMatchObject({
       code: 'decrypt-failed',
+    });
+  });
+
+  it('refuses to treat a prototype payload as a Google refresh token', async () => {
+    installWebAuthn();
+    await createPasskeyTokenVault('local-only-probe');
+
+    await expect(unlockGoogleRefreshTokenFromPasskeyVault()).rejects.toMatchObject({
+      code: 'wrong-purpose',
     });
   });
 
