@@ -17,6 +17,7 @@ const SYNC_META_KEY = 'babygrowth_v4_sync_meta';
 const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const AUTO_SYNC_DEBOUNCE_MS = 3_500;
 const AUTO_SYNC_IDLE_TIMEOUT_MS = 3_000;
+const GOOGLE_SESSION_EXPIRY_SKEW_SECONDS = 60;
 
 /** Local persistence keys are exposed only for the storage diagnostics screen.
  * Google Drive synchronization never reads or writes them. */
@@ -57,6 +58,15 @@ declare global {
   }
 }
 
+export type GoogleAuthOptions = { selectAccount?: boolean };
+
+export interface GoogleAccountIdentity {
+  permissionId: string;
+  emailAddress?: string;
+  displayName?: string;
+  photoLink?: string;
+}
+
 export type SyncConflictReason = 'first_sync' | 'both_changed';
 
 interface PreparedSyncSnapshot {
@@ -69,6 +79,7 @@ interface SyncMeta {
   remoteFileId: string | null;
   lastSyncedAt: string | null;
   autoSyncEnabled: boolean;
+  googleAccountId: string | null;
 }
 
 const DEFAULT_META: SyncMeta = {
@@ -76,6 +87,7 @@ const DEFAULT_META: SyncMeta = {
   remoteFileId: null,
   lastSyncedAt: null,
   autoSyncEnabled: false,
+  googleAccountId: null,
 };
 
 export type SyncResult =
@@ -96,7 +108,7 @@ export interface SyncState {
 
 export class GoogleAuthRequiredError extends Error {
   constructor() {
-    super('Cần kết nối lại Google để tiếp tục tự động đồng bộ.');
+    super('Cần xác thực lại Google để tiếp tục tự động đồng bộ.');
     this.name = 'GoogleAuthRequiredError';
   }
 }
@@ -128,6 +140,8 @@ interface DriveTimelineMediaFileList {
 
 let accessToken: string | null = null;
 let accessTokenExpiresAt = 0;
+let accessTokenExpiryTimer: number | null = null;
+let activeGoogleAccount: GoogleAccountIdentity | null = null;
 let tokenScriptPromise: Promise<void> | null = null;
 let autoSyncStop: (() => void) | null = null;
 let autoSyncStartPromise: Promise<() => void> | null = null;
@@ -249,6 +263,74 @@ async function loadGoogleScript(): Promise<void> {
   return tokenScriptPromise;
 }
 
+function clearAccessTokenExpiryTimer(): void {
+  if (accessTokenExpiryTimer !== null) window.clearTimeout(accessTokenExpiryTimer);
+  accessTokenExpiryTimer = null;
+}
+
+function clearGoogleSession(): void {
+  clearAccessTokenExpiryTimer();
+  accessToken = null;
+  accessTokenExpiresAt = 0;
+  activeGoogleAccount = null;
+}
+
+function markGoogleSessionExpired(message = 'Phiên Google đã hết hạn. Hãy xác thực lại để tiếp tục đồng bộ.'): void {
+  const hadSession = accessToken !== null || accessTokenExpiresAt > 0;
+  clearGoogleSession();
+  if (hadSession) publishSyncState({ status: 'auth-required', error: message });
+}
+
+function setGoogleSession(token: string, expiresInSeconds: number): void {
+  clearAccessTokenExpiryTimer();
+  const validForSeconds = Math.max(expiresInSeconds - GOOGLE_SESSION_EXPIRY_SKEW_SECONDS, GOOGLE_SESSION_EXPIRY_SKEW_SECONDS);
+  accessToken = token;
+  accessTokenExpiresAt = Date.now() + validForSeconds * 1000;
+  accessTokenExpiryTimer = window.setTimeout(() => markGoogleSessionExpired(), validForSeconds * 1000);
+}
+
+function parseGoogleAccountIdentity(value: unknown): GoogleAccountIdentity {
+  if (typeof value !== 'object' || value === null || !('user' in value)) {
+    throw new Error('Google Drive không trả về thông tin tài khoản đang xác thực.');
+  }
+  const user = value.user;
+  if (typeof user !== 'object' || user === null || !('permissionId' in user) || typeof user.permissionId !== 'string' || !user.permissionId) {
+    throw new Error('Không xác định được tài khoản Google Drive đang sử dụng.');
+  }
+  return {
+    permissionId: user.permissionId,
+    ...('emailAddress' in user && typeof user.emailAddress === 'string' ? { emailAddress: user.emailAddress } : {}),
+    ...('displayName' in user && typeof user.displayName === 'string' ? { displayName: user.displayName } : {}),
+    ...('photoLink' in user && typeof user.photoLink === 'string' ? { photoLink: user.photoLink } : {}),
+  };
+}
+
+async function bindGoogleAccount(account: GoogleAccountIdentity): Promise<void> {
+  const meta = await readMeta();
+  if (meta.googleAccountId === account.permissionId) return;
+
+  const baselineIsUnscoped = meta.googleAccountId === null
+    && (meta.lastSyncedFingerprint !== null || meta.remoteFileId !== null || meta.lastSyncedAt !== null);
+  const accountChanged = meta.googleAccountId !== null && meta.googleAccountId !== account.permissionId;
+
+  if (baselineIsUnscoped || accountChanged) {
+    await updateMeta({
+      googleAccountId: account.permissionId,
+      lastSyncedFingerprint: null,
+      remoteFileId: null,
+      lastSyncedAt: null,
+    });
+    publishSyncState({ status: 'idle', conflict: null, error: null, lastSyncedAt: null });
+    logDiagnostic('drive-auth', 'info', 'Google account changed; sync baseline reset', {
+      previousAccountId: meta.googleAccountId ?? 'unscoped',
+      nextAccountId: account.permissionId,
+    });
+    return;
+  }
+
+  await updateMeta({ googleAccountId: account.permissionId });
+}
+
 export function isGoogleConfigured(): boolean {
   return Boolean(getClientId());
 }
@@ -257,8 +339,22 @@ export function isGoogleConnected(): boolean {
   return Boolean(accessToken && Date.now() < accessTokenExpiresAt);
 }
 
-export async function requestGoogleAccessToken(): Promise<void> {
-  logDiagnostic('drive-auth', 'info', 'Requesting Google access');
+export function getGoogleSessionAccount(): GoogleAccountIdentity | null {
+  return isGoogleConnected() ? activeGoogleAccount : null;
+}
+
+async function readCurrentGoogleAccount(): Promise<GoogleAccountIdentity> {
+  const value = await driveRequest<unknown>(
+    'https://www.googleapis.com/drive/v3/about?fields=user(permissionId,emailAddress,displayName,photoLink)',
+    {},
+    false,
+  );
+  return parseGoogleAccountIdentity(value);
+}
+
+export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
+  logDiagnostic('drive-auth', 'info', 'Requesting Google access', { selectAccount: options.selectAccount === true });
+  let receivedToken = false;
   try {
     const clientId = getClientId();
     if (!clientId) throw new Error('Thiếu VITE_GOOGLE_CLIENT_ID. Hãy cấu hình Google OAuth Client ID trước.');
@@ -274,17 +370,27 @@ export async function requestGoogleAccessToken(): Promise<void> {
             reject(new Error(response.error_description || response.error || 'Google không cấp quyền truy cập.'));
             return;
           }
-          accessToken = response.access_token;
-          accessTokenExpiresAt = Date.now() + Math.max((response.expires_in ?? 3600) - 60, 60) * 1000;
+          receivedToken = true;
+          setGoogleSession(response.access_token, response.expires_in ?? 3600);
           publishSyncState({ status: 'idle', error: null });
           resolve();
         },
         error_callback: (error) => reject(new Error(error.message || 'Không thể mở cửa sổ cấp quyền Google.')),
       });
-      client.requestAccessToken({ prompt: '' });
+      client.requestAccessToken({ prompt: options.selectAccount ? 'select_account' : '' });
     });
-    logDiagnostic('drive-auth', 'info', 'Google access granted', { expiresAt: new Date(accessTokenExpiresAt).toISOString() });
+
+    const account = await readCurrentGoogleAccount();
+    activeGoogleAccount = account;
+    await bindGoogleAccount(account);
+    logDiagnostic('drive-auth', 'info', 'Google access granted', {
+      accountId: account.permissionId,
+      emailAddress: account.emailAddress,
+      expiresAt: new Date(accessTokenExpiresAt).toISOString(),
+    });
+    return account;
   } catch (error) {
+    if (receivedToken) clearGoogleSession();
     logDiagnostic('drive-auth', 'error', 'Google access failed', error);
     throw error;
   }
@@ -292,7 +398,7 @@ export async function requestGoogleAccessToken(): Promise<void> {
 
 async function ensureAccessToken(interactive: boolean): Promise<string> {
   if (isGoogleConnected()) return accessToken!;
-  accessToken = null;
+  if (accessToken) markGoogleSessionExpired();
   if (!interactive) {
     throw new GoogleAuthRequiredError();
   }
@@ -329,8 +435,7 @@ async function driveRequest<T>(url: string, init: RequestInit = {}, interactive 
       headers: { Authorization: `Bearer ${token}`, ...(init.headers || {}) },
     });
     if (response.status === 401) {
-      accessToken = null;
-      accessTokenExpiresAt = 0;
+      markGoogleSessionExpired();
       if (!interactive) throw new GoogleAuthRequiredError();
       throw new Error('Phiên Google đã hết hạn. Hãy bấm đồng bộ lại để cấp quyền mới.');
     }
@@ -370,8 +475,7 @@ async function driveUploadRequest<T>(
     };
     request.onload = () => {
       if (request.status === 401) {
-        accessToken = null;
-        accessTokenExpiresAt = 0;
+        markGoogleSessionExpired();
         reject(interactive ? new Error('Phiên Google đã hết hạn. Hãy bấm đồng bộ lại để cấp quyền mới.') : new GoogleAuthRequiredError());
         return;
       }
@@ -399,8 +503,7 @@ async function driveBlobRequest(url: string, interactive = false): Promise<Blob>
   try {
     const response = await fetch(url, { signal: controller.signal, headers: { Authorization: `Bearer ${token}` } });
     if (response.status === 401) {
-      accessToken = null;
-      accessTokenExpiresAt = 0;
+      markGoogleSessionExpired();
       if (!interactive) throw new GoogleAuthRequiredError();
       throw new Error('Phiên Google đã hết hạn. Hãy đồng bộ lại để tải media.');
     }
@@ -482,8 +585,7 @@ export async function deleteTimelineMediaFromDrive(
     { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
   );
   if (response.status === 401) {
-    accessToken = null;
-    accessTokenExpiresAt = 0;
+    markGoogleSessionExpired();
     if (!interactive) throw new GoogleAuthRequiredError();
   }
   if (!response.ok && response.status !== 404) {
@@ -824,9 +926,15 @@ export async function isAutoSyncEnabled(): Promise<boolean> {
 
 export async function setAutoSyncEnabled(enabled: boolean): Promise<void> {
   await updateMeta({ autoSyncEnabled: enabled });
+  const authRequired = enabled && !isGoogleConnected();
   publishSyncState({
     autoSyncEnabled: enabled,
-    status: !navigator.onLine ? 'offline' : enabled && !isGoogleConnected() ? 'auth-required' : syncState.status,
+    status: !navigator.onLine ? 'offline' : authRequired ? 'auth-required' : syncState.status,
+    error: !navigator.onLine
+      ? 'Đang offline; dữ liệu vẫn được lưu cục bộ.'
+      : authRequired
+        ? 'Cần xác thực lại Google để tiếp tục tự động đồng bộ.'
+        : syncState.error,
   });
   if (enabled && autoSyncStop) scheduleAutoSync(0);
 }
@@ -850,7 +958,7 @@ function runAutoSync(): Promise<void> {
       const meta = await readMeta();
       if (!meta.autoSyncEnabled) return;
       if (!isGoogleConnected()) {
-        publishSyncState({ status: 'auth-required', autoSyncEnabled: true, error: 'Bấm kết nối Google để bật lại auto-sync.' });
+        publishSyncState({ status: 'auth-required', autoSyncEnabled: true, error: 'Cần xác thực lại Google để tiếp tục tự động đồng bộ.' });
         return;
       }
       await syncWithGoogleDrive({ interactive: false });
