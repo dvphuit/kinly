@@ -20,6 +20,7 @@ const AUTO_SYNC_DEBOUNCE_MS = 3_500;
 const AUTO_SYNC_IDLE_TIMEOUT_MS = 3_000;
 const GOOGLE_SESSION_EXPIRY_SKEW_SECONDS = 60;
 const USE_FIREBASE_BACKEND = import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase';
+const USE_PASSKEY_GOOGLE_AUTH = import.meta.env.VITE_GOOGLE_PASSKEY_AUTH === 'true';
 
 /** Local persistence keys are exposed only for the storage diagnostics screen.
  * Google Drive synchronization never reads or writes them. */
@@ -144,6 +145,7 @@ let accessToken: string | null = null;
 let accessTokenExpiresAt = 0;
 let accessTokenExpiryTimer: number | null = null;
 let activeGoogleAccount: GoogleAccountIdentity | null = null;
+let passkeyRefreshToken: string | null = null;
 let firebaseSessionActive = false;
 let firebaseSessionAccount: GoogleAccountIdentity | null = null;
 let tokenScriptPromise: Promise<void> | null = null;
@@ -279,10 +281,16 @@ function clearGoogleSession(): void {
   activeGoogleAccount = null;
 }
 
+function hasRefreshablePasskeySession(): boolean {
+  return USE_PASSKEY_GOOGLE_AUTH && Boolean(passkeyRefreshToken);
+}
+
 function markGoogleSessionExpired(message = 'Phiên Google đã hết hạn. Hãy xác thực lại để tiếp tục đồng bộ.'): void {
   const hadSession = accessToken !== null || accessTokenExpiresAt > 0;
+  const account = activeGoogleAccount;
   clearGoogleSession();
-  if (hadSession) publishSyncState({ status: 'auth-required', error: message });
+  if (hasRefreshablePasskeySession()) activeGoogleAccount = account;
+  if (hadSession && !hasRefreshablePasskeySession()) publishSyncState({ status: 'auth-required', error: message });
 }
 
 function setGoogleSession(token: string, expiresInSeconds: number): void {
@@ -291,6 +299,52 @@ function setGoogleSession(token: string, expiresInSeconds: number): void {
   accessToken = token;
   accessTokenExpiresAt = Date.now() + validForSeconds * 1000;
   accessTokenExpiryTimer = window.setTimeout(() => markGoogleSessionExpired(), validForSeconds * 1000);
+}
+
+function relayErrorMessage(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null || !('error' in payload)) return null;
+  const error = payload.error;
+  if (typeof error !== 'object' || error === null || !('message' in error) || typeof error.message !== 'string') return null;
+  return error.message;
+}
+
+function parsePasskeyRefreshResponse(payload: unknown): { accessToken: string; expiresIn: number } {
+  if (
+    typeof payload !== 'object'
+    || payload === null
+    || !('accessToken' in payload)
+    || typeof payload.accessToken !== 'string'
+    || !payload.accessToken
+    || !('expiresIn' in payload)
+    || typeof payload.expiresIn !== 'number'
+    || !Number.isFinite(payload.expiresIn)
+    || payload.expiresIn <= 0
+  ) {
+    throw new Error('Token relay trả về dữ liệu access token không hợp lệ.');
+  }
+  return { accessToken: payload.accessToken, expiresIn: payload.expiresIn };
+}
+
+async function refreshAccessTokenFromPasskeyMemory(): Promise<void> {
+  const refreshToken = passkeyRefreshToken;
+  if (!USE_PASSKEY_GOOGLE_AUTH || !refreshToken) throw new GoogleAuthRequiredError();
+  const response = await firebaseApiFetch('/api/google/local-token/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken }),
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (response.status === 401) {
+    passkeyRefreshToken = null;
+    clearGoogleSession();
+    publishSyncState({ status: 'auth-required', error: 'Refresh token Google không còn hiệu lực. Cần kết nối Google Drive lại một lần.' });
+    throw new GoogleAuthRequiredError();
+  }
+  if (!response.ok) {
+    throw new Error(relayErrorMessage(payload) || `Google token relay trả về lỗi ${response.status}.`);
+  }
+  const refreshed = parsePasskeyRefreshResponse(payload);
+  setGoogleSession(refreshed.accessToken, refreshed.expiresIn);
+  publishSyncState({ status: 'idle', error: null });
 }
 
 function parseGoogleAccountIdentity(value: unknown): GoogleAccountIdentity {
@@ -367,7 +421,24 @@ async function readCurrentGoogleAccount(): Promise<GoogleAccountIdentity> {
   return parseGoogleAccountIdentity(value);
 }
 
+export async function restoreGoogleSessionFromPasskeyRefreshToken(refreshToken: string): Promise<GoogleAccountIdentity> {
+  if (!USE_PASSKEY_GOOGLE_AUTH) throw new Error('Passkey Google session chưa được bật trong build này.');
+  if (!refreshToken.trim()) throw new GoogleAuthRequiredError();
+  passkeyRefreshToken = refreshToken;
+  await refreshAccessTokenFromPasskeyMemory();
+  const account = await readCurrentGoogleAccount();
+  activeGoogleAccount = account;
+  await bindGoogleAccount(account);
+  logDiagnostic('drive-auth', 'info', 'Google access restored from passkey vault', {
+    accountId: account.permissionId,
+    emailAddress: account.emailAddress,
+    expiresAt: new Date(accessTokenExpiresAt).toISOString(),
+  });
+  return account;
+}
+
 export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
+  if (USE_PASSKEY_GOOGLE_AUTH) throw new GoogleAuthRequiredError();
   logDiagnostic('drive-auth', 'info', 'Requesting Google access', { selectAccount: options.selectAccount === true });
   let receivedToken = false;
   try {
@@ -414,7 +485,11 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
 async function ensureAccessToken(interactive: boolean): Promise<string> {
   if (isGoogleConnected()) return accessToken!;
   if (accessToken) markGoogleSessionExpired();
-  if (!interactive) {
+  if (hasRefreshablePasskeySession()) {
+    await refreshAccessTokenFromPasskeyMemory();
+    if (accessToken) return accessToken;
+  }
+  if (!interactive || USE_PASSKEY_GOOGLE_AUTH) {
     throw new GoogleAuthRequiredError();
   }
   await requestGoogleAccessToken();
@@ -1012,7 +1087,7 @@ export async function isAutoSyncEnabled(): Promise<boolean> {
 
 export async function setAutoSyncEnabled(enabled: boolean): Promise<void> {
   await updateMeta({ autoSyncEnabled: enabled });
-  const authRequired = enabled && !isGoogleConnected();
+  const authRequired = enabled && !isGoogleConnected() && !hasRefreshablePasskeySession();
   publishSyncState({
     autoSyncEnabled: enabled,
     status: !navigator.onLine ? 'offline' : authRequired ? 'auth-required' : syncState.status,
@@ -1043,11 +1118,7 @@ function runAutoSync(): Promise<void> {
     try {
       const meta = await readMeta();
       if (!meta.autoSyncEnabled) return;
-      // A linked account can survive a reload while the short-lived access token
-      // cannot. Background sync must not turn that normal state into a visible
-      // auth error or attempt to open Google's consent UI. The next explicit
-      // Drive action will obtain a fresh token through ensureGoogleSession().
-      if (!isGoogleConnected()) return;
+      if (!isGoogleConnected() && !hasRefreshablePasskeySession()) return;
       await syncWithGoogleDrive({ interactive: false });
     } catch {
       // Sync state already contains a user-facing error. Local writes continue normally.
@@ -1065,12 +1136,14 @@ export async function startAutoSync(): Promise<() => void> {
   if (autoSyncStartPromise) return autoSyncStartPromise;
 
   autoSyncStartPromise = (async () => {
-    if (USE_FIREBASE_BACKEND) {
+    if (USE_FIREBASE_BACKEND || USE_PASSKEY_GOOGLE_AUTH) {
       try {
         const { restoreGoogleSession } = await import('./index');
         await restoreGoogleSession();
       } catch (restoreError) {
-        logDiagnostic('drive-auth', 'error', 'Firebase Google session restore failed', restoreError);
+        logDiagnostic('drive-auth', 'info', 'Google session restore was not completed', {
+          reason: restoreError instanceof Error ? restoreError.message : String(restoreError),
+        });
       }
     }
     const meta = await readMeta();

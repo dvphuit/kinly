@@ -23,6 +23,7 @@ const SYNC_FILE_NAME = 'babygrowth-sync-v2.json';
 const MEDIA_QUERY = "'appDataFolder' in parents and appProperties has { key='babygrowthMedia' and value='true' } and trashed = false";
 const OAUTH_STATE_COOKIE = '__Host-kinly_google_oauth_state';
 const OAUTH_STATE_MAX_AGE_MS = 10 * 60_000;
+const MAX_REFRESH_TOKEN_LENGTH = 8_192;
 
 const googleClientId = defineString('GOOGLE_CLIENT_ID', {
   default: '598629342498-c8ltki5l6hfn395ts1497hu5euks33kv.apps.googleusercontent.com',
@@ -41,9 +42,10 @@ interface GoogleAccountDocument {
   permissionId: string | null;
   email: string | null;
   displayName: string | null;
-  refreshTokenCiphertext: string;
+  refreshTokenCiphertext?: string;
   scopes: string;
   needsReauth: boolean;
+  tokenStorage?: 'server' | 'local-passkey';
   lastRefreshAt?: Timestamp | null;
   createdAt?: Timestamp | FieldValue;
   updatedAt?: Timestamp | FieldValue;
@@ -81,6 +83,11 @@ function sendError(res: Response, error: unknown): void {
   }
   logger.error('googleApi request failed', { error: error instanceof Error ? error.message : String(error) });
   res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Không thể hoàn thành thao tác Google Drive.' } });
+}
+
+function setNoStore(res: Response): void {
+  res.setHeader('Cache-Control', 'no-store, private, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
 }
 
 function hash(value: string): string {
@@ -139,6 +146,14 @@ function isInvalidGrant(error: unknown): boolean {
     || candidate.response?.data?.error === 'unauthorized_client';
 }
 
+function readRefreshTokenBody(req: Request): string {
+  const value: unknown = req.body?.refreshToken;
+  if (typeof value !== 'string' || !value.trim() || value.length > MAX_REFRESH_TOKEN_LENGTH) {
+    throw new HttpError(400, 'GOOGLE_REFRESH_TOKEN_INVALID', 'Google refresh token is missing or invalid.');
+  }
+  return value;
+}
+
 const refreshInFlight = new Map<string, Promise<InstanceType<typeof google.auth.OAuth2>>>();
 
 async function getGoogleDriveClient(uid: string): Promise<drive_v3.Drive> {
@@ -152,7 +167,8 @@ async function getGoogleDriveClient(uid: string): Promise<drive_v3.Drive> {
   }
 
   const refreshPromise = (async () => {
-    const refreshToken = decryptSecret(account.refreshTokenCiphertext, tokenEncryptionKey, `google-account:${uid}`);
+    const refreshTokenCiphertext = account.refreshTokenCiphertext;
+    const refreshToken = decryptSecret(refreshTokenCiphertext, tokenEncryptionKey, `google-account:${uid}`);
     const oauth = googleOAuthClient();
     oauth.setCredentials({ refresh_token: refreshToken });
     try {
@@ -164,7 +180,7 @@ async function getGoogleDriveClient(uid: string): Promise<drive_v3.Drive> {
           refreshTokenCiphertext: encryptSecret(rotatedRefreshToken, tokenEncryptionKey, `google-account:${uid}`),
           updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
-      } else if (isLegacyCiphertext(account.refreshTokenCiphertext)) {
+      } else if (isLegacyCiphertext(refreshTokenCiphertext)) {
         await accountRef(uid).set({
           refreshTokenCiphertext: encryptSecret(refreshToken, tokenEncryptionKey, `google-account:${uid}`),
           updatedAt: FieldValue.serverTimestamp(),
@@ -339,6 +355,7 @@ router.get('/google/oauth/callback', async (req, res) => {
       refreshTokenCiphertext: refreshToken,
       scopes: tokens.scope ?? GOOGLE_SCOPE,
       needsReauth: false,
+      tokenStorage: 'server',
       lastRefreshAt: Timestamp.now(),
       createdAt: existing?.createdAt ?? FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -359,11 +376,78 @@ router.get('/google/status', async (req, res) => {
     res.json({
       linked: Boolean(account),
       needsReauth: Boolean(account?.needsReauth),
+      tokenStorage: account?.tokenStorage ?? (account?.refreshTokenCiphertext ? 'server' : null),
       email: account?.email ?? null,
       displayName: account?.displayName ?? null,
       permissionId: account?.permissionId ?? null,
       lastRefreshAt: timestampToIso(account?.lastRefreshAt),
     });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/google/local-token/claim', async (req, res) => {
+  try {
+    const user = await requireFirebaseUser(req);
+    const account = await loadGoogleAccount(user.uid);
+    if (!account?.refreshTokenCiphertext) {
+      throw new HttpError(404, 'GOOGLE_LOCAL_TOKEN_NOT_AVAILABLE', 'Không còn refresh token tạm trên server để chuyển về thiết bị.');
+    }
+    const refreshToken = decryptSecret(account.refreshTokenCiphertext, tokenEncryptionKey, `google-account:${user.uid}`);
+    setNoStore(res);
+    res.json({ refreshToken });
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/google/local-token/commit', async (req, res) => {
+  try {
+    const user = await requireFirebaseUser(req);
+    const account = await loadGoogleAccount(user.uid);
+    if (!account) throw new HttpError(404, 'GOOGLE_ACCOUNT_NOT_FOUND', 'Google account is not linked.');
+    await accountRef(user.uid).set({
+      refreshTokenCiphertext: FieldValue.delete(),
+      tokenStorage: 'local-passkey',
+      needsReauth: false,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    setNoStore(res);
+    res.status(204).end();
+  } catch (error) {
+    sendError(res, error);
+  }
+});
+
+router.post('/google/local-token/refresh', async (req, res) => {
+  try {
+    const user = await requireFirebaseUser(req);
+    const refreshToken = readRefreshTokenBody(req);
+    const oauth = googleOAuthClient();
+    oauth.setCredentials({ refresh_token: refreshToken });
+    try {
+      const result = await oauth.getAccessToken();
+      if (!result.token) throw new GoogleReauthRequiredError();
+      const expiryDate = oauth.credentials.expiry_date;
+      const expiresIn = typeof expiryDate === 'number'
+        ? Math.max(60, Math.floor((expiryDate - Date.now()) / 1000))
+        : 3600;
+      await accountRef(user.uid).set({
+        needsReauth: false,
+        tokenStorage: 'local-passkey',
+        lastRefreshAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      setNoStore(res);
+      res.json({ accessToken: result.token, expiresIn });
+    } catch (error) {
+      if (isInvalidGrant(error)) {
+        await markNeedsReauth(user.uid);
+        throw new GoogleReauthRequiredError();
+      }
+      throw error;
+    }
   } catch (error) {
     sendError(res, error);
   }

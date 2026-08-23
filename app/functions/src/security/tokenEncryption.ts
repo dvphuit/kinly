@@ -25,6 +25,10 @@ function assertAad(aad: string): void {
   if (!aad || aad.length > 256) throw new Error('Encryption context is required and must be <= 256 characters.');
 }
 
+function assertEncryptedSecret(value: string | undefined): asserts value is string {
+  if (!value) throw new Error('Encrypted secret is required.');
+}
+
 export function encryptSecret(value: string, secret: SecretProvider, aad: string): string {
   assertAad(aad);
   const iv = crypto.randomBytes(IV_BYTES);
@@ -35,7 +39,8 @@ export function encryptSecret(value: string, secret: SecretProvider, aad: string
   return `${CURRENT_VERSION}:${iv.toString('base64url')}:${tag.toString('base64url')}:${encrypted.toString('base64url')}`;
 }
 
-export function decryptSecret(value: string, secret: SecretProvider, aad: string): string {
+export function decryptSecret(value: string | undefined, secret: SecretProvider, aad: string): string {
+  assertEncryptedSecret(value);
   const [version, ivEncoded, tagEncoded, encryptedEncoded] = value.split(':');
   if (!version || !ivEncoded || !tagEncoded || !encryptedEncoded) throw new Error('Invalid encrypted secret format.');
 
@@ -55,6 +60,6 @@ export function decryptSecret(value: string, secret: SecretProvider, aad: string
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
 }
 
-export function isLegacyCiphertext(value: string): boolean {
-  return value.startsWith('v1:');
+export function isLegacyCiphertext(value: string | undefined): boolean {
+  return value?.startsWith('v1:') === true;
 }
