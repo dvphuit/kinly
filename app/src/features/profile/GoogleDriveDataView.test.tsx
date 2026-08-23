@@ -21,6 +21,7 @@ const drive = vi.hoisted(() => ({
 let syncStateListener: (() => void) | null = null;
 
 vi.mock('@/features/sync', () => drive);
+
 describe('GoogleDriveDataView', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -50,12 +51,30 @@ describe('GoogleDriveDataView', () => {
     useTimelineStore.getState().resetTrackingData();
   });
 
+  it('separates device and Google Drive into two segments', async () => {
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+
+    const deviceTab = screen.getByRole('tab', { name: /Thiết bị/i });
+    const driveTab = screen.getByRole('tab', { name: /Google Drive/i });
+    expect(deviceTab).toHaveAttribute('aria-selected', 'true');
+    expect(driveTab).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('heading', { name: 'Dữ liệu local' })).toBeInTheDocument();
+    expect(screen.queryByText('Bản sao lưu đang hoạt động')).not.toBeInTheDocument();
+
+    fireEvent.click(driveTab);
+
+    expect(driveTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('heading', { name: 'Dữ liệu local' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Bản sao lưu đang hoạt động')).toBeInTheDocument();
+  });
+
   it('does not open Google auth when a linked account has no active session', async () => {
     drive.isGoogleSessionActive.mockReturnValue(false);
 
     render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
 
-    expect(await screen.findByText('Đã liên kết')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Google Drive.*Đã liên kết/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Xác thực Google Drive' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Xác thực để xem dữ liệu/i })).toBeInTheDocument();
     expect(drive.requestGoogleAccessToken).not.toHaveBeenCalled();
@@ -73,14 +92,15 @@ describe('GoogleDriveDataView', () => {
     drive.isGoogleSessionActive.mockImplementation(() => sessionActive);
 
     render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
 
     expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
-    expect(screen.getByText('Đã xác thực')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Google Drive.*Đã xác thực/i })).toBeInTheDocument();
 
     sessionActive = false;
     act(() => syncStateListener?.());
 
-    await waitFor(() => expect(screen.getByText('Đã liên kết')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('tab', { name: /Google Drive.*Đã liên kết/i })).toBeInTheDocument());
     expect(screen.getByRole('heading', { name: 'Xác thực Google Drive' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Xác thực để xem dữ liệu/i })).toBeInTheDocument();
     expect(drive.requestGoogleAccessToken).not.toHaveBeenCalled();
@@ -93,6 +113,7 @@ describe('GoogleDriveDataView', () => {
       mediaItems: [{ id: 'media-1', driveFileId: 'drive-1', type: 'photo', name: 'baby.jpg' }],
     });
     render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
 
     expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
     expect(drive.listTimelineMediaFromDrive).toHaveBeenCalledWith({ interactive: false });
@@ -109,13 +130,16 @@ describe('GoogleDriveDataView', () => {
     expect(useTimelineStore.getState().timelineItems[0].mediaItems).toEqual([]);
   });
 
-  it('shows and copies production diagnostic logs', async () => {
+  it('opens diagnostic logs in a bottom sheet and copies production logs', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
 
-    await screen.findByText('baby.jpg');
-    fireEvent.click(screen.getByRole('button', { name: /Logs chẩn đoán/i }));
+    await waitFor(() => expect(drive.listTimelineMediaFromDrive).toHaveBeenCalledWith({ interactive: false }));
+    expect(screen.queryByRole('dialog', { name: 'Logs chẩn đoán' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Mở logs chẩn đoán' }));
+
+    expect(screen.getByRole('dialog', { name: 'Logs chẩn đoán' })).toBeInTheDocument();
     expect(screen.getByText('Drive management refresh completed')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sao chép' }));
 
