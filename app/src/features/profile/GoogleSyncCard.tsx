@@ -163,6 +163,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     ? 'Cần xác thực lại Google'
     : STATUS_LABELS[syncState.status];
   const connectionLabel = sessionActive ? 'Đã xác thực' : connected ? 'Đã liên kết' : 'Chưa kết nối';
+  const visibleError = syncState.status === 'auth-required' && connected ? null : error;
 
   return (
     <div className="profile-section-block">
@@ -222,7 +223,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
           </div>
         )}
 
-        {error && <p className="summary-desc" style={{ color: '#B45309', marginTop: 12 }}>{error}</p>}
+        {visibleError && <p className="summary-desc" style={{ color: '#B45309', marginTop: 12 }}>{visibleError}</p>}
 
         <button type="button" className="profile-action-btn secondary" style={{ marginTop: 16 }} onClick={handleSync} disabled={busy}>
           <RefreshCw size={16} className={busy ? 'spin' : ''} />
