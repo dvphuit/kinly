@@ -12,7 +12,8 @@ import {
   deleteTimelineMediaFromDrive,
   downloadTimelineMediaFromDrive,
   getLastSyncedAt,
-  isGoogleConnected,
+  isGoogleLinked,
+  isGoogleSessionActive,
   listTimelineMediaFromDrive,
   requestGoogleAccessToken,
   SYNC_KEYS,
@@ -207,7 +208,8 @@ function LocalMediaTile({
 export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDriveDataViewProps) {
   const navigate = useNavigate();
   const timelineItems = useTimelineStore((state) => state.timelineItems);
-  const [connected, setConnected] = useState(isGoogleConnected());
+  const [linked, setLinked] = useState(isGoogleLinked());
+  const [sessionActive, setSessionActive] = useState(isGoogleSessionActive());
   const [files, setFiles] = useState<DriveTimelineMediaFile[]>([]);
   const [backup, setBackup] = useState<DriveBackupSummary | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -299,14 +301,15 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     setError(null);
     try {
       const [nextFiles, nextBackup, nextLastSyncedAt] = await Promise.all([
-        listTimelineMediaFromDrive({ interactive: true }),
+        listTimelineMediaFromDrive({ interactive: false }),
         checkDriveBackup(),
         getLastSyncedAt(),
       ]);
       setFiles(nextFiles);
       setBackup(nextBackup);
       setLastSyncedAt(nextLastSyncedAt);
-      setConnected(true);
+      setLinked(true);
+      setSessionActive(true);
       logDiagnostic('drive-ui', 'info', 'Drive management refresh completed', {
         mediaCount: nextFiles.length,
         backupFound: nextBackup.found,
@@ -314,29 +317,33 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     } catch (loadError) {
       logDiagnostic('drive-ui', 'error', 'Drive management refresh failed', loadError);
       setError(loadError instanceof Error ? loadError.message : 'Không thể đọc dữ liệu Google Drive.');
-      setConnected(isGoogleConnected());
+      setLinked(isGoogleLinked());
+      setSessionActive(isGoogleSessionActive());
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (connected) void loadDriveData();
-  }, [connected, loadDriveData]);
+    if (sessionActive) void loadDriveData();
+  }, [sessionActive, loadDriveData]);
 
   useEffect(() => {
     void loadLocalData();
   }, [loadLocalData]);
 
   const connectGoogle = async () => {
-    logDiagnostic('drive-ui', 'info', 'Connect Google requested');
+    logDiagnostic('drive-ui', 'info', 'Google authentication requested');
     setLoading(true);
     setError(null);
     try {
       await requestGoogleAccessToken();
-      setConnected(true);
+      setLinked(true);
+      setSessionActive(true);
     } catch (connectError) {
-      logDiagnostic('drive-ui', 'error', 'Connect Google failed', connectError);
+      logDiagnostic('drive-ui', 'error', 'Google authentication failed', connectError);
+      setLinked(isGoogleLinked());
+      setSessionActive(isGoogleSessionActive());
       setError(connectError instanceof Error ? connectError.message : 'Không thể kết nối Google Drive.');
       setLoading(false);
     }
@@ -350,9 +357,9 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     setError(null);
     try {
       await deleteTimelineMediaFromDrive(target.id, { interactive: true });
-      const linked = linkedMedia.get(target.id)?.media ?? [];
-      await Promise.all(linked.flatMap((media) => media.blobId ? [removeLocalMedia(media.blobId)] : []));
-      if (linked.length > 0) {
+      const linkedMediaItems = linkedMedia.get(target.id)?.media ?? [];
+      await Promise.all(linkedMediaItems.flatMap((media) => media.blobId ? [removeLocalMedia(media.blobId)] : []));
+      if (linkedMediaItems.length > 0) {
         useTimelineStore.setState((state) => ({
           timelineItems: state.timelineItems.map((item) => {
             const mediaItems = (item.mediaItems ?? []).filter((media) => media.driveFileId !== target.id);
@@ -398,8 +405,8 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   const deleteLocalFile = async () => {
     const target = localDeleteTarget;
     if (!target) return;
-    const linked = linkedLocalMedia.get(target.id);
-    const backedUp = isMediaBackedUp(linked?.media);
+    const linkedLocal = linkedLocalMedia.get(target.id);
+    const backedUp = isMediaBackedUp(linkedLocal?.media);
     setLocalDeleting(true);
     setError(null);
     logDiagnostic('local-data', 'info', 'Local media delete requested', {
@@ -409,7 +416,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     });
     try {
       await removeLocalMedia(target.id);
-      if (!backedUp && linked) await removeMediaFromTimeline(new Set([target.id]));
+      if (!backedUp && linkedLocal) await removeMediaFromTimeline(new Set([target.id]));
       setLocalDeleteTarget(null);
       await loadLocalData();
       onShowToast?.(backedUp ? 'Đã xóa bản media trên thiết bị.' : 'Đã xóa media local khỏi nhật ký.', '✓');
@@ -460,7 +467,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
         ariaLabel="Quản lý dữ liệu"
         start={<button type="button" className="profile-icon-btn" onClick={() => navigate('/profile')} aria-label="Về hồ sơ"><ArrowLeft size={20} /></button>}
         center={<div className="profile-top-heading"><span className="profile-top-eyebrow">DỮ LIỆU RIÊNG TƯ</span><h1>Quản lý dữ liệu</h1></div>}
-        end={<button type="button" className="profile-icon-btn" onClick={() => { void loadLocalData(); if (connected) void loadDriveData(); }} aria-label="Làm mới dữ liệu" disabled={loading || localLoading}><RefreshCw size={18} className={loading || localLoading ? 'spin' : ''} /></button>}
+        end={<button type="button" className="profile-icon-btn" onClick={() => { void loadLocalData(); if (sessionActive) void loadDriveData(); }} aria-label="Làm mới dữ liệu" disabled={loading || localLoading}><RefreshCw size={18} className={loading || localLoading ? 'spin' : ''} /></button>}
       />
 
       <section className="profile-section-block local-data-section" aria-labelledby="local-data-title">
@@ -500,13 +507,13 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
         ) : (
           <div className="drive-media-list">
             {localFiles.map((file) => {
-              const linked = linkedLocalMedia.get(file.id);
+              const linkedLocal = linkedLocalMedia.get(file.id);
               return (
                 <LocalMediaTile
                   key={file.id}
                   record={file}
-                  linkedTitle={linked?.title}
-                  linkedMedia={linked?.media}
+                  linkedTitle={linkedLocal?.title}
+                  linkedMedia={linkedLocal?.media}
                   onOpen={onOpenLightbox}
                   onDelete={() => setLocalDeleteTarget(file)}
                 />
@@ -519,16 +526,18 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
       <div className="drive-area-heading">
         <span className="drive-area-icon"><Cloud size={19} /></span>
         <div><span>TRÊN ĐÁM MÂY</span><strong>Google Drive</strong></div>
-        <small>{connected ? 'Đã kết nối' : 'Chưa kết nối'}</small>
+        <small>{sessionActive ? 'Đã xác thực' : linked ? 'Đã liên kết' : 'Chưa kết nối'}</small>
       </div>
 
-      {!connected ? (
+      {!sessionActive ? (
         <section className="drive-connect-card">
           <span className="drive-connect-icon"><Cloud size={30} /></span>
-          <h2>Kết nối Google Drive</h2>
-          <p>Media được lưu trong vùng riêng tư của ứng dụng. Hãy kết nối đúng tài khoản để xem và quản lý.</p>
+          <h2>{linked ? 'Xác thực Google Drive' : 'Kết nối Google Drive'}</h2>
+          <p>{linked
+            ? 'Tài khoản Google đã liên kết. Xác thực lại để xem và quản lý dữ liệu trên Drive.'
+            : 'Media được lưu trong vùng riêng tư của ứng dụng. Hãy kết nối đúng tài khoản để xem và quản lý.'}</p>
           <button type="button" className="profile-action-btn primary" onClick={() => void connectGoogle()} disabled={loading}>
-            <ShieldCheck size={17} /> {loading ? 'Đang kết nối...' : 'Kết nối Google'}
+            <ShieldCheck size={17} /> {loading ? 'Đang xác thực...' : linked ? 'Xác thực để xem dữ liệu' : 'Kết nối Google'}
           </button>
         </section>
       ) : (
