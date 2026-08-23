@@ -25,10 +25,10 @@ interface FakeCryptoKey extends CryptoKey {
 }
 
 function bufferBytes(source: BufferSource): Uint8Array {
-  const view = source instanceof ArrayBuffer
-    ? new Uint8Array(source)
-    : new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
-  return Uint8Array.from(view);
+  if (ArrayBuffer.isView(source)) {
+    return Uint8Array.from(new Uint8Array(source.buffer, source.byteOffset, source.byteLength));
+  }
+  return Uint8Array.from(new Uint8Array(source));
 }
 
 function fakeCrypto(): Crypto {
@@ -41,13 +41,18 @@ function fakeCrypto(): Crypto {
     encrypt: vi.fn(async (_algorithm: AlgorithmIdentifier | RsaOaepParams | AesCtrParams | AesCbcParams | AesGcmParams, key: CryptoKey, data: BufferSource) => {
       const marker = (key as FakeCryptoKey).marker;
       const plaintext = bufferBytes(data);
-      return Uint8Array.from([marker, ...plaintext.map((byte) => byte ^ marker)]).buffer;
+      const ciphertext = new Uint8Array(plaintext.length + 1);
+      ciphertext[0] = marker;
+      for (let index = 0; index < plaintext.length; index += 1) ciphertext[index + 1] = plaintext[index] ^ marker;
+      return ciphertext.buffer;
     }),
     decrypt: vi.fn(async (_algorithm: AlgorithmIdentifier | RsaOaepParams | AesCtrParams | AesCbcParams | AesGcmParams, key: CryptoKey, data: BufferSource) => {
       const marker = (key as FakeCryptoKey).marker;
       const ciphertext = bufferBytes(data);
       if (ciphertext[0] !== marker) throw new DOMException('Authentication failed', 'OperationError');
-      return Uint8Array.from(ciphertext.slice(1), (byte) => byte ^ marker).buffer;
+      const plaintext = new Uint8Array(Math.max(0, ciphertext.length - 1));
+      for (let index = 1; index < ciphertext.length; index += 1) plaintext[index - 1] = ciphertext[index] ^ marker;
+      return plaintext.buffer;
     }),
   } as unknown as SubtleCrypto;
 
