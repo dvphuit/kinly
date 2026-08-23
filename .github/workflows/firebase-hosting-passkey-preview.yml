@@ -1,0 +1,46 @@
+name: Passkey Vault Preview
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  build_and_preview:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install dependencies
+        run: cd app && npm ci
+      - name: Read app version
+        id: app_version
+        run: |
+          version="$(node -p "require('./app/package.json').version")"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - name: Build passkey vault preview
+        run: cd app && npm run build
+        env:
+          VITE_APP_VERSION: ${{ steps.app_version.outputs.version }}
+          VITE_BUILD_SHA: ${{ github.event.pull_request.head.sha }}
+          VITE_BUILD_REF: ${{ github.head_ref }}
+          VITE_BUILD_TIME: ${{ github.run_started_at }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_PASSKEY_VAULT_PROTOTYPE: 'true'
+      - name: Deploy Firebase Hosting preview
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BABY_GROWTH_DVPHU }}
+          projectId: baby-growth-dvphu
+          entryPoint: app
