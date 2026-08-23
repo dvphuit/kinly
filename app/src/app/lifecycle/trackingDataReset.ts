@@ -12,8 +12,6 @@ import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import { useUIStore } from '@/store/useUIStore';
 import { clearLocalMedia, waitForLocalRecordWrites } from '@/data/localDb';
 
-const TRACKING_STORE_KEYS = [...SYNC_KEYS, 'babygrowth_v4_expenses'] as const;
-
 export type TrackingDataResetResult =
   | { status: 'synced' }
   | { status: 'local-only'; error: string };
@@ -55,7 +53,7 @@ export async function resetTrackingData(): Promise<TrackingDataResetResult> {
     useReminderStore.getState().resetTrackingData();
     useUIStore.getState().resetTrackingData();
 
-    await waitForLocalRecordWrites(TRACKING_STORE_KEYS);
+    await waitForLocalRecordWrites(SYNC_KEYS);
     await clearLocalMedia();
 
     try {
