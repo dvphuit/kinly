@@ -17,6 +17,8 @@ import {
   isGoogleSessionActive,
   listTimelineMediaFromDrive,
   requestGoogleAccessToken,
+  restoreGoogleSession,
+  startGoogleOAuth,
   subscribeSyncState,
   SYNC_KEYS,
   type DriveBackupSummary,
@@ -240,6 +242,19 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     setSessionActive(isGoogleSessionActive());
   }), []);
 
+  useEffect(() => {
+    if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') return undefined;
+    let active = true;
+    void restoreGoogleSession().then((sessionReady) => {
+      if (!active) return;
+      setLinked(isGoogleLinked());
+      setSessionActive(sessionReady);
+    }).catch((restoreError) => {
+      if (active) setError(restoreError instanceof Error ? restoreError.message : 'Không thể khôi phục trạng thái Google Drive.');
+    });
+    return () => { active = false; };
+  }, []);
+
   const linkedMedia = useMemo(() => {
     const result = new Map<string, { title: string; media: TimelineMediaItem[] }>();
     timelineItems.forEach((item) => {
@@ -347,6 +362,10 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     setLoading(true);
     setError(null);
     try {
+      if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
+        await startGoogleOAuth();
+        return;
+      }
       await requestGoogleAccessToken();
       setLinked(true);
       setSessionActive(true);

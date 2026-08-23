@@ -22,6 +22,7 @@ import {
   overwriteDriveBackupWithLocalData,
   requestGoogleAccessToken,
   restoreDriveBackup,
+  startGoogleOAuth,
   setAutoSyncEnabled,
   syncWithGoogleDrive,
   type DriveBackupSummary,
@@ -123,6 +124,10 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     setIsConnectingGoogle(true);
     setAuthError(null);
     try {
+      if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
+        await startGoogleOAuth();
+        return;
+      }
       await requestGoogleAccessToken();
       setGoogleConnected(true);
 

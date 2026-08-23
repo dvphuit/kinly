@@ -14,6 +14,6 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     clearMocks: true,
     restoreMocks: true,
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+      exclude: [...configDefaults.exclude, 'e2e/**', 'functions/**'],
   },
 });

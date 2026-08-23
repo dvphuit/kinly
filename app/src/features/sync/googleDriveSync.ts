@@ -5,6 +5,7 @@ import { parseSyncSnapshot, SyncSnapshotIntegrityError, type SyncSnapshot } from
 import { getLocalRecord, setLocalRecord } from '@/data/localDb';
 import { logDiagnostic } from '@/app/diagnostics/diagnosticLog';
 import { scheduleIdleTask } from '@/shared/lib/idleTask';
+import { firebaseApiFetch } from '@/shared/firebase/firebaseClient';
 
 export { SyncSnapshotIntegrityError };
 export type { SyncSnapshot };
@@ -18,6 +19,7 @@ const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const AUTO_SYNC_DEBOUNCE_MS = 3_500;
 const AUTO_SYNC_IDLE_TIMEOUT_MS = 3_000;
 const GOOGLE_SESSION_EXPIRY_SKEW_SECONDS = 60;
+const USE_FIREBASE_BACKEND = import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase';
 
 /** Local persistence keys are exposed only for the storage diagnostics screen.
  * Google Drive synchronization never reads or writes them. */
@@ -142,6 +144,8 @@ let accessToken: string | null = null;
 let accessTokenExpiresAt = 0;
 let accessTokenExpiryTimer: number | null = null;
 let activeGoogleAccount: GoogleAccountIdentity | null = null;
+let firebaseSessionActive = false;
+let firebaseSessionAccount: GoogleAccountIdentity | null = null;
 let tokenScriptPromise: Promise<void> | null = null;
 let autoSyncStop: (() => void) | null = null;
 let autoSyncStartPromise: Promise<() => void> | null = null;
@@ -336,11 +340,22 @@ export function isGoogleConfigured(): boolean {
 }
 
 export function isGoogleConnected(): boolean {
+  if (USE_FIREBASE_BACKEND) return firebaseSessionActive;
   return Boolean(accessToken && Date.now() < accessTokenExpiresAt);
 }
 
 export function getGoogleSessionAccount(): GoogleAccountIdentity | null {
+  if (USE_FIREBASE_BACKEND) return firebaseSessionActive ? firebaseSessionAccount : null;
   return isGoogleConnected() ? activeGoogleAccount : null;
+}
+
+export function publishRestoredGoogleState(account: GoogleAccountIdentity | null, needsReauth: boolean): void {
+  firebaseSessionAccount = account;
+  firebaseSessionActive = Boolean(account && !needsReauth);
+  publishSyncState({
+    status: needsReauth ? 'auth-required' : 'idle',
+    error: needsReauth ? 'Cần kết nối lại Google Drive để tiếp tục đồng bộ.' : null,
+  });
 }
 
 async function readCurrentGoogleAccount(): Promise<GoogleAccountIdentity> {
@@ -420,6 +435,31 @@ function driveRequestContext(url: string, method = 'GET'): Record<string, unknow
   } catch {
     return { method, path: url.split('?')[0] };
   }
+}
+
+async function firebaseDriveRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await firebaseApiFetch(path, init);
+  if (response.status === 401) {
+    firebaseSessionActive = false;
+    publishSyncState({ status: 'auth-required', error: 'Cần kết nối lại Google Drive để tiếp tục đồng bộ.' });
+    throw new GoogleAuthRequiredError();
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    throw new Error(payload?.error?.message || `Firebase Google API trả về lỗi ${response.status}.`);
+  }
+  return response.json() as Promise<T>;
+}
+
+async function firebaseDriveBlobRequest(path: string): Promise<Blob> {
+  const response = await firebaseApiFetch(path);
+  if (response.status === 401) {
+    firebaseSessionActive = false;
+    publishSyncState({ status: 'auth-required', error: 'Cần kết nối lại Google Drive để tiếp tục đồng bộ.' });
+    throw new GoogleAuthRequiredError();
+  }
+  if (!response.ok) throw new Error(`Không thể tải media Google Drive qua Firebase (${response.status}).`);
+  return response.blob();
 }
 
 async function driveRequest<T>(url: string, init: RequestInit = {}, interactive = true): Promise<T> {
@@ -520,6 +560,20 @@ export async function uploadTimelineMediaToDrive(
   options: { name?: string; interactive?: boolean; onProgress?: (progress: number) => void } = {},
 ): Promise<string> {
   const interactive = options.interactive !== false;
+  if (USE_FIREBASE_BACKEND) {
+    const params = new URLSearchParams({
+      mediaId,
+      name: options.name || mediaId,
+      mimeType: blob.type || 'application/octet-stream',
+    });
+    const result = await firebaseDriveRequest<DriveFile>(`/api/google/drive/media?${params.toString()}`, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+      body: blob,
+    });
+    options.onProgress?.(100);
+    return result.id;
+  }
   const boundary = `babygrowth-media-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const metadata = {
     name: options.name || mediaId,
@@ -545,6 +599,10 @@ export async function listTimelineMediaFromDrive(
   options: { interactive?: boolean } = {},
 ): Promise<DriveTimelineMediaFile[]> {
   const interactive = options.interactive !== false;
+  if (USE_FIREBASE_BACKEND) {
+    const result = await firebaseDriveRequest<DriveTimelineMediaFileList>('/api/google/drive/media');
+    return (result.files ?? []).map((file) => ({ ...file, size: Number(file.size ?? 0) }));
+  }
   const files: DriveTimelineMediaFile[] = [];
   let pageToken: string | undefined;
   do {
@@ -571,6 +629,7 @@ export function downloadTimelineMediaFromDrive(
   fileId: string,
   options: { interactive?: boolean } = {},
 ): Promise<Blob> {
+  if (USE_FIREBASE_BACKEND) return firebaseDriveBlobRequest(`/api/google/drive/media/${encodeURIComponent(fileId)}`);
   return driveBlobRequest(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, options.interactive === true);
 }
 
@@ -578,6 +637,16 @@ export async function deleteTimelineMediaFromDrive(
   fileId: string,
   options: { interactive?: boolean } = {},
 ): Promise<void> {
+  if (USE_FIREBASE_BACKEND) {
+    const response = await firebaseApiFetch(`/api/google/drive/media/${encodeURIComponent(fileId)}`, { method: 'DELETE' });
+    if (response.status === 401) {
+      firebaseSessionActive = false;
+      publishSyncState({ status: 'auth-required', error: 'Cần kết nối lại Google Drive để tiếp tục đồng bộ.' });
+      throw new GoogleAuthRequiredError();
+    }
+    if (!response.ok && response.status !== 404) throw new Error(`Không thể xóa media trên Google Drive (${response.status}).`);
+    return;
+  }
   const interactive = options.interactive === true;
   const token = await ensureAccessToken(interactive);
   const response = await fetch(
@@ -616,6 +685,12 @@ function getSyncSnapshotSchemaVersion(value: unknown): number | null {
 }
 
 async function findSyncFile(interactive: boolean): Promise<DriveFile | null> {
+  if (USE_FIREBASE_BACKEND) {
+    const result = await firebaseDriveRequest<{ found?: boolean; remoteFileId?: string; updatedAt?: string }>('/api/google/drive/snapshot');
+    return result.found && result.remoteFileId
+      ? { id: result.remoteFileId, name: SYNC_FILE_NAME, modifiedTime: result.updatedAt }
+      : null;
+  }
   const currentFile = await findSyncFileByName(SYNC_FILE_NAME, interactive);
   if (currentFile) return currentFile;
 
@@ -640,6 +715,10 @@ async function findSyncFile(interactive: boolean): Promise<DriveFile | null> {
 }
 
 async function readRemoteSnapshot(fileId: string, interactive: boolean): Promise<SyncSnapshot> {
+  if (USE_FIREBASE_BACKEND) {
+    const result = await firebaseDriveRequest<{ snapshot: unknown }>('/api/google/drive/snapshot');
+    return parseSyncSnapshot(result.snapshot);
+  }
   const result = await driveRequest<unknown>(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
     {},
@@ -649,6 +728,13 @@ async function readRemoteSnapshot(fileId: string, interactive: boolean): Promise
 }
 
 async function writeRemoteSnapshot(payload: Blob, file: DriveFile | null, interactive: boolean): Promise<DriveFile> {
+  if (USE_FIREBASE_BACKEND) {
+    const snapshot = JSON.parse(await payload.text()) as unknown;
+    return firebaseDriveRequest<DriveFile>('/api/google/drive/snapshot', {
+      method: 'POST',
+      body: JSON.stringify({ snapshot, fileId: file?.id ?? null }),
+    });
+  }
   const metadata = file
     ? { name: SYNC_FILE_NAME, mimeType: 'application/json' }
     : { name: SYNC_FILE_NAME, mimeType: 'application/json', parents: ['appDataFolder'] };
@@ -979,6 +1065,14 @@ export async function startAutoSync(): Promise<() => void> {
   if (autoSyncStartPromise) return autoSyncStartPromise;
 
   autoSyncStartPromise = (async () => {
+    if (USE_FIREBASE_BACKEND) {
+      try {
+        const { restoreGoogleSession } = await import('./index');
+        await restoreGoogleSession();
+      } catch (restoreError) {
+        logDiagnostic('drive-auth', 'error', 'Firebase Google session restore failed', restoreError);
+      }
+    }
     const meta = await readMeta();
     publishSyncState({
       autoSyncEnabled: meta.autoSyncEnabled,

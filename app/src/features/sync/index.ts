@@ -39,6 +39,8 @@ const UNLOADED_SYNC_STATE = {
 
 let loadedGoogleDriveSyncModule: GoogleDriveSyncModule | null = null;
 let googleDriveSyncModulePromise: Promise<GoogleDriveSyncModule> | null = null;
+let firebaseGoogleLinked = false;
+let firebaseGoogleAccount: GoogleAccountIdentity | null = null;
 
 function loadGoogleDriveSync(): Promise<GoogleDriveSyncModule> {
   if (loadedGoogleDriveSyncModule) return Promise.resolve(loadedGoogleDriveSyncModule);
@@ -91,11 +93,15 @@ function rememberGoogleLink(account: GoogleAccountIdentity): void {
 }
 
 export function isGoogleConfigured(): boolean {
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
+    return Boolean(import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_APP_ID);
+  }
   return getGoogleClientId() !== null;
 }
 
 /** A successful Google grant remembered for the currently configured OAuth client. */
 export function isGoogleLinked(): boolean {
+  if (firebaseGoogleLinked) return true;
   const clientId = getGoogleClientId();
   if (!clientId || typeof window === 'undefined') return false;
   return window.localStorage.getItem(GOOGLE_LINKED_CLIENT_KEY) === clientId;
@@ -103,6 +109,7 @@ export function isGoogleLinked(): boolean {
 
 /** Last account identity confirmed by Google Drive for the configured OAuth client. No access token is persisted. */
 export function getGoogleLinkedAccount(): GoogleAccountIdentity | null {
+  if (firebaseGoogleAccount) return firebaseGoogleAccount;
   const clientId = getGoogleClientId();
   if (!clientId || typeof window === 'undefined') return null;
   return parseStoredGoogleAccount(window.localStorage.getItem(GOOGLE_LINKED_ACCOUNT_KEY), clientId);
@@ -145,11 +152,58 @@ export function subscribeSyncState(listener: (state: SyncState) => void): () => 
   };
 }
 
+export async function startGoogleOAuth(options: GoogleAuthOptions = {}): Promise<void> {
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') {
+    await requestGoogleAccessToken(options);
+    return;
+  }
+  const { firebaseApiFetch } = await import('@/shared/firebase/firebaseClient');
+  const query = options.selectAccount ? '?selectAccount=true' : '';
+  const response = await firebaseApiFetch(`/api/google/oauth/start${query}`);
+  const payload = await response.json().catch(() => null) as { authorizationUrl?: string; error?: { message?: string } } | null;
+  if (!response.ok || !payload?.authorizationUrl) {
+    throw new Error(payload?.error?.message || 'Không thể bắt đầu kết nối Google Drive.');
+  }
+  window.location.assign(payload.authorizationUrl);
+}
+
 export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
+    throw new Error('Hãy kết nối Google Drive qua Firebase OAuth backend.');
+  }
   const module = await loadGoogleDriveSync();
   const account = await module.requestGoogleAccessToken(options);
   rememberGoogleLink(account);
   return account;
+}
+
+export async function restoreGoogleSession(): Promise<boolean> {
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') return isGoogleSessionActive();
+  const { firebaseApiFetch } = await import('@/shared/firebase/firebaseClient');
+  const response = await firebaseApiFetch('/api/google/status');
+  if (response.status === 401) {
+    firebaseGoogleLinked = false;
+    firebaseGoogleAccount = null;
+    return false;
+  }
+  if (!response.ok) throw new Error('Không thể đọc trạng thái Google Drive.');
+  const status = await response.json() as {
+    linked?: boolean;
+    needsReauth?: boolean;
+    email?: string | null;
+    displayName?: string | null;
+    permissionId?: string | null;
+  };
+  firebaseGoogleLinked = status.linked === true;
+  firebaseGoogleAccount = status.linked && status.permissionId
+    ? {
+      permissionId: status.permissionId,
+      ...(status.email ? { emailAddress: status.email } : {}),
+      ...(status.displayName ? { displayName: status.displayName } : {}),
+    }
+    : null;
+  publishFirebaseRestoreState(status.needsReauth === true);
+  return firebaseGoogleLinked && status.needsReauth !== true;
 }
 
 export async function uploadTimelineMediaToDrive(
@@ -241,6 +295,11 @@ export async function isAutoSyncEnabled(): Promise<boolean> {
 export async function setAutoSyncEnabled(enabled: boolean): Promise<void> {
   const module = await loadGoogleDriveSync();
   return module.setAutoSyncEnabled(enabled);
+}
+
+function publishFirebaseRestoreState(needsReauth: boolean): void {
+  if (!loadedGoogleDriveSyncModule) return;
+  loadedGoogleDriveSyncModule.publishRestoredGoogleState?.(firebaseGoogleAccount, needsReauth);
 }
 
 export async function startAutoSync(): Promise<() => void> {
