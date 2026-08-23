@@ -80,6 +80,13 @@ describe('Google Drive snapshot integrity boundary', () => {
     remote.data.profile.familyData.childName = 'Tampered';
 
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({
+        user: {
+          permissionId: 'account-1',
+          emailAddress: 'parent@example.com',
+          displayName: 'Parent',
+        },
+      }))
       .mockResolvedValueOnce(jsonResponse({ files: [{ id: 'remote-1', name: 'babygrowth-sync-v2.json' }] }))
       .mockResolvedValueOnce(jsonResponse(remote));
     vi.stubGlobal('fetch', fetchMock);
