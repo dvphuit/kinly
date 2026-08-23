@@ -44,6 +44,11 @@ vi.mock('@/features/profile', () => ({
   GoogleDriveDataView: () => <div>Drive data marker</div>,
   loadProfileStyles: async () => undefined,
 }));
+vi.mock('@/features/sync', () => ({
+  loadPasskeyVaultPrototypeView: async () => ({
+    PasskeyVaultPrototypeView: () => <div>Passkey vault marker</div>,
+  }),
+}));
 
 function createProps(overrides: Partial<AppRoutesProps> = {}): AppRoutesProps {
   return {
@@ -73,10 +78,22 @@ describe('AppRoutes', () => {
     ['/expenses', 'Expenses marker'],
     ['/profile', 'Profile marker'],
     ['/profile/google-drive', 'Drive data marker'],
+    ['/experiments/passkey-vault', 'Passkey vault marker'],
     ['/unknown', 'Home marker'],
   ])('renders %s at the expected surface', async (path, marker) => {
     renderRoute(path);
     expect(await screen.findByText(marker)).toBeInTheDocument();
+  });
+
+  it('exposes passkey setup from Google Drive data management', async () => {
+    const user = userEvent.setup();
+    renderRoute('/profile/google-drive');
+
+    const setupLink = await screen.findByRole('link', { name: 'Thiết lập Passkey' });
+    expect(setupLink).toHaveAttribute('href', '/experiments/passkey-vault');
+
+    await user.click(setupLink);
+    expect(await screen.findByText('Passkey vault marker')).toBeInTheDocument();
   });
 
   it('wires home quick log', async () => {
