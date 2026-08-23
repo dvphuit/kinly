@@ -1,8 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppModalController } from '@/app/hooks/useAppModals';
-import { initializeChildProfile, resetChildStoresToDefaults } from '@/features/profile';
+import { initializeChildProfile, resetChildStoresToDefaults, useProfileStore } from '@/features/profile';
 import { AppContent } from './App';
 
 const addToast = vi.fn();
@@ -64,6 +64,30 @@ describe('AppContent', () => {
 
     expect(await screen.findByRole('heading', { name: /Đăng nhập Google Drive/i })).toBeInTheDocument();
     expect(screen.queryByText('Header marker')).not.toBeInTheDocument();
+  });
+
+  it('waits for profile hydration before deciding whether onboarding is required', async () => {
+    initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2025-11-20' });
+    let finishHydration: (() => void) | undefined;
+    const hasHydrated = vi.spyOn(useProfileStore.persist, 'hasHydrated').mockReturnValue(false);
+    const onFinishHydration = vi.spyOn(useProfileStore.persist, 'onFinishHydration').mockImplementation((listener) => {
+      finishHydration = () => listener(useProfileStore.getState());
+      return () => undefined;
+    });
+
+    render(<MemoryRouter initialEntries={['/']}><AppContent /></MemoryRouter>);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Đang khôi phục hồ sơ');
+    expect(screen.queryByRole('heading', { name: /Đăng nhập Google Drive/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Header marker')).not.toBeInTheDocument();
+
+    act(() => finishHydration?.());
+
+    await waitFor(() => expect(screen.getByText('Header marker')).toBeInTheDocument());
+    expect(screen.queryByRole('heading', { name: /Đăng nhập Google Drive/i })).not.toBeInTheDocument();
+
+    hasHydrated.mockRestore();
+    onFinishHydration.mockRestore();
   });
 
   it('composes the shell and mounts sync/reminder lifecycles when initialized', () => {

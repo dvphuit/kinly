@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppVersionBadge } from '@/shared/ui/AppVersionBadge';
 import { BottomNav } from '@/shared/ui/BottomNav';
@@ -40,8 +40,16 @@ export const AppContent: React.FC = () => {
   const isProfilePage = location.pathname.startsWith('/profile');
   const familyData = useProfileStore((state) => state.familyData);
   const profileMode = useUIStore((state) => state.profileMode);
-  const isInitialized = Boolean(familyData?.isInitialized && familyData?.childName);
+  const [profileHydrated, setProfileHydrated] = useState(() => useProfileStore.persist.hasHydrated());
+  const isInitialized = profileHydrated && Boolean(familyData?.isInitialized && familyData?.childName);
 
+  useEffect(() => {
+    if (useProfileStore.persist.hasHydrated()) {
+      setProfileHydrated(true);
+      return undefined;
+    }
+    return useProfileStore.persist.onFinishHydration(() => setProfileHydrated(true));
+  }, []);
   useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
   useEffect(() => {
     logDiagnostic('app', 'info', 'App started', {
@@ -67,6 +75,16 @@ export const AppContent: React.FC = () => {
 
   useThemeColor({ pathname: location.pathname, isModalOpen: isFullScreenOverlayOpen, profileMode });
   useReminderLifecycle({ onQuickLog: handleQuickAction, onOpenNotifications: modals.openNotifications });
+
+  if (!profileHydrated) {
+    return (
+      <div className="app-container" id="appContainer">
+        <ToastContainer toasts={toasts} />
+        <div className="route-loading-state" role="status">Đang khôi phục hồ sơ…</div>
+        <PWABadge />
+      </div>
+    );
+  }
 
   if (!isInitialized) {
     return (
