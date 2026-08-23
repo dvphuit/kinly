@@ -11,7 +11,8 @@ const drive = vi.hoisted(() => ({
   deleteTimelineMediaFromDrive: vi.fn(),
   downloadTimelineMediaFromDrive: vi.fn(),
   getLastSyncedAt: vi.fn(),
-  isGoogleConnected: vi.fn(),
+  isGoogleLinked: vi.fn(),
+  isGoogleSessionActive: vi.fn(),
   listTimelineMediaFromDrive: vi.fn(),
   requestGoogleAccessToken: vi.fn(),
 }));
@@ -19,9 +20,11 @@ const drive = vi.hoisted(() => ({
 vi.mock('@/features/sync', () => drive);
 describe('GoogleDriveDataView', () => {
   beforeEach(async () => {
+    vi.clearAllMocks();
     window.localStorage.clear();
     await clearLocalMedia();
-    drive.isGoogleConnected.mockReturnValue(true);
+    drive.isGoogleLinked.mockReturnValue(true);
+    drive.isGoogleSessionActive.mockReturnValue(true);
     drive.listTimelineMediaFromDrive.mockResolvedValue([{
       id: 'drive-1', name: 'baby.jpg', mimeType: 'image/jpeg', size: 2048,
       createdTime: '2026-08-18T08:00:00.000Z', modifiedTime: '2026-08-18T09:00:00.000Z',
@@ -39,6 +42,24 @@ describe('GoogleDriveDataView', () => {
     useTimelineStore.getState().resetTrackingData();
   });
 
+  it('does not open Google auth when a linked account has no active session', async () => {
+    drive.isGoogleSessionActive.mockReturnValue(false);
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+
+    expect(await screen.findByText('Đã liên kết')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Xác thực Google Drive' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Xác thực để xem dữ liệu/i })).toBeInTheDocument();
+    expect(drive.requestGoogleAccessToken).not.toHaveBeenCalled();
+    expect(drive.listTimelineMediaFromDrive).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Xác thực để xem dữ liệu/i }));
+
+    await waitFor(() => expect(drive.requestGoogleAccessToken).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(drive.listTimelineMediaFromDrive).toHaveBeenCalledWith({ interactive: false }));
+    expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
+  });
+
   it('lists, previews, and deletes private Drive media', async () => {
     const onOpenLightbox = vi.fn();
     useTimelineStore.getState().addTimelineItem({
@@ -48,6 +69,7 @@ describe('GoogleDriveDataView', () => {
     render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={vi.fn()} /></MemoryRouter>);
 
     expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
+    expect(drive.listTimelineMediaFromDrive).toHaveBeenCalledWith({ interactive: false });
     expect(screen.getByText('Đang dùng trong “Nụ cười đầu ngày”')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Xem ảnh baby.jpg' }));
     await waitFor(() => expect(onOpenLightbox).toHaveBeenCalledWith('blob:drive-preview', false));
