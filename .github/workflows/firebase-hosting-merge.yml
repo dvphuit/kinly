@@ -20,7 +20,7 @@ jobs:
         run: |
           version="$(node -p "require('./app/package.json').version")"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-      - name: Build
+      - name: Build app
         run: cd app && npm run build
         env:
           VITE_APP_VERSION: ${{ steps.app_version.outputs.version }}
@@ -35,6 +35,22 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+      - name: Build Google token relay
+        run: |
+          cd app/functions
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Prepare Firebase service account
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BABY_GROWTH_DVPHU }}
+      - name: Deploy Google token relay
+        working-directory: app
+        run: npx --yes firebase-tools@15.28.1 deploy --only functions:googleApi --project baby-growth-dvphu --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
