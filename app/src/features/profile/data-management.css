@@ -252,3 +252,25 @@
     height: 30px;
   }
 }
+
+
+/* Keep the segmented data browser compact on both phone and desktop. */
+.drive-data-page { gap: 12px; }
+.drive-data-controls { gap: 8px; }
+.drive-data-segments { gap: 3px; padding: 3px; border-radius: 17px; }
+.drive-data-segment { min-height: 52px; padding: 6px 8px; border-radius: 13px; }
+.drive-debug-trigger { min-height: 44px; border-radius: 14px; }
+.drive-cloud-panel { gap: 12px; }
+.drive-cloud-panel .drive-data-summary { gap: 6px; }
+.drive-cloud-panel .drive-data-summary article { padding: 10px 4px; border-radius: 15px; }
+.drive-cloud-panel .drive-data-summary article > span { width: 29px; height: 29px; border-radius: 10px; }
+.drive-cloud-panel .drive-backup-card { padding: 11px 13px; border-radius: 16px; }
+.drive-cloud-panel .profile-section-block { gap: 11px; }
+.drive-cloud-panel .drive-media-list { gap: 8px; }
+.drive-cloud-panel .drive-media-card { border-radius: 16px; }
+.drive-cloud-panel .drive-media-info { padding: 9px 36px 10px 10px; }
+
+@media (max-width: 420px) {
+  .drive-data-page { gap: 10px; }
+  .drive-data-segment { min-height: 48px; }
+}
