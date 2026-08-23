@@ -1,5 +1,6 @@
 import { lazy, memo, Suspense } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { HomeView } from '@/features/home';
 import type { AddToast } from '@/app/hooks/useAppModals';
 import { loadExpensesFeature, loadGrowthFeature, loadProfileFeature, loadTimelineFeature } from './routePreload';
@@ -14,7 +15,6 @@ const PasskeyVaultPrototypeView = lazy(async () => {
   const prototype = await sync.loadPasskeyVaultPrototypeView();
   return { default: prototype.PasskeyVaultPrototypeView };
 });
-const PASSKEY_VAULT_PROTOTYPE_ENABLED = import.meta.env.VITE_PASSKEY_VAULT_PROTOTYPE === 'true';
 
 const RouteLoadingFallback = () => <div className="route-loading-state" role="status" aria-live="polite">Đang mở trang…</div>;
 
@@ -42,6 +42,7 @@ export const AppRoutes = memo(function AppRoutes({
   onOpenNotifications,
 }: AppRoutesProps) {
   const location = useLocation();
+  const showPasskeySetup = location.pathname === '/profile/google-drive';
 
   return (
     <div className="app-route-surface" key={location.pathname}>
@@ -61,12 +62,37 @@ export const AppRoutes = memo(function AppRoutes({
           <Route path="/expenses" element={<ExpensesView onOpenAddExpense={onOpenAddExpense} onShowToast={onShowToast} />} />
           <Route path="/profile" element={<ProfileView onOpenEditProfile={onOpenEditProfile} onOpenNotifications={onOpenNotifications} onShowToast={onShowToast} />} />
           <Route path="/profile/google-drive" element={<GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={onShowToast} />} />
-          {PASSKEY_VAULT_PROTOTYPE_ENABLED && (
-            <Route path="/experiments/passkey-vault" element={<PasskeyVaultPrototypeView />} />
-          )}
+          <Route path="/experiments/passkey-vault" element={<PasskeyVaultPrototypeView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
+      {showPasskeySetup && createPortal(
+        <Link
+          to="/experiments/passkey-vault"
+          aria-label="Thiết lập Passkey"
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 'calc(18px + env(safe-area-inset-bottom))',
+            zIndex: 1301,
+            minHeight: 44,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 16px',
+            borderRadius: 16,
+            color: 'var(--color-text-light)',
+            background: 'var(--color-primary-dark)',
+            boxShadow: 'var(--shadow-card)',
+            fontSize: 13,
+            fontWeight: 800,
+            textDecoration: 'none',
+          }}
+        >
+          Thiết lập Passkey
+        </Link>,
+        document.body,
+      )}
     </div>
   );
 });
