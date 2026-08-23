@@ -54,7 +54,7 @@ export const AppContent: React.FC = () => {
   useEffect(() => {
     logDiagnostic('navigation', 'info', 'Route changed', { path: location.pathname });
   }, [location.pathname]);
-  useAutoSyncLifecycle();
+  useAutoSyncLifecycle(isInitialized);
 
   const { toasts, addToast } = useToast();
   const modals = useAppModals();
