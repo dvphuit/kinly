@@ -27,6 +27,8 @@ export const SYNC_KEYS = [
   'babygrowth_v4_reminders',
 ] as const satisfies GoogleDriveSyncModule['SYNC_KEYS'];
 
+const GOOGLE_LINKED_CLIENT_KEY = 'babygrowth_v4_google_linked_client';
+
 const UNLOADED_SYNC_STATE = {
   status: 'idle',
   lastSyncedAt: null,
@@ -54,13 +56,37 @@ function loadGoogleDriveSync(): Promise<GoogleDriveSyncModule> {
   return googleDriveSyncModulePromise;
 }
 
-export function isGoogleConfigured(): boolean {
+function getGoogleClientId(): string | null {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  return typeof clientId === 'string' && Boolean(clientId.trim());
+  return typeof clientId === 'string' && clientId.trim() ? clientId.trim() : null;
 }
 
-export function isGoogleConnected(): boolean {
+function rememberGoogleLink(): void {
+  const clientId = getGoogleClientId();
+  if (!clientId || typeof window === 'undefined') return;
+  window.localStorage.setItem(GOOGLE_LINKED_CLIENT_KEY, clientId);
+}
+
+export function isGoogleConfigured(): boolean {
+  return getGoogleClientId() !== null;
+}
+
+export function isGoogleLinked(): boolean {
+  const clientId = getGoogleClientId();
+  if (!clientId || typeof window === 'undefined') return false;
+  return window.localStorage.getItem(GOOGLE_LINKED_CLIENT_KEY) === clientId;
+}
+
+export function isGoogleSessionActive(): boolean {
   return loadedGoogleDriveSyncModule?.isGoogleConnected() ?? false;
+}
+
+/**
+ * UI-facing connection state. Google access tokens remain short-lived and in memory,
+ * while a successful grant is remembered for the configured OAuth client across reloads.
+ */
+export function isGoogleConnected(): boolean {
+  return isGoogleSessionActive() || isGoogleLinked();
 }
 
 export function getSyncState(): SyncState {
@@ -88,7 +114,8 @@ export function subscribeSyncState(listener: (state: SyncState) => void): () => 
 
 export async function requestGoogleAccessToken(): Promise<void> {
   const module = await loadGoogleDriveSync();
-  return module.requestGoogleAccessToken();
+  await module.requestGoogleAccessToken();
+  rememberGoogleLink();
 }
 
 export async function uploadTimelineMediaToDrive(
