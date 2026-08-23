@@ -957,10 +957,11 @@ function runAutoSync(): Promise<void> {
     try {
       const meta = await readMeta();
       if (!meta.autoSyncEnabled) return;
-      if (!isGoogleConnected()) {
-        publishSyncState({ status: 'auth-required', autoSyncEnabled: true, error: 'Cần xác thực lại Google để tiếp tục tự động đồng bộ.' });
-        return;
-      }
+      // A linked account can survive a reload while the short-lived access token
+      // cannot. Background sync must not turn that normal state into a visible
+      // auth error or attempt to open Google's consent UI. The next explicit
+      // Drive action will obtain a fresh token through ensureGoogleSession().
+      if (!isGoogleConnected()) return;
       await syncWithGoogleDrive({ interactive: false });
     } catch {
       // Sync state already contains a user-facing error. Local writes continue normally.

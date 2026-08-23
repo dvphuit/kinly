@@ -213,6 +213,32 @@ describe('generation-2 Google Drive sync', () => {
     });
   });
 
+  it('does not publish re-authentication state when background auto-sync has no runtime token after reload', async () => {
+    vi.useFakeTimers();
+    localDb.getLocalRecord.mockResolvedValue(JSON.stringify({
+      lastSyncedFingerprint: 'fingerprint-1',
+      remoteFileId: 'remote-1',
+      lastSyncedAt: '2026-08-23T02:00:00.000Z',
+      autoSyncEnabled: true,
+      googleAccountId: 'account-1',
+    }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const sync = await import('@/features/sync/googleDriveSync');
+
+    const stop = await sync.startAutoSync();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await Promise.resolve();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sync.getSyncState()).toMatchObject({
+      status: 'idle',
+      autoSyncEnabled: true,
+      error: null,
+    });
+    stop();
+  });
+
   it('resets account-scoped sync baseline when the user selects another Google account', async () => {
     const requestAccessToken = installGoogleTokenClient('account-b-token');
     localDb.getLocalRecord.mockResolvedValue(JSON.stringify({
