@@ -12,6 +12,8 @@ export type SyncState = import('./googleDriveSync').SyncState;
 export type DriveBackupSummary = import('./googleDriveSync').DriveBackupSummary;
 export type DriveTimelineMediaFile = import('./googleDriveSync').DriveTimelineMediaFile;
 export type PausedDriveOperations = import('./googleDriveSync').PausedDriveOperations;
+export type GoogleAccountIdentity = import('./googleDriveSync').GoogleAccountIdentity;
+export type GoogleAuthOptions = import('./googleDriveSync').GoogleAuthOptions;
 
 /** Local persistence keys used by reset and diagnostics UI. Drive sync serializes semantic snapshots instead. */
 export const SYNC_KEYS = [
@@ -25,6 +27,7 @@ export const SYNC_KEYS = [
 ] as const;
 
 const GOOGLE_LINKED_CLIENT_KEY = 'babygrowth_v4_google_linked_client';
+const GOOGLE_LINKED_ACCOUNT_KEY = 'babygrowth_v4_google_linked_account';
 
 const UNLOADED_SYNC_STATE = {
   status: 'idle',
@@ -58,10 +61,33 @@ function getGoogleClientId(): string | null {
   return typeof clientId === 'string' && clientId.trim() ? clientId.trim() : null;
 }
 
-function rememberGoogleLink(): void {
+function parseStoredGoogleAccount(raw: string | null, clientId: string): GoogleAccountIdentity | null {
+  if (!raw) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== 'object' || value === null || !('clientId' in value) || value.clientId !== clientId || !('account' in value)) {
+      return null;
+    }
+    const account = value.account;
+    if (typeof account !== 'object' || account === null || !('permissionId' in account) || typeof account.permissionId !== 'string' || !account.permissionId) {
+      return null;
+    }
+    return {
+      permissionId: account.permissionId,
+      ...('emailAddress' in account && typeof account.emailAddress === 'string' ? { emailAddress: account.emailAddress } : {}),
+      ...('displayName' in account && typeof account.displayName === 'string' ? { displayName: account.displayName } : {}),
+      ...('photoLink' in account && typeof account.photoLink === 'string' ? { photoLink: account.photoLink } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function rememberGoogleLink(account: GoogleAccountIdentity): void {
   const clientId = getGoogleClientId();
   if (!clientId || typeof window === 'undefined') return;
   window.localStorage.setItem(GOOGLE_LINKED_CLIENT_KEY, clientId);
+  window.localStorage.setItem(GOOGLE_LINKED_ACCOUNT_KEY, JSON.stringify({ clientId, account }));
 }
 
 export function isGoogleConfigured(): boolean {
@@ -73,6 +99,13 @@ export function isGoogleLinked(): boolean {
   const clientId = getGoogleClientId();
   if (!clientId || typeof window === 'undefined') return false;
   return window.localStorage.getItem(GOOGLE_LINKED_CLIENT_KEY) === clientId;
+}
+
+/** Last account identity confirmed by Google Drive for the configured OAuth client. No access token is persisted. */
+export function getGoogleLinkedAccount(): GoogleAccountIdentity | null {
+  const clientId = getGoogleClientId();
+  if (!clientId || typeof window === 'undefined') return null;
+  return parseStoredGoogleAccount(window.localStorage.getItem(GOOGLE_LINKED_ACCOUNT_KEY), clientId);
 }
 
 /** A live, unexpired access-token session in the current JavaScript runtime. */
@@ -112,10 +145,11 @@ export function subscribeSyncState(listener: (state: SyncState) => void): () => 
   };
 }
 
-export async function requestGoogleAccessToken(): Promise<void> {
+export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
   const module = await loadGoogleDriveSync();
-  await module.requestGoogleAccessToken();
-  rememberGoogleLink();
+  const account = await module.requestGoogleAccessToken(options);
+  rememberGoogleLink(account);
+  return account;
 }
 
 export async function uploadTimelineMediaToDrive(

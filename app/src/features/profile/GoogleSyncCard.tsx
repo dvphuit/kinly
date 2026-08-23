@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Cloud, CloudDownload, CloudUpload, Database, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Cloud, CloudDownload, CloudUpload, Database, RefreshCw, ShieldCheck, UserRound } from 'lucide-react';
 import {
+  getGoogleLinkedAccount,
   getLastSyncedAt,
   getSyncState,
   isGoogleConfigured,
@@ -12,6 +13,7 @@ import {
   setAutoSyncEnabled,
   subscribeSyncState,
   syncWithGoogleDrive,
+  type GoogleAccountIdentity,
   type SyncResult,
   type SyncState,
 } from '@/features/sync';
@@ -23,6 +25,11 @@ interface GoogleSyncCardProps {
 function formatSyncTime(value: string | null): string {
   if (!value) return 'Chưa đồng bộ';
   return new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
+}
+
+function formatGoogleAccount(account: GoogleAccountIdentity | null): string | null {
+  if (!account) return null;
+  return account.emailAddress || account.displayName || null;
 }
 
 const STATUS_LABELS: Record<SyncState['status'], string> = {
@@ -40,6 +47,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
   const [busy, setBusy] = useState(false);
   const [linked, setLinked] = useState(isGoogleLinked());
   const [sessionActive, setSessionActive] = useState(isGoogleSessionActive());
+  const [account, setAccount] = useState<GoogleAccountIdentity | null>(getGoogleLinkedAccount());
   const [syncState, setSyncState] = useState<SyncState>(getSyncState());
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getSyncState().lastSyncedAt);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +58,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
       setLastSyncedAt(state.lastSyncedAt);
       setLinked(isGoogleLinked());
       setSessionActive(isGoogleSessionActive());
+      setAccount(getGoogleLinkedAccount());
       setError(state.error);
     });
     getLastSyncedAt().then((value) => {
@@ -66,7 +75,8 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
 
   const ensureGoogleSession = async () => {
     if (isGoogleSessionActive()) return;
-    await requestGoogleAccessToken();
+    const nextAccount = await requestGoogleAccessToken();
+    setAccount(nextAccount);
     setLinked(true);
     setSessionActive(true);
   };
@@ -112,6 +122,24 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     } catch (toggleError) {
       setSessionActive(isGoogleSessionActive());
       setError(toggleError instanceof Error ? toggleError.message : 'Không thể bật auto-sync.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSwitchGoogleAccount = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const nextAccount = await requestGoogleAccessToken({ selectAccount: true });
+      setAccount(nextAccount);
+      setLinked(true);
+      setSessionActive(true);
+      const label = formatGoogleAccount(nextAccount);
+      onShowToast?.(label ? `Đã chuyển Google Drive sang ${label}.` : 'Đã chuyển tài khoản Google Drive.', '👤');
+    } catch (switchError) {
+      setSessionActive(isGoogleSessionActive());
+      setError(switchError instanceof Error ? switchError.message : 'Không thể đổi tài khoản Google Drive.');
     } finally {
       setBusy(false);
     }
@@ -163,6 +191,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     ? 'Cần xác thực lại Google'
     : STATUS_LABELS[syncState.status];
   const connectionLabel = sessionActive ? 'Đã xác thực' : linked ? 'Đã liên kết' : 'Chưa kết nối';
+  const accountLabel = formatGoogleAccount(account);
   const visibleError = syncState.status === 'auth-required' && linked ? null : error;
 
   return (
@@ -182,6 +211,20 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
             </div>
           </div>
         </div>
+        {accountLabel && (
+          <>
+            <div className="medical-divider"></div>
+            <div className="medical-info-row single">
+              <div className="medical-info-item full">
+                <div className="medical-item-icon"><UserRound size={15} /></div>
+                <div>
+                  <span className="medical-item-lbl">Tài khoản Google</span>
+                  <span className="medical-item-val">{accountLabel}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
         <div className="medical-divider"></div>
         <div className="medical-info-row single">
           <div className="medical-info-item full">
@@ -229,6 +272,12 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
           <RefreshCw size={16} className={busy ? 'spin' : ''} />
           <span>{busy ? 'Đang đồng bộ...' : sessionActive ? 'Đồng bộ ngay với Google Drive' : linked ? 'Xác thực lại & đồng bộ' : 'Kết nối Google & đồng bộ'}</span>
         </button>
+        {linked && (
+          <button type="button" className="profile-action-btn secondary" style={{ marginTop: 10 }} onClick={handleSwitchGoogleAccount} disabled={busy}>
+            <UserRound size={16} />
+            <span>Đổi tài khoản Google</span>
+          </button>
+        )}
         <button type="button" className="profile-drive-manage-link" onClick={() => navigate('/profile/google-drive')}>
           <span className="profile-drive-manage-icon"><Database size={17} /></span>
           <span><strong>Quản lý dữ liệu</strong><small>Xem dữ liệu trên máy và Google Drive</small></span>

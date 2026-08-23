@@ -16,6 +16,7 @@ import {
   isGoogleSessionActive,
   listTimelineMediaFromDrive,
   requestGoogleAccessToken,
+  subscribeSyncState,
   SYNC_KEYS,
   type DriveBackupSummary,
   type DriveTimelineMediaFile,
@@ -229,6 +230,10 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   const [logs, setLogs] = useState<DiagnosticLogEntry[]>(getDiagnosticLogs);
 
   useEffect(() => subscribeDiagnosticLogs(setLogs), []);
+  useEffect(() => subscribeSyncState(() => {
+    setLinked(isGoogleLinked());
+    setSessionActive(isGoogleSessionActive());
+  }), []);
 
   const linkedMedia = useMemo(() => {
     const result = new Map<string, { title: string; media: TimelineMediaItem[] }>();

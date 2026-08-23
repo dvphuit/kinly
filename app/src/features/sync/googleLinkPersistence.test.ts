@@ -15,31 +15,53 @@ function installGoogleTokenClient(token: string): void {
   });
 }
 
+function accountResponse(): Response {
+  return new Response(JSON.stringify({
+    user: {
+      permissionId: 'account-1',
+      emailAddress: 'parent@example.com',
+      displayName: 'Parent',
+    },
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 describe('Google link persistence', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'client-id');
     window.localStorage.clear();
     installGoogleTokenClient('runtime-token');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(accountResponse()));
   });
 
   afterEach(() => {
     Object.defineProperty(window, 'google', { configurable: true, value: undefined });
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
-  it('keeps the Google link after a new app runtime without pretending the token session survived', async () => {
+  it('keeps Google account identity after a new runtime without persisting the access token', async () => {
     const sync = await import('./index');
 
     expect(sync.isGoogleConnected()).toBe(false);
     expect(sync.isGoogleLinked()).toBe(false);
     expect(sync.isGoogleSessionActive()).toBe(false);
+    expect(sync.getGoogleLinkedAccount()).toBeNull();
 
-    await sync.requestGoogleAccessToken();
+    const account = await sync.requestGoogleAccessToken();
 
+    expect(account).toMatchObject({ permissionId: 'account-1', emailAddress: 'parent@example.com' });
     expect(sync.isGoogleConnected()).toBe(true);
     expect(sync.isGoogleLinked()).toBe(true);
     expect(sync.isGoogleSessionActive()).toBe(true);
+    expect(sync.getGoogleLinkedAccount()).toMatchObject({
+      permissionId: 'account-1',
+      emailAddress: 'parent@example.com',
+      displayName: 'Parent',
+    });
     expect(window.localStorage.getItem('babygrowth_v4_google_linked_client')).toBe('client-id');
     expect([...Array(window.localStorage.length).keys()]
       .map((index) => window.localStorage.getItem(window.localStorage.key(index) ?? ''))
@@ -52,9 +74,13 @@ describe('Google link persistence', () => {
     expect(reloadedSync.isGoogleSessionActive()).toBe(false);
     expect(reloadedSync.isGoogleConnected()).toBe(false);
     expect(reloadedSync.isGoogleLinked()).toBe(true);
+    expect(reloadedSync.getGoogleLinkedAccount()).toMatchObject({
+      permissionId: 'account-1',
+      emailAddress: 'parent@example.com',
+    });
   });
 
-  it('does not carry a remembered link to a different OAuth client', async () => {
+  it('does not carry a remembered link or account to a different OAuth client', async () => {
     const sync = await import('./index');
     await sync.requestGoogleAccessToken();
 
@@ -64,5 +90,6 @@ describe('Google link persistence', () => {
 
     expect(reloadedSync.isGoogleLinked()).toBe(false);
     expect(reloadedSync.isGoogleConnected()).toBe(false);
+    expect(reloadedSync.getGoogleLinkedAccount()).toBeNull();
   });
 });

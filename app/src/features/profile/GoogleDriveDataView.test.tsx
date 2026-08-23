@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearLocalMedia, getLocalMedia, setLocalMedia } from '@/data/localDb';
@@ -15,12 +15,20 @@ const drive = vi.hoisted(() => ({
   isGoogleSessionActive: vi.fn(),
   listTimelineMediaFromDrive: vi.fn(),
   requestGoogleAccessToken: vi.fn(),
+  subscribeSyncState: vi.fn(),
 }));
+
+let syncStateListener: (() => void) | null = null;
 
 vi.mock('@/features/sync', () => drive);
 describe('GoogleDriveDataView', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    syncStateListener = null;
+    drive.subscribeSyncState.mockImplementation((listener: () => void) => {
+      syncStateListener = listener;
+      return () => { syncStateListener = null; };
+    });
     window.localStorage.clear();
     await clearLocalMedia();
     drive.isGoogleLinked.mockReturnValue(true);
@@ -58,6 +66,24 @@ describe('GoogleDriveDataView', () => {
     await waitFor(() => expect(drive.requestGoogleAccessToken).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(drive.listTimelineMediaFromDrive).toHaveBeenCalledWith({ interactive: false }));
     expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
+  });
+
+  it('updates to linked re-authentication state when the Google session expires while open', async () => {
+    let sessionActive = true;
+    drive.isGoogleSessionActive.mockImplementation(() => sessionActive);
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+
+    expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
+    expect(screen.getByText('Đã xác thực')).toBeInTheDocument();
+
+    sessionActive = false;
+    act(() => syncStateListener?.());
+
+    await waitFor(() => expect(screen.getByText('Đã liên kết')).toBeInTheDocument());
+    expect(screen.getByRole('heading', { name: 'Xác thực Google Drive' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Xác thực để xem dữ liệu/i })).toBeInTheDocument();
+    expect(drive.requestGoogleAccessToken).not.toHaveBeenCalled();
   });
 
   it('lists, previews, and deletes private Drive media', async () => {

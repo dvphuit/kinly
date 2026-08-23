@@ -19,6 +19,7 @@ import {
   checkDriveBackup,
   isGoogleConfigured,
   isGoogleConnected,
+  overwriteDriveBackupWithLocalData,
   requestGoogleAccessToken,
   restoreDriveBackup,
   setAutoSyncEnabled,
@@ -37,6 +38,8 @@ import { HavenDropdown } from '@/shared/ui/HavenDropdown';
 interface OnboardingViewProps {
   onComplete?: () => void;
 }
+
+type ProfileSetupMode = 'create' | 'replace-drive';
 
 const PRESET_BABY_AVATARS = [
   { label: 'Bé Yêu', url: '/assets/avatars/baby_avatar.jpg' },
@@ -88,6 +91,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(() => isGoogleConnected());
+  const [profileSetupMode, setProfileSetupMode] = useState<ProfileSetupMode>('create');
   const [backupInfo, setBackupInfo] = useState<DriveBackupSummary | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -121,14 +125,14 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     try {
       await requestGoogleAccessToken();
       setGoogleConnected(true);
-      await setAutoSyncEnabled(true);
 
-      // Check if there is an existing backup on Google Drive
+      // Check if there is an existing backup on Google Drive before enabling auto-sync.
       const backup = await checkDriveBackup();
       if (backup.found && backup.snapshot && backup.remoteFileId) {
         setBackupInfo(backup);
         setStep('backup_found');
       } else {
+        setProfileSetupMode('create');
         setStep('profile');
       }
     } catch (err) {
@@ -152,10 +156,13 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   };
 
   const handleCreateNewProfile = () => {
+    setProfileSetupMode('replace-drive');
     setStep('profile');
   };
 
   const handleBypassAuth = () => {
+    setGoogleConnected(false);
+    setProfileSetupMode('create');
     setStep('profile');
   };
 
@@ -194,9 +201,16 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       { weight: w, height: h, headCirc: hc },
     );
 
-    // Trigger initial upload to Google Drive if connected
     if (googleConnected) {
-      void syncWithGoogleDrive({ interactive: false }).catch(() => {});
+      const finishDriveSetup = async () => {
+        if (profileSetupMode === 'replace-drive') {
+          await overwriteDriveBackupWithLocalData({ interactive: false });
+        } else {
+          await syncWithGoogleDrive({ interactive: false });
+        }
+        await setAutoSyncEnabled(true);
+      };
+      void finishDriveSetup().catch(() => {});
     }
 
     onComplete?.();
@@ -384,7 +398,9 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
             {googleConnected && (
               <div className="haven-sync-connected-badge">
                 <Cloud size={14} />
-                <span>Đã kết nối Google Drive · Tự động sao lưu</span>
+                <span>{profileSetupMode === 'replace-drive'
+                  ? 'Đã kết nối Google Drive · Bản sao lưu hiện có sẽ được thay thế'
+                  : 'Đã kết nối Google Drive · Tự động sao lưu sau khi hoàn tất'}</span>
               </div>
             )}
 

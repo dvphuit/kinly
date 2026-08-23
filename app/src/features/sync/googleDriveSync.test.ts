@@ -19,11 +19,21 @@ const timelineMediaDriveSync = vi.hoisted(() => ({
 vi.mock('@/data/localDb', () => localDb);
 vi.mock('@/features/sync/timelineMediaDriveSync', () => timelineMediaDriveSync);
 
+const DEFAULT_ACCOUNT = {
+  permissionId: 'account-1',
+  emailAddress: 'parent@example.com',
+  displayName: 'Parent',
+};
+
 function jsonResponse(value: unknown): Response {
   return new Response(JSON.stringify(value), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+function accountResponse(account = DEFAULT_ACCOUNT): Response {
+  return jsonResponse({ user: account });
 }
 
 function binaryResponse(value: string, contentType: string): Response {
@@ -33,19 +43,22 @@ function binaryResponse(value: string, contentType: string): Response {
   });
 }
 
-function installGoogleTokenClient(): void {
+function installGoogleTokenClient(token = 'token', expiresIn = 3600): ReturnType<typeof vi.fn> {
+  const requestAccessToken = vi.fn();
   Object.defineProperty(window, 'google', {
     configurable: true,
     value: {
       accounts: {
         oauth2: {
-          initTokenClient: vi.fn((config: { callback: (response: { access_token: string; expires_in: number }) => void }) => ({
-            requestAccessToken: vi.fn(() => config.callback({ access_token: 'token', expires_in: 3600 })),
-          })),
+          initTokenClient: vi.fn((config: { callback: (response: { access_token: string; expires_in: number }) => void }) => {
+            requestAccessToken.mockImplementation(() => config.callback({ access_token: token, expires_in: expiresIn }));
+            return { requestAccessToken };
+          }),
         },
       },
     },
   });
+  return requestAccessToken;
 }
 
 describe('generation-2 Google Drive sync', () => {
@@ -88,10 +101,12 @@ describe('generation-2 Google Drive sync', () => {
   it('patches the existing Drive backup with the current semantic snapshot', async () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2026-08-01' });
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(accountResponse())
       .mockResolvedValueOnce(jsonResponse({ files: [{ id: 'remote-1', name: 'babygrowth-sync-v2.json' }] }))
       .mockResolvedValueOnce(jsonResponse({ id: 'remote-1', name: 'babygrowth-sync-v2.json' }));
     vi.stubGlobal('fetch', fetchMock);
     const sync = await import('@/features/sync/googleDriveSync');
+    await sync.requestGoogleAccessToken();
 
     const snapshot = await sync.overwriteDriveBackupWithLocalData();
 
@@ -108,6 +123,7 @@ describe('generation-2 Google Drive sync', () => {
 
   it('ignores schema-1 backups instead of failing Google login', async () => {
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(accountResponse())
       .mockResolvedValueOnce(jsonResponse({ files: [] }))
       .mockResolvedValueOnce(jsonResponse({ files: [{ id: 'legacy', name: 'babygrowth-sync.json' }] }))
       .mockResolvedValueOnce(jsonResponse({ schemaVersion: 1, records: { babygrowth_v2_baby: '{}' } }));
@@ -116,9 +132,9 @@ describe('generation-2 Google Drive sync', () => {
     await sync.requestGoogleAccessToken();
 
     await expect(sync.checkDriveBackup()).resolves.toEqual({ found: false });
-    expect(fetchMock.mock.calls[0][0]).toContain('babygrowth-sync-v2.json');
-    expect(fetchMock.mock.calls[1][0]).toContain('babygrowth-sync.json');
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1][0]).toContain('babygrowth-sync-v2.json');
+    expect(fetchMock.mock.calls[2][0]).toContain('babygrowth-sync.json');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('adopts a generation-2 backup that still uses the legacy filename', async () => {
@@ -126,25 +142,29 @@ describe('generation-2 Google Drive sync', () => {
     const sync = await import('@/features/sync/googleDriveSync');
     const legacyNamedSnapshot = sync.createSyncSnapshot();
     const fetchMock = vi.fn()
+      .mockResolvedValueOnce(accountResponse())
       .mockResolvedValueOnce(jsonResponse({ files: [] }))
       .mockResolvedValueOnce(jsonResponse({ files: [{ id: 'legacy-v2', name: 'babygrowth-sync.json' }] }))
       .mockResolvedValueOnce(jsonResponse(legacyNamedSnapshot))
       .mockResolvedValueOnce(jsonResponse({ id: 'legacy-v2', name: 'babygrowth-sync-v2.json' }));
     vi.stubGlobal('fetch', fetchMock);
+    await sync.requestGoogleAccessToken();
 
     const snapshot = await sync.overwriteDriveBackupWithLocalData();
 
     expect(snapshot.data.profile.familyData.childName).toBe('Bé Bơ');
-    expect(fetchMock.mock.calls[3][0]).toContain('/upload/drive/v3/files/legacy-v2?uploadType=multipart');
-    expect(fetchMock.mock.calls[3][1]).toMatchObject({ method: 'PATCH' });
-    const uploadBody = fetchMock.mock.calls[3][1]?.body;
+    expect(fetchMock.mock.calls[4][0]).toContain('/upload/drive/v3/files/legacy-v2?uploadType=multipart');
+    expect(fetchMock.mock.calls[4][1]).toMatchObject({ method: 'PATCH' });
+    const uploadBody = fetchMock.mock.calls[4][1]?.body;
     expect(uploadBody).toBeInstanceOf(Blob);
     if (!(uploadBody instanceof Blob)) throw new Error('Expected Drive snapshot upload to use a Blob body.');
     expect(await uploadBody.text()).toContain('babygrowth-sync-v2.json');
   });
 
   it('uploads private timeline media without Base64 conversion', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'drive-media-1', name: 'baby.jpg' }));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(accountResponse())
+      .mockResolvedValueOnce(jsonResponse({ id: 'drive-media-1', name: 'baby.jpg' }));
     vi.stubGlobal('fetch', fetchMock);
     const sync = await import('@/features/sync/googleDriveSync');
     await sync.requestGoogleAccessToken();
@@ -152,14 +172,16 @@ describe('generation-2 Google Drive sync', () => {
 
     await expect(sync.uploadTimelineMediaToDrive('media-1', media, { name: 'baby.jpg' })).resolves.toBe('drive-media-1');
 
-    const [, init] = fetchMock.mock.calls[0];
-    expect(fetchMock.mock.calls[0][0]).toContain('/upload/drive/v3/files?uploadType=multipart');
+    const [, init] = fetchMock.mock.calls[1];
+    expect(fetchMock.mock.calls[1][0]).toContain('/upload/drive/v3/files?uploadType=multipart');
     expect(init).toMatchObject({ method: 'POST' });
     expect(init.body).toBeInstanceOf(Blob);
   });
 
   it('downloads private timeline media with the current Google token', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(binaryResponse('image-bytes', 'image/jpeg'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(accountResponse())
+      .mockResolvedValueOnce(binaryResponse('image-bytes', 'image/jpeg'));
     vi.stubGlobal('fetch', fetchMock);
     const sync = await import('@/features/sync/googleDriveSync');
     await sync.requestGoogleAccessToken();
@@ -171,5 +193,58 @@ describe('generation-2 Google Drive sync', () => {
       expect.stringContaining('/drive/v3/files/drive-media-1?alt=media'),
       expect.objectContaining({ headers: { Authorization: 'Bearer token' } }),
     );
+  });
+
+  it('expires the runtime session proactively and publishes re-authentication state', async () => {
+    vi.useFakeTimers();
+    installGoogleTokenClient('short-token', 61);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(accountResponse()));
+    const sync = await import('@/features/sync/googleDriveSync');
+
+    await sync.requestGoogleAccessToken();
+    expect(sync.isGoogleConnected()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(sync.isGoogleConnected()).toBe(false);
+    expect(sync.getSyncState()).toMatchObject({
+      status: 'auth-required',
+      error: 'Phiên Google đã hết hạn. Hãy xác thực lại để tiếp tục đồng bộ.',
+    });
+  });
+
+  it('resets account-scoped sync baseline when the user selects another Google account', async () => {
+    const requestAccessToken = installGoogleTokenClient('account-b-token');
+    localDb.getLocalRecord.mockResolvedValue(JSON.stringify({
+      lastSyncedFingerprint: 'account-a-fingerprint',
+      remoteFileId: 'account-a-file',
+      lastSyncedAt: '2026-08-22T12:00:00.000Z',
+      autoSyncEnabled: true,
+      googleAccountId: 'account-a',
+    }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(accountResponse({
+      permissionId: 'account-b',
+      emailAddress: 'other@example.com',
+      displayName: 'Other Parent',
+    })));
+    const sync = await import('@/features/sync/googleDriveSync');
+
+    const account = await sync.requestGoogleAccessToken({ selectAccount: true });
+
+    expect(account).toMatchObject({ permissionId: 'account-b', emailAddress: 'other@example.com' });
+    expect(requestAccessToken).toHaveBeenCalledWith({ prompt: 'select_account' });
+    expect(localDb.setLocalRecord).toHaveBeenCalledWith(
+      'babygrowth_v4_sync_meta',
+      expect.stringContaining('"googleAccountId":"account-b"'),
+    );
+    const writtenMeta = localDb.setLocalRecord.mock.calls.at(-1)?.[1];
+    expect(typeof writtenMeta).toBe('string');
+    expect(JSON.parse(String(writtenMeta))).toMatchObject({
+      googleAccountId: 'account-b',
+      lastSyncedFingerprint: null,
+      remoteFileId: null,
+      lastSyncedAt: null,
+      autoSyncEnabled: true,
+    });
   });
 });
