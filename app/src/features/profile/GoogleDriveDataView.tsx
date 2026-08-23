@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, ClipboardCopy, Cloud, Database, FileJson,
+  AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCopy, Cloud, Database, FileJson,
   HardDrive, Image as ImageIcon, Images, RefreshCw, ShieldCheck, Smartphone, Terminal, Trash2, Video,
 } from 'lucide-react';
 import { AppBar } from '@/shared/ui/AppBar';
+import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { HavenDialog } from '@/shared/ui/HavenDialog';
 import {
   checkDriveBackup,
@@ -38,11 +39,14 @@ import {
 } from '@/app/diagnostics/diagnosticLog';
 import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import type { TimelineMediaItem } from '@/features/timeline';
+import './data-management.css';
 
 interface GoogleDriveDataViewProps {
   onOpenLightbox: (src: string, isVideo?: boolean) => void;
   onShowToast?: (message: string, icon?: string) => void;
 }
+
+type DataSegment = 'device' | 'drive';
 
 function formatBytes(value: number): string {
   if (!Number.isFinite(value) || value < 0) return 'Không rõ dung lượng';
@@ -209,6 +213,7 @@ function LocalMediaTile({
 export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDriveDataViewProps) {
   const navigate = useNavigate();
   const timelineItems = useTimelineStore((state) => state.timelineItems);
+  const [activeSegment, setActiveSegment] = useState<DataSegment>('device');
   const [linked, setLinked] = useState(isGoogleLinked());
   const [sessionActive, setSessionActive] = useState(isGoogleSessionActive());
   const [files, setFiles] = useState<DriveTimelineMediaFile[]>([]);
@@ -226,7 +231,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   const [localDeleteTarget, setLocalDeleteTarget] = useState<LocalMediaRecord | null>(null);
   const [localDeleting, setLocalDeleting] = useState(false);
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
-  const [logsOpen, setLogsOpen] = useState(false);
+  const [debugSheetOpen, setDebugSheetOpen] = useState(false);
   const [logs, setLogs] = useState<DiagnosticLogEntry[]>(getDiagnosticLogs);
 
   useEffect(() => subscribeDiagnosticLogs(setLogs), []);
@@ -475,151 +480,205 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
         end={<button type="button" className="profile-icon-btn" onClick={() => { void loadLocalData(); if (sessionActive) void loadDriveData(); }} aria-label="Làm mới dữ liệu" disabled={loading || localLoading}><RefreshCw size={18} className={loading || localLoading ? 'spin' : ''} /></button>}
       />
 
-      <section className="profile-section-block local-data-section" aria-labelledby="local-data-title">
-        <div className="profile-section-heading">
-          <div><span className="profile-section-kicker">TRÊN THIẾT BỊ</span><h2 id="local-data-title">Dữ liệu local</h2></div>
-          <span className="section-score-pill">Riêng tư</span>
+      <div className="drive-data-controls">
+        <div className="drive-data-segments" role="tablist" aria-label="Nguồn dữ liệu">
+          <button
+            id="device-data-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeSegment === 'device'}
+            aria-controls="device-data-panel"
+            className={`drive-data-segment ${activeSegment === 'device' ? 'is-active' : ''}`}
+            onClick={() => setActiveSegment('device')}
+          >
+            <span className="drive-data-segment-icon"><Smartphone size={17} /></span>
+            <span><strong>Thiết bị</strong><small>Local & media</small></span>
+          </button>
+          <button
+            id="drive-data-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeSegment === 'drive'}
+            aria-controls="drive-data-panel"
+            className={`drive-data-segment ${activeSegment === 'drive' ? 'is-active' : ''}`}
+            onClick={() => setActiveSegment('drive')}
+          >
+            <span className="drive-data-segment-icon"><Cloud size={17} /></span>
+            <span><strong>Google Drive</strong><small>{sessionActive ? 'Đã xác thực' : linked ? 'Đã liên kết' : 'Chưa kết nối'}</small></span>
+          </button>
         </div>
 
-        <section className="drive-data-summary local-data-summary" aria-label="Tổng quan dữ liệu local">
-          <article><span><Images size={17} /></span><small>Media local</small><strong>{localFiles.length}</strong></article>
-          <article><span><FileJson size={17} /></span><small>Dữ liệu app</small><strong>{formatBytes(localAppSize)}</strong></article>
-          <article><span><HardDrive size={17} /></span><small>Trình duyệt</small><strong>{formatBytes(storageEstimate.usage ?? 0)}</strong></article>
-        </section>
-
-        <div className="local-storage-card">
-          <span className="local-storage-icon"><Smartphone size={19} /></span>
-          <div>
-            <strong>{localRecordCount} nhóm dữ liệu · {formatBytes(localRecordSize)} nội dung</strong>
-            <span>{storageEstimate.quota ? `${formatBytes(storageEstimate.usage ?? 0)} / ${formatBytes(storageEstimate.quota)} bộ nhớ trình duyệt` : 'Dung lượng được trình duyệt quản lý tự động'}</span>
-            {storageEstimate.quota && <span className="local-storage-track"><i style={{ width: `${Math.min(100, ((storageEstimate.usage ?? 0) / storageEstimate.quota) * 100)}%` }} /></span>}
-          </div>
-        </div>
-
-        <div className="local-media-heading">
-          <div><strong>Ảnh và video trên máy</strong><span>Media gốc lưu trực tiếp, không chuyển Base64</span></div>
-          {backedUpLocalFiles.length > 0 && (
-            <button type="button" onClick={() => setCleanupConfirmOpen(true)} disabled={localDeleting}>
-              <Trash2 size={14} /> Dọn {backedUpLocalFiles.length} đã backup
-            </button>
-          )}
-        </div>
-
-        {localLoading && localFiles.length === 0 ? (
-          <div className="drive-data-state local-data-state" role="status"><RefreshCw size={20} className="spin" /><span>Đang đọc dữ liệu trên thiết bị...</span></div>
-        ) : localFiles.length === 0 ? (
-          <div className="drive-data-state local-data-state"><Smartphone size={24} /><strong>Không có media local</strong><span>Media đã dọn vẫn có thể được đọc lại từ Google Drive nếu đã backup.</span></div>
-        ) : (
-          <div className="drive-media-list">
-            {localFiles.map((file) => {
-              const linkedLocal = linkedLocalMedia.get(file.id);
-              return (
-                <LocalMediaTile
-                  key={file.id}
-                  record={file}
-                  linkedTitle={linkedLocal?.title}
-                  linkedMedia={linkedLocal?.media}
-                  onOpen={onOpenLightbox}
-                  onDelete={() => setLocalDeleteTarget(file)}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <div className="drive-area-heading">
-        <span className="drive-area-icon"><Cloud size={19} /></span>
-        <div><span>TRÊN ĐÁM MÂY</span><strong>Google Drive</strong></div>
-        <small>{sessionActive ? 'Đã xác thực' : linked ? 'Đã liên kết' : 'Chưa kết nối'}</small>
+        <button
+          type="button"
+          className="drive-debug-trigger"
+          onClick={() => setDebugSheetOpen(true)}
+          aria-haspopup="dialog"
+          aria-label="Mở logs chẩn đoán"
+        >
+          <span className="drive-debug-trigger-icon"><Terminal size={16} /></span>
+          <span className="drive-debug-trigger-copy"><strong>Logs chẩn đoán</strong><small>Debug sync & lưu trữ</small></span>
+          <span className="drive-debug-count">{logs.length}</span>
+        </button>
       </div>
 
-      {!sessionActive ? (
-        <section className="drive-connect-card">
-          <span className="drive-connect-icon"><Cloud size={30} /></span>
-          <h2>{linked ? 'Xác thực Google Drive' : 'Kết nối Google Drive'}</h2>
-          <p>{linked
-            ? 'Tài khoản Google đã liên kết. Xác thực lại để xem và quản lý dữ liệu trên Drive.'
-            : 'Media được lưu trong vùng riêng tư của ứng dụng. Hãy kết nối đúng tài khoản để xem và quản lý.'}</p>
-          <button type="button" className="profile-action-btn primary" onClick={() => void connectGoogle()} disabled={loading}>
-            <ShieldCheck size={17} /> {loading ? 'Đang xác thực...' : linked ? 'Xác thực để xem dữ liệu' : 'Kết nối Google'}
-          </button>
-        </section>
-      ) : (
-        <>
-          <section className="drive-data-summary" aria-label="Tổng quan dữ liệu Drive">
-            <article><span><Images size={17} /></span><small>Media</small><strong>{files.length}</strong></article>
-            <article><span><Video size={17} /></span><small>Video</small><strong>{videoCount}</strong></article>
-            <article><span><HardDrive size={17} /></span><small>Dung lượng</small><strong>{formatBytes(totalSize)}</strong></article>
+      {activeSegment === 'device' && (
+        <section
+          id="device-data-panel"
+          role="tabpanel"
+          aria-labelledby="device-data-tab"
+          className="profile-section-block local-data-section drive-data-segment-panel"
+        >
+          <div className="profile-section-heading">
+            <div><span className="profile-section-kicker">TRÊN THIẾT BỊ</span><h2 id="local-data-title">Dữ liệu local</h2></div>
+            <span className="section-score-pill">Riêng tư</span>
+          </div>
+
+          <section className="drive-data-summary local-data-summary" aria-label="Tổng quan dữ liệu local">
+            <article><span><Images size={17} /></span><small>Media local</small><strong>{localFiles.length}</strong></article>
+            <article><span><FileJson size={17} /></span><small>Dữ liệu app</small><strong>{formatBytes(localAppSize)}</strong></article>
+            <article><span><HardDrive size={17} /></span><small>Trình duyệt</small><strong>{formatBytes(storageEstimate.usage ?? 0)}</strong></article>
           </section>
 
-          <section className="drive-backup-card">
-            <span className="drive-backup-icon"><Database size={19} /></span>
+          <div className="local-storage-card">
+            <span className="local-storage-icon"><Smartphone size={19} /></span>
             <div>
-              <strong>{backup?.found ? 'Bản sao lưu đang hoạt động' : 'Chưa tìm thấy bản sao lưu'}</strong>
-              <span>{lastSyncedAt ? `Đồng bộ gần nhất ${formatDate(lastSyncedAt)}` : 'Chưa có thời gian đồng bộ'}</span>
+              <strong>{localRecordCount} nhóm dữ liệu · {formatBytes(localRecordSize)} nội dung</strong>
+              <span>{storageEstimate.quota ? `${formatBytes(storageEstimate.usage ?? 0)} / ${formatBytes(storageEstimate.quota)} bộ nhớ trình duyệt` : 'Dung lượng được trình duyệt quản lý tự động'}</span>
+              {storageEstimate.quota && <span className="local-storage-track"><i style={{ width: `${Math.min(100, ((storageEstimate.usage ?? 0) / storageEstimate.quota) * 100)}%` }} /></span>}
             </div>
-            <ShieldCheck size={18} />
-          </section>
+          </div>
 
-          <section className="profile-section-block" aria-labelledby="drive-media-title">
-            <div className="profile-section-heading">
-              <div><span className="profile-section-kicker">ẢNH VÀ VIDEO</span><h2 id="drive-media-title">Media trên Drive</h2></div>
-              <span className="section-score-pill">Riêng tư</span>
-            </div>
-
-            {loading && files.length === 0 ? (
-              <div className="drive-data-state" role="status"><RefreshCw size={20} className="spin" /><span>Đang đọc dữ liệu Drive...</span></div>
-            ) : files.length === 0 ? (
-              <div className="drive-data-state"><Cloud size={24} /><strong>Chưa có media trên Drive</strong><span>Ảnh và video sẽ xuất hiện sau lần đồng bộ tiếp theo.</span></div>
-            ) : (
-              <div className="drive-media-list">
-                {files.map((file) => (
-                  <DriveMediaTile
-                    key={file.id}
-                    file={file}
-                    linkedTitle={linkedMedia.get(file.id)?.title}
-                    onOpen={onOpenLightbox}
-                    onDelete={() => setDeleteTarget(file)}
-                    onError={setError}
-                  />
-                ))}
-              </div>
+          <div className="local-media-heading">
+            <div><strong>Ảnh và video trên máy</strong><span>Media gốc lưu trực tiếp, không chuyển Base64</span></div>
+            {backedUpLocalFiles.length > 0 && (
+              <button type="button" onClick={() => setCleanupConfirmOpen(true)} disabled={localDeleting}>
+                <Trash2 size={14} /> Dọn {backedUpLocalFiles.length} đã backup
+              </button>
             )}
-          </section>
-        </>
+          </div>
+
+          {localLoading && localFiles.length === 0 ? (
+            <div className="drive-data-state local-data-state" role="status"><RefreshCw size={20} className="spin" /><span>Đang đọc dữ liệu trên thiết bị...</span></div>
+          ) : localFiles.length === 0 ? (
+            <div className="drive-data-state local-data-state"><Smartphone size={24} /><strong>Không có media local</strong><span>Media đã dọn vẫn có thể được đọc lại từ Google Drive nếu đã backup.</span></div>
+          ) : (
+            <div className="drive-media-list">
+              {localFiles.map((file) => {
+                const linkedLocal = linkedLocalMedia.get(file.id);
+                return (
+                  <LocalMediaTile
+                    key={file.id}
+                    record={file}
+                    linkedTitle={linkedLocal?.title}
+                    linkedMedia={linkedLocal?.media}
+                    onOpen={onOpenLightbox}
+                    onDelete={() => setLocalDeleteTarget(file)}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {activeSegment === 'drive' && (
+        <section id="drive-data-panel" role="tabpanel" aria-labelledby="drive-data-tab" className="drive-data-segment-panel drive-cloud-panel">
+          <div className="drive-area-heading">
+            <span className="drive-area-icon"><Cloud size={19} /></span>
+            <div><span>TRÊN ĐÁM MÂY</span><strong>Google Drive</strong></div>
+            <small>{sessionActive ? 'Đã xác thực' : linked ? 'Đã liên kết' : 'Chưa kết nối'}</small>
+          </div>
+
+          {!sessionActive ? (
+            <section className="drive-connect-card">
+              <span className="drive-connect-icon"><Cloud size={30} /></span>
+              <h2>{linked ? 'Xác thực Google Drive' : 'Kết nối Google Drive'}</h2>
+              <p>{linked
+                ? 'Tài khoản Google đã liên kết. Xác thực lại để xem và quản lý dữ liệu trên Drive.'
+                : 'Media được lưu trong vùng riêng tư của ứng dụng. Hãy kết nối đúng tài khoản để xem và quản lý.'}</p>
+              <button type="button" className="profile-action-btn primary" onClick={() => void connectGoogle()} disabled={loading}>
+                <ShieldCheck size={17} /> {loading ? 'Đang xác thực...' : linked ? 'Xác thực để xem dữ liệu' : 'Kết nối Google'}
+              </button>
+            </section>
+          ) : (
+            <>
+              <section className="drive-data-summary" aria-label="Tổng quan dữ liệu Drive">
+                <article><span><Images size={17} /></span><small>Media</small><strong>{files.length}</strong></article>
+                <article><span><Video size={17} /></span><small>Video</small><strong>{videoCount}</strong></article>
+                <article><span><HardDrive size={17} /></span><small>Dung lượng</small><strong>{formatBytes(totalSize)}</strong></article>
+              </section>
+
+              <section className="drive-backup-card">
+                <span className="drive-backup-icon"><Database size={19} /></span>
+                <div>
+                  <strong>{backup?.found ? 'Bản sao lưu đang hoạt động' : 'Chưa tìm thấy bản sao lưu'}</strong>
+                  <span>{lastSyncedAt ? `Đồng bộ gần nhất ${formatDate(lastSyncedAt)}` : 'Chưa có thời gian đồng bộ'}</span>
+                </div>
+                <ShieldCheck size={18} />
+              </section>
+
+              <section className="profile-section-block" aria-labelledby="drive-media-title">
+                <div className="profile-section-heading">
+                  <div><span className="profile-section-kicker">ẢNH VÀ VIDEO</span><h2 id="drive-media-title">Media trên Drive</h2></div>
+                  <span className="section-score-pill">Riêng tư</span>
+                </div>
+
+                {loading && files.length === 0 ? (
+                  <div className="drive-data-state" role="status"><RefreshCw size={20} className="spin" /><span>Đang đọc dữ liệu Drive...</span></div>
+                ) : files.length === 0 ? (
+                  <div className="drive-data-state"><Cloud size={24} /><strong>Chưa có media trên Drive</strong><span>Ảnh và video sẽ xuất hiện sau lần đồng bộ tiếp theo.</span></div>
+                ) : (
+                  <div className="drive-media-list">
+                    {files.map((file) => (
+                      <DriveMediaTile
+                        key={file.id}
+                        file={file}
+                        linkedTitle={linkedMedia.get(file.id)?.title}
+                        onOpen={onOpenLightbox}
+                        onDelete={() => setDeleteTarget(file)}
+                        onError={setError}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+        </section>
       )}
 
       {error && <p className="drive-data-error" role="alert">{error}</p>}
 
-      <section className={`drive-log-panel ${logsOpen ? 'is-open' : ''}`} aria-labelledby="drive-log-title">
-        <button type="button" className="drive-log-toggle" onClick={() => setLogsOpen((current) => !current)} aria-expanded={logsOpen}>
-          <span className="drive-log-icon"><Terminal size={17} /></span>
-          <span><strong id="drive-log-title">Logs chẩn đoán</strong><small>{logs.length} sự kiện gần nhất · chỉ lưu trên thiết bị này</small></span>
-          {logsOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
-        </button>
-        {logsOpen && (
-          <div className="drive-log-content">
-            <div className="drive-log-actions">
-              <button type="button" onClick={() => void copyLogs()} disabled={logs.length === 0}><ClipboardCopy size={14} /> Sao chép</button>
-              <button type="button" onClick={clearDiagnosticLogs} disabled={logs.length === 0}><Trash2 size={14} /> Xóa logs</button>
-            </div>
-            {logs.length === 0 ? (
-              <p className="drive-log-empty">Chưa có log. Hãy thử kết nối hoặc làm mới Google Drive.</p>
-            ) : (
-              <div className="drive-log-list" aria-label="Danh sách logs chẩn đoán">
-                {[...logs].reverse().map((entry) => (
-                  <article className={`drive-log-entry level-${entry.level}`} key={entry.id}>
-                    <header><time dateTime={entry.timestamp}>{formatLogTime(entry.timestamp)}</time><span>{entry.level}</span><strong>{entry.scope}</strong></header>
-                    <p>{entry.message}</p>
-                    {entry.details !== undefined && <pre>{JSON.stringify(entry.details, null, 2)}</pre>}
-                  </article>
-                ))}
-              </div>
-            )}
+      <BottomSheet
+        isOpen={debugSheetOpen}
+        onClose={() => setDebugSheetOpen(false)}
+        title="Logs chẩn đoán"
+        className="drive-debug-sheet"
+        footer={(
+          <div className="drive-debug-sheet-actions">
+            <button type="button" onClick={() => void copyLogs()} disabled={logs.length === 0}><ClipboardCopy size={14} /> Sao chép</button>
+            <button type="button" className="danger" onClick={clearDiagnosticLogs} disabled={logs.length === 0}><Trash2 size={14} /> Xóa logs</button>
           </div>
         )}
-      </section>
+      >
+        <div className="drive-debug-sheet-intro">
+          <span className="drive-log-icon"><Terminal size={17} /></span>
+          <div><strong>{logs.length} sự kiện gần nhất</strong><small>Chỉ lưu trên thiết bị này. Không bao gồm access token.</small></div>
+        </div>
+        {logs.length === 0 ? (
+          <p className="drive-log-empty">Chưa có log. Hãy thử kết nối hoặc làm mới Google Drive.</p>
+        ) : (
+          <div className="drive-log-list" aria-label="Danh sách logs chẩn đoán">
+            {[...logs].reverse().map((entry) => (
+              <article className={`drive-log-entry level-${entry.level}`} key={entry.id}>
+                <header><time dateTime={entry.timestamp}>{formatLogTime(entry.timestamp)}</time><span>{entry.level}</span><strong>{entry.scope}</strong></header>
+                <p>{entry.message}</p>
+                {entry.details !== undefined && <pre>{JSON.stringify(entry.details, null, 2)}</pre>}
+              </article>
+            ))}
+          </div>
+        )}
+      </BottomSheet>
 
       <HavenDialog
         open={deleteTarget !== null}
