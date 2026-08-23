@@ -19,6 +19,7 @@ import {
 const PRF_OUTPUT = new Uint8Array(32).fill(7).buffer;
 const OTHER_PRF_OUTPUT = new Uint8Array(32).fill(9).buffer;
 const CREDENTIAL_ID = new Uint8Array([1, 2, 3, 4, 5, 6]).buffer;
+const CREDENTIAL_ID_BASE64URL = 'AQIDBAUG';
 
 interface FakeCryptoKey extends CryptoKey {
   marker: number;
@@ -68,37 +69,41 @@ function fakeCrypto(): Crypto {
   } as Crypto;
 }
 
-function fakeCredential(prfOutput: ArrayBuffer) {
+function fakeCredential(prfOutput: ArrayBuffer | null, enabled?: boolean) {
+  const prf: { enabled?: boolean; results?: { first: ArrayBuffer } } = {};
+  if (enabled !== undefined) prf.enabled = enabled;
+  if (prfOutput) prf.results = { first: prfOutput };
   return {
     id: 'credential',
     type: 'public-key',
     rawId: CREDENTIAL_ID,
-    getClientExtensionResults: () => ({
-      prf: {
-        enabled: true,
-        results: { first: prfOutput },
-      },
-    }),
+    getClientExtensionResults: () => ({ prf }),
   } as unknown as Credential;
 }
 
-function installWebAuthn(prfOutput = PRF_OUTPUT) {
+function installWebAuthn(
+  prfOutput = PRF_OUTPUT,
+  creationPrfOutput: ArrayBuffer | null = prfOutput,
+  creationPrfEnabled = true,
+) {
   class FakePublicKeyCredential {
     static async isUserVerifyingPlatformAuthenticatorAvailable() {
       return true;
     }
   }
 
+  const create = vi.fn(async () => fakeCredential(creationPrfOutput, creationPrfEnabled));
+  const get = vi.fn(async () => fakeCredential(prfOutput));
+
   vi.stubGlobal('crypto', fakeCrypto());
   vi.stubGlobal('PublicKeyCredential', FakePublicKeyCredential);
   Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true });
   Object.defineProperty(navigator, 'credentials', {
     configurable: true,
-    value: {
-      create: vi.fn(async () => fakeCredential(prfOutput)),
-      get: vi.fn(async () => fakeCredential(prfOutput)),
-    },
+    value: { create, get },
   });
+
+  return { create, get };
 }
 
 describe('passkeyTokenVault', () => {
@@ -131,6 +136,29 @@ describe('passkeyTokenVault', () => {
     });
   });
 
+  it('falls back to PRF authentication using evalByCredential when registration has no PRF result', async () => {
+    const { get } = installWebAuthn(PRF_OUTPUT, null, false);
+    const secret = 'registration-without-prf-output';
+
+    await expect(createPasskeyTokenVault(secret)).resolves.toBeUndefined();
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledWith({
+      publicKey: expect.objectContaining({
+        extensions: expect.objectContaining({
+          prf: expect.objectContaining({
+            evalByCredential: expect.objectContaining({
+              [CREDENTIAL_ID_BASE64URL]: expect.objectContaining({
+                first: expect.any(ArrayBuffer),
+              }),
+            }),
+          }),
+        }),
+      }),
+    });
+    await expect(unlockPasskeyTokenVault()).resolves.toBe(secret);
+  });
+
   it('decrypts the payload only when the passkey returns the matching PRF output', async () => {
     installWebAuthn();
     const secret = 'local-only-probe';
@@ -145,7 +173,7 @@ describe('passkeyTokenVault', () => {
     Object.defineProperty(navigator, 'credentials', {
       configurable: true,
       value: {
-        create: vi.fn(async () => fakeCredential(PRF_OUTPUT)),
+        create: vi.fn(async () => fakeCredential(PRF_OUTPUT, true)),
         get: vi.fn(async () => fakeCredential(OTHER_PRF_OUTPUT)),
       },
     });
