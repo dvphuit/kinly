@@ -13,19 +13,16 @@ export type DriveBackupSummary = import('./googleDriveSync').DriveBackupSummary;
 export type DriveTimelineMediaFile = import('./googleDriveSync').DriveTimelineMediaFile;
 export type PausedDriveOperations = import('./googleDriveSync').PausedDriveOperations;
 
-/**
- * Local persistence keys stay available to reset/diagnostic UI without loading
- * the Google Drive transport. The type assertion keeps this lightweight mirror
- * aligned with the compatibility contract exported by googleDriveSync.
- */
+/** Local persistence keys used by reset and diagnostics UI. Drive sync serializes semantic snapshots instead. */
 export const SYNC_KEYS = [
   'babygrowth_v4_profile',
   'babygrowth_v4_growth',
   'babygrowth_v4_timeline',
   'babygrowth_v4_ui',
   'babygrowth_v4_activities',
+  'babygrowth_v4_expenses',
   'babygrowth_v4_reminders',
-] as const satisfies GoogleDriveSyncModule['SYNC_KEYS'];
+] as const;
 
 const GOOGLE_LINKED_CLIENT_KEY = 'babygrowth_v4_google_linked_client';
 
@@ -71,22 +68,25 @@ export function isGoogleConfigured(): boolean {
   return getGoogleClientId() !== null;
 }
 
+/** A successful Google grant remembered for the currently configured OAuth client. */
 export function isGoogleLinked(): boolean {
   const clientId = getGoogleClientId();
   if (!clientId || typeof window === 'undefined') return false;
   return window.localStorage.getItem(GOOGLE_LINKED_CLIENT_KEY) === clientId;
 }
 
+/** A live, unexpired access-token session in the current JavaScript runtime. */
 export function isGoogleSessionActive(): boolean {
   return loadedGoogleDriveSyncModule?.isGoogleConnected() ?? false;
 }
 
 /**
- * UI-facing connection state. Google access tokens remain short-lived and in memory,
- * while a successful grant is remembered for the configured OAuth client across reloads.
+ * Backward-compatible runtime-session alias. Durable link state is intentionally
+ * exposed separately through isGoogleLinked() so callers cannot treat a remembered
+ * grant as a usable access token.
  */
 export function isGoogleConnected(): boolean {
-  return isGoogleSessionActive() || isGoogleLinked();
+  return isGoogleSessionActive();
 }
 
 export function getSyncState(): SyncState {

@@ -28,15 +28,17 @@ describe('Google link persistence', () => {
     vi.unstubAllEnvs();
   });
 
-  it('keeps the Google link after a new app runtime without persisting the access token', async () => {
+  it('keeps the Google link after a new app runtime without pretending the token session survived', async () => {
     const sync = await import('./index');
 
     expect(sync.isGoogleConnected()).toBe(false);
+    expect(sync.isGoogleLinked()).toBe(false);
     expect(sync.isGoogleSessionActive()).toBe(false);
 
     await sync.requestGoogleAccessToken();
 
     expect(sync.isGoogleConnected()).toBe(true);
+    expect(sync.isGoogleLinked()).toBe(true);
     expect(sync.isGoogleSessionActive()).toBe(true);
     expect(window.localStorage.getItem('babygrowth_v4_google_linked_client')).toBe('client-id');
     expect([...Array(window.localStorage.length).keys()]
@@ -48,8 +50,8 @@ describe('Google link persistence', () => {
     const reloadedSync = await import('./index');
 
     expect(reloadedSync.isGoogleSessionActive()).toBe(false);
+    expect(reloadedSync.isGoogleConnected()).toBe(false);
     expect(reloadedSync.isGoogleLinked()).toBe(true);
-    expect(reloadedSync.isGoogleConnected()).toBe(true);
   });
 
   it('does not carry a remembered link to a different OAuth client', async () => {

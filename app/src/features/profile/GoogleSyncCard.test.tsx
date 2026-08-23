@@ -16,7 +16,7 @@ vi.mock('@/features/sync', () => {
     getLastSyncedAt: vi.fn().mockResolvedValue(null),
     getSyncState: vi.fn(() => state),
     isGoogleConfigured: vi.fn(() => true),
-    isGoogleConnected: vi.fn(() => true),
+    isGoogleLinked: vi.fn(() => true),
     isGoogleSessionActive: vi.fn(() => false),
     requestGoogleAccessToken: vi.fn(),
     resolveSyncConflict: vi.fn(),

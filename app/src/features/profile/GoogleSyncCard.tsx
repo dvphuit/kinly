@@ -5,7 +5,7 @@ import {
   getLastSyncedAt,
   getSyncState,
   isGoogleConfigured,
-  isGoogleConnected,
+  isGoogleLinked,
   isGoogleSessionActive,
   requestGoogleAccessToken,
   resolveSyncConflict,
@@ -38,7 +38,7 @@ const STATUS_LABELS: Record<SyncState['status'], string> = {
 export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const [connected, setConnected] = useState(isGoogleConnected());
+  const [linked, setLinked] = useState(isGoogleLinked());
   const [sessionActive, setSessionActive] = useState(isGoogleSessionActive());
   const [syncState, setSyncState] = useState<SyncState>(getSyncState());
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getSyncState().lastSyncedAt);
@@ -48,7 +48,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     const unsubscribe = subscribeSyncState((state) => {
       setSyncState(state);
       setLastSyncedAt(state.lastSyncedAt);
-      setConnected(isGoogleConnected());
+      setLinked(isGoogleLinked());
       setSessionActive(isGoogleSessionActive());
       setError(state.error);
     });
@@ -67,7 +67,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
   const ensureGoogleSession = async () => {
     if (isGoogleSessionActive()) return;
     await requestGoogleAccessToken();
-    setConnected(true);
+    setLinked(true);
     setSessionActive(true);
   };
 
@@ -125,7 +125,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     try {
       const result = await resolveSyncConflict(choice, conflict.remote);
       if (result === 'downloaded') {
-        onShowToast?.('Đã chọn dữ liệu trên Drive. Giao diện sẽ tải lại.', '⬇️');
+        onShowToast?.('Đã áp dụng dữ liệu trên Google Drive.', '⬇️');
       } else {
         onShowToast?.('Đã chọn dữ liệu local và cập nhật bản Drive.', '☁️');
       }
@@ -159,11 +159,11 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
   }
 
   const conflict = syncState.conflict;
-  const statusLabel = syncState.status === 'auth-required' && connected
+  const statusLabel = syncState.status === 'auth-required' && linked
     ? 'Cần xác thực lại Google'
     : STATUS_LABELS[syncState.status];
-  const connectionLabel = sessionActive ? 'Đã xác thực' : connected ? 'Đã liên kết' : 'Chưa kết nối';
-  const visibleError = syncState.status === 'auth-required' && connected ? null : error;
+  const connectionLabel = sessionActive ? 'Đã xác thực' : linked ? 'Đã liên kết' : 'Chưa kết nối';
+  const visibleError = syncState.status === 'auth-required' && linked ? null : error;
 
   return (
     <div className="profile-section-block">
@@ -195,7 +195,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
 
         <div className="medical-allergy-box" style={{ marginTop: 16 }}>
           <div className="allergy-header"><RefreshCw size={14} color="var(--color-sage-dark)" /> Tự động đồng bộ</div>
-          <p className="summary-desc">Khi bật, thay đổi mới sẽ được sao lưu khi ứng dụng có mạng. Google có thể yêu cầu kết nối lại sau một thời gian.</p>
+          <p className="summary-desc">Khi bật, thay đổi mới sẽ được sao lưu khi ứng dụng có mạng. Google có thể yêu cầu xác thực lại sau một thời gian.</p>
           <button
             type="button"
             className={`profile-action-btn ${syncState.autoSyncEnabled ? 'primary' : 'secondary'}`}
@@ -227,7 +227,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
 
         <button type="button" className="profile-action-btn secondary" style={{ marginTop: 16 }} onClick={handleSync} disabled={busy}>
           <RefreshCw size={16} className={busy ? 'spin' : ''} />
-          <span>{busy ? 'Đang đồng bộ...' : sessionActive ? 'Đồng bộ ngay với Google Drive' : connected ? 'Xác thực lại & đồng bộ' : 'Kết nối Google & đồng bộ'}</span>
+          <span>{busy ? 'Đang đồng bộ...' : sessionActive ? 'Đồng bộ ngay với Google Drive' : linked ? 'Xác thực lại & đồng bộ' : 'Kết nối Google & đồng bộ'}</span>
         </button>
         <button type="button" className="profile-drive-manage-link" onClick={() => navigate('/profile/google-drive')}>
           <span className="profile-drive-manage-icon"><Database size={17} /></span>
