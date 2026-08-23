@@ -24,6 +24,7 @@ export const SYNC_KEYS = [
   'babygrowth_v4_timeline',
   'babygrowth_v4_ui',
   'babygrowth_v4_activities',
+  'babygrowth_v4_expenses',
   'babygrowth_v4_reminders',
 ] as const satisfies GoogleDriveSyncModule['SYNC_KEYS'];
 
@@ -71,22 +72,25 @@ export function isGoogleConfigured(): boolean {
   return getGoogleClientId() !== null;
 }
 
+/** A successful Google grant remembered for the currently configured OAuth client. */
 export function isGoogleLinked(): boolean {
   const clientId = getGoogleClientId();
   if (!clientId || typeof window === 'undefined') return false;
   return window.localStorage.getItem(GOOGLE_LINKED_CLIENT_KEY) === clientId;
 }
 
+/** A live, unexpired access-token session in the current JavaScript runtime. */
 export function isGoogleSessionActive(): boolean {
   return loadedGoogleDriveSyncModule?.isGoogleConnected() ?? false;
 }
 
 /**
- * UI-facing connection state. Google access tokens remain short-lived and in memory,
- * while a successful grant is remembered for the configured OAuth client across reloads.
+ * Backward-compatible runtime-session alias. Durable link state is intentionally
+ * exposed separately through isGoogleLinked() so callers cannot treat a remembered
+ * grant as a usable access token.
  */
 export function isGoogleConnected(): boolean {
-  return isGoogleSessionActive() || isGoogleLinked();
+  return isGoogleSessionActive();
 }
 
 export function getSyncState(): SyncState {
