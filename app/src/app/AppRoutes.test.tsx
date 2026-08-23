@@ -78,6 +78,7 @@ describe('AppRoutes', () => {
     ['/expenses', 'Expenses marker'],
     ['/profile', 'Profile marker'],
     ['/profile/google-drive', 'Drive data marker'],
+    ['/profile/google-drive/passkey', 'Passkey vault marker'],
     ['/experiments/passkey-vault', 'Passkey vault marker'],
     ['/unknown', 'Home marker'],
   ])('renders %s at the expected surface', async (path, marker) => {
@@ -85,12 +86,12 @@ describe('AppRoutes', () => {
     expect(await screen.findByText(marker)).toBeInTheDocument();
   });
 
-  it('exposes passkey setup from Google Drive data management', async () => {
+  it('exposes passkey-backed Google Drive sessions from data management', async () => {
     const user = userEvent.setup();
     renderRoute('/profile/google-drive');
 
-    const setupLink = await screen.findByRole('link', { name: 'Thiết lập Passkey' });
-    expect(setupLink).toHaveAttribute('href', '/experiments/passkey-vault');
+    const setupLink = await screen.findByRole('link', { name: 'Google Drive bằng Passkey' });
+    expect(setupLink).toHaveAttribute('href', '/profile/google-drive/passkey');
 
     await user.click(setupLink);
     expect(await screen.findByText('Passkey vault marker')).toBeInTheDocument();

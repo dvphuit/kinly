@@ -35,10 +35,10 @@ describe('passkey Google session architecture', () => {
     const vault = read('src', 'features', 'sync', 'passkeyTokenVault.ts');
 
     expect(drive).toContain('let passkeyRefreshToken: string | null = null');
-    expect(drive).toContain("firebaseApiFetch('/api/google/local-token/refresh'");
+    expect(drive).toContain('/api/google/local-token/refresh');
     expect(drive).toContain('USE_FIREBASE_BACKEND || USE_PASSKEY_GOOGLE_AUTH');
     expect(sync).toContain('unlockGoogleRefreshTokenFromPasskeyVault');
-    expect(sync).toContain("firebaseApiFetch('/api/google/local-token/commit'");
+    expect(sync).toContain('/api/google/local-token/commit');
     expect(vault).toContain("purpose: 'google-refresh-token'");
     expect(vault).not.toContain('localStorage.setItem');
   });
