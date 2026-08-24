@@ -9,35 +9,28 @@ function read(...parts) {
 }
 
 describe('browser-only Google Drive authentication architecture', () => {
-  it('keeps production on browser Google auth without Functions or a Passkey token vault', () => {
+  it('keeps production on browser Google auth without Functions or passkey session code', () => {
     const workflow = read('..', '.github', 'workflows', 'firebase-hosting-merge.yml');
     const routes = read('src', 'app', 'AppRoutes.tsx');
     const sync = read('src', 'features', 'sync', 'index.ts');
-    const gate = read('src', 'features', 'sync', 'googlePasskeyGate.ts');
 
     expect(workflow).toContain('VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}');
     expect(workflow).not.toContain('functions:googleApi');
     expect(workflow).not.toContain('VITE_GOOGLE_PASSKEY_AUTH');
     expect(routes).not.toContain('passkey-vault');
     expect(sync).not.toContain('firebaseApiFetch');
-    expect(gate).not.toContain('refresh_token');
-    expect(gate).not.toContain('access_token');
-    expect(gate).not.toContain('ciphertext');
   });
 
-  it('gates GIS re-authentication with Passkey and falls back through the existing sync lifecycle', () => {
+  it('uses a silent GIS token request and restores it when auto-sync starts', () => {
+    const drive = read('src', 'features', 'sync', 'googleDriveSync.ts');
     const sync = read('src', 'features', 'sync', 'index.ts');
-    const lifecycle = read('src', 'features', 'sync', 'hooks', 'useAutoSyncLifecycle.ts');
-    const profile = read('src', 'features', 'profile', 'GoogleSyncCard.tsx');
 
-    expect(sync).toContain('authenticateGooglePasskeyGate');
-    expect(sync).toContain('module.requestGoogleAccessToken()');
-    expect(sync).not.toContain('requestGoogleAccessTokenSilently');
-    expect(lifecycle).toContain('hasGooglePasskeyGate');
-    expect(lifecycle).toContain('isGoogleLinked');
-    expect(lifecycle).toContain('/profile?googleAuth=required');
-    expect(lifecycle).toContain('kinly:google-auth-required');
-    expect(profile).toContain('createGooglePasskeyGate');
-    expect(profile).toContain('Xác thực Google & tiếp tục');
+    expect(drive).toContain("prompt: 'none'");
+    expect(drive).toContain('login_hint: request.loginHint');
+    expect(drive).toContain('requestGoogleAccessTokenSilently');
+    expect(drive).toContain('await restoreLinkedGoogleSession();');
+    expect(drive).toContain("document.visibilityState === 'visible'");
+    expect(sync).toContain('getGoogleLinkedAccount()');
+    expect(sync).toContain('requestGoogleAccessTokenSilently');
   });
 });
