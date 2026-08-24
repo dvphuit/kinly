@@ -93,19 +93,20 @@ function runCompressionWorker(
     };
 
     worker.onmessage = (event: MessageEvent<unknown>) => {
-      if (!isCompressionWorkerMessage(event.data)) {
+      const message = event.data;
+      if (!isCompressionWorkerMessage(message)) {
         finish(() => reject(new Error('Media compression worker returned an invalid response.')));
         return;
       }
-      if (event.data.type === 'progress') {
-        onProgress?.(Math.max(0, Math.min(100, Math.round(event.data.progress))));
+      if (message.type === 'progress') {
+        onProgress?.(Math.max(0, Math.min(100, Math.round(message.progress))));
         return;
       }
-      if (event.data.type === 'error') {
-        finish(() => reject(new Error(event.data.error)));
+      if (message.type === 'error') {
+        finish(() => reject(new Error(message.error)));
         return;
       }
-      finish(() => resolve(event.data.blob));
+      finish(() => resolve(message.blob));
     };
     worker.onerror = (event) => {
       finish(() => reject(new Error(event.message || 'Media compression worker failed.')));
