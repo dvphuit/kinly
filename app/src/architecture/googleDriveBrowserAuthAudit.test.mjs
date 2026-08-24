@@ -14,7 +14,6 @@ describe('Google Drive authentication architecture', () => {
     const routes = read('src', 'app', 'AppRoutes.tsx');
     const sync = read('src', 'features', 'sync', 'index.ts');
     const broker = read('src', 'features', 'sync', 'googleOAuthBroker.ts');
-    const gate = read('src', 'features', 'sync', 'googlePasskeyGate.ts');
     const worker = read('..', 'workers', 'google-oauth-broker', 'src', 'index.js');
     const workerConfig = read('..', 'workers', 'google-oauth-broker', 'wrangler.jsonc');
 
@@ -22,10 +21,8 @@ describe('Google Drive authentication architecture', () => {
     expect(workflow).toContain('VITE_GOOGLE_AUTH_WORKER_URL: ${{ secrets.VITE_GOOGLE_AUTH_WORKER_URL }}');
     expect(routes).not.toContain('passkey-vault');
     expect(sync).not.toContain('firebaseApiFetch');
+    expect(sync).not.toContain('googlePasskeyGate');
     expect(broker).not.toContain('refresh_token');
-    expect(gate).not.toContain('refresh_token');
-    expect(gate).not.toContain('access_token');
-    expect(gate).not.toContain('ciphertext');
     expect(worker).toContain('GOOGLE_CLIENT_SECRET');
     expect(worker).toContain('TOKEN_ENCRYPTION_KEY');
     expect(worker).toContain('refresh_token');
@@ -35,17 +32,16 @@ describe('Google Drive authentication architecture', () => {
     expect(worker).toContain("code_challenge_method: 'S256'");
   });
 
-  it('prefers broker refresh on reopen while retaining the Passkey and GIS fallback', () => {
+  it('prefers broker refresh on reopen while retaining the browser-only GIS fallback', () => {
     const sync = read('src', 'features', 'sync', 'index.ts');
     const lifecycle = read('src', 'features', 'sync', 'hooks', 'useAutoSyncLifecycle.ts');
     const profile = read('src', 'features', 'profile', 'GoogleSyncCard.tsx');
 
     expect(sync).toContain('restoreGoogleAccessTokenFromBroker');
     expect(sync).toContain('requestGoogleAccessTokenFromBroker');
-    expect(sync).toContain('authenticateGooglePasskeyGate');
-    expect(lifecycle).toContain('isGoogleOAuthBrokerConfigured');
-    expect(lifecycle).toContain('/profile?googleAuth=required');
-    expect(profile).toContain('createGooglePasskeyGate');
-    expect(profile).toContain('Xác thực Google & tiếp tục');
+    expect(sync).toContain('requestGoogleAccessTokenSilently');
+    expect(sync).not.toContain('authenticateGooglePasskeyGate');
+    expect(lifecycle).not.toContain('/profile?googleAuth=required');
+    expect(profile).not.toContain('Passkey');
   });
 });

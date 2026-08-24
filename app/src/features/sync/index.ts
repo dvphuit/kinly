@@ -7,18 +7,9 @@ import {
 
 export * from './appSnapshot';
 export { SyncSnapshotIntegrityError } from './syncSnapshotEnvelope';
-export {
-  authenticateGooglePasskeyGate,
-  clearGooglePasskeyGate,
-  createGooglePasskeyGate,
-  GooglePasskeyGateError,
-  hasGooglePasskeyGate,
-  isGooglePasskeyGateSupported,
-} from './googlePasskeyGate';
 export { isGoogleOAuthBrokerConfigured } from './googleOAuthBroker';
 export type SyncSnapshot = import('./syncSnapshotEnvelope').SyncSnapshot;
 export type SyncSnapshotIntegrityReason = import('./syncSnapshotEnvelope').SyncSnapshotIntegrityReason;
-export type GooglePasskeyGateErrorCode = import('./googlePasskeyGate').GooglePasskeyGateErrorCode;
 
 type GoogleDriveSyncModule = typeof import('./googleDriveSync');
 
@@ -45,7 +36,6 @@ export const SYNC_KEYS = [
 
 const GOOGLE_LINKED_CLIENT_KEY = 'babygrowth_v4_google_linked_client';
 const GOOGLE_LINKED_ACCOUNT_KEY = 'babygrowth_v4_google_linked_account';
-export const GOOGLE_AUTH_REQUIRED_EVENT = 'kinly:google-auth-required';
 
 const UNLOADED_SYNC_STATE = {
   status: 'idle',
@@ -107,15 +97,6 @@ function rememberGoogleLink(account: GoogleAccountIdentity): void {
   if (!clientId || typeof window === 'undefined') return;
   window.localStorage.setItem(GOOGLE_LINKED_CLIENT_KEY, clientId);
   window.localStorage.setItem(GOOGLE_LINKED_ACCOUNT_KEY, JSON.stringify({ clientId, account }));
-}
-
-function notifyGoogleAuthRequired(): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new Event(GOOGLE_AUTH_REQUIRED_EVENT));
-}
-
-function isPasskeyCancellation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'cancelled';
 }
 
 /**
@@ -229,56 +210,33 @@ async function restoreBrowserGoogleSession(): Promise<boolean> {
   if (isGoogleOAuthBrokerConfigured()) {
     try {
       const brokerToken = await restoreGoogleAccessTokenFromBroker();
-      if (!brokerToken) {
-        if (isGoogleLinked()) notifyGoogleAuthRequired();
-        return false;
-      }
+      if (!brokerToken) return false;
       const module = await loadGoogleDriveSync();
       const account = await acceptBrokerAccessToken(module, brokerToken);
       rememberGoogleLink(account);
       return true;
     } catch {
-      if (isGoogleLinked()) notifyGoogleAuthRequired();
       return false;
     }
   }
 
   if (!isGoogleLinked()) return false;
-  const { authenticateGooglePasskeyGate, hasGooglePasskeyGate } = await import('./googlePasskeyGate');
-  let gateExists = false;
-  try {
-    gateExists = await hasGooglePasskeyGate();
-  } catch {
-    gateExists = false;
-  }
-
-  if (!gateExists) {
-    notifyGoogleAuthRequired();
-    return false;
-  }
-
-  try {
-    await authenticateGooglePasskeyGate();
-  } catch (error) {
-    if (!isPasskeyCancellation(error)) notifyGoogleAuthRequired();
-    return false;
-  }
-
+  const rememberedAccount = getGoogleLinkedAccount();
   const module = await loadGoogleDriveSync();
   try {
-    const account = await module.requestGoogleAccessToken();
+    const account = await module.requestGoogleAccessTokenSilently(
+      rememberedAccount?.emailAddress ? { loginHint: rememberedAccount.emailAddress } : {},
+    );
     rememberGoogleLink(account);
     return true;
   } catch {
-    notifyGoogleAuthRequired();
     return false;
   }
 }
 
 /**
  * Best-effort Google Drive restore for a previously linked account.
- * When the optional OAuth broker is configured, Kinly first asks it for a refreshed access token.
- * Otherwise the local Passkey + GIS flow remains the browser-only fallback.
+ * The optional OAuth broker is preferred when configured; otherwise Kinly keeps the browser-only silent GIS fallback.
  */
 export async function restoreGoogleSession(): Promise<boolean> {
   if (isGoogleSessionActive()) return true;

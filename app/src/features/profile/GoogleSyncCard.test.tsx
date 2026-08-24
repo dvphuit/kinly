@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import * as googleDriveSync from '@/features/sync';
 import { GoogleSyncCard } from './GoogleSyncCard';
@@ -19,16 +19,11 @@ vi.mock('@/features/sync', () => {
   };
 
   return {
-    clearGooglePasskeyGate: vi.fn().mockResolvedValue(undefined),
-    createGooglePasskeyGate: vi.fn().mockResolvedValue(undefined),
     getGoogleLinkedAccount: vi.fn(() => account),
     getLastSyncedAt: vi.fn().mockResolvedValue(null),
     getSyncState: vi.fn(() => state),
-    hasGooglePasskeyGate: vi.fn().mockResolvedValue(false),
     isGoogleConfigured: vi.fn(() => true),
     isGoogleLinked: vi.fn(() => true),
-    isGoogleOAuthBrokerConfigured: vi.fn(() => false),
-    isGooglePasskeyGateSupported: vi.fn().mockResolvedValue(true),
     isGoogleSessionActive: vi.fn(() => false),
     requestGoogleAccessToken: vi.fn().mockResolvedValue(account),
     resolveSyncConflict: vi.fn(),
@@ -42,11 +37,6 @@ vi.mock('@/features/sync', () => {
 });
 
 describe('GoogleSyncCard', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(googleDriveSync.isGoogleOAuthBrokerConfigured).mockReturnValue(false);
-  });
-
   it('shows the linked account and re-authentication state without a contradictory reconnect error', () => {
     render(
       <MemoryRouter>
@@ -75,46 +65,5 @@ describe('GoogleSyncCard', () => {
     await waitFor(() => {
       expect(googleDriveSync.requestGoogleAccessToken).toHaveBeenCalledWith({ selectAccount: true });
     });
-  });
-
-  it('offers Passkey setup for a linked Google account when the broker is disabled', async () => {
-    render(
-      <MemoryRouter>
-        <GoogleSyncCard />
-      </MemoryRouter>,
-    );
-
-    const setupButton = await screen.findByRole('button', { name: 'Thiết lập Passkey' });
-    fireEvent.click(setupButton);
-
-    await waitFor(() => {
-      expect(googleDriveSync.createGooglePasskeyGate).toHaveBeenCalledTimes(1);
-    });
-    expect(await screen.findByRole('button', { name: 'Tắt Passkey' })).toBeInTheDocument();
-  });
-
-  it('hides Passkey controls when the durable OAuth broker is configured', () => {
-    vi.mocked(googleDriveSync.isGoogleOAuthBrokerConfigured).mockReturnValue(true);
-
-    render(
-      <MemoryRouter>
-        <GoogleSyncCard />
-      </MemoryRouter>,
-    );
-
-    expect(screen.queryByText('Passkey khi mở Kinly')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Thiết lập Passkey' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Kinly tự làm mới quyền Google ở nền/)).toBeInTheDocument();
-  });
-
-  it('shows a focused Google authentication action after automatic fallback navigation', () => {
-    render(
-      <MemoryRouter initialEntries={['/profile?googleAuth=required']}>
-        <GoogleSyncCard />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByText('Google Drive đang chờ xác thực')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Xác thực Google & tiếp tục' })).toBeInTheDocument();
   });
 });
