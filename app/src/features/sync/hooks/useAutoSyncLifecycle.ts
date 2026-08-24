@@ -26,7 +26,6 @@ export function useAutoSyncLifecycle(enabled = true): void {
     void Promise.all([import('../index'), import('../googlePasskeyGate')])
       .then(async ([sync, passkeyGate]) => {
         if (disposed || !navigator.onLine || !sync.isGoogleLinked() || sync.isGoogleSessionActive()) return;
-        if (!(await sync.isAutoSyncEnabled())) return;
         const hasPasskey = await passkeyGate.hasGooglePasskeyGate().catch(() => false);
         if (!hasPasskey) openGoogleAccountManagement();
       })

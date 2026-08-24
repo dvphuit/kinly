@@ -6,7 +6,6 @@ import { useAutoSyncLifecycle } from './useAutoSyncLifecycle';
 
 const navigate = vi.hoisted(() => vi.fn());
 const syncSession = vi.hoisted(() => ({
-  isAutoSyncEnabled: vi.fn(),
   isGoogleLinked: vi.fn(),
   isGoogleSessionActive: vi.fn(),
 }));
@@ -41,8 +40,6 @@ describe('useAutoSyncLifecycle', () => {
     syncSession.isGoogleLinked.mockReturnValue(false);
     syncSession.isGoogleSessionActive.mockReset();
     syncSession.isGoogleSessionActive.mockReturnValue(false);
-    syncSession.isAutoSyncEnabled.mockReset();
-    syncSession.isAutoSyncEnabled.mockResolvedValue(false);
     passkeyGate.hasGooglePasskeyGate.mockReset();
     passkeyGate.hasGooglePasskeyGate.mockResolvedValue(true);
     waitForAppSnapshotRuntimeMock.mockReset();
@@ -158,9 +155,8 @@ describe('useAutoSyncLifecycle', () => {
     unmount();
   });
 
-  it('opens Google account management when linked auto-sync needs auth and no Passkey exists', async () => {
+  it('opens Google account management when a linked account has no Passkey gate', async () => {
     syncSession.isGoogleLinked.mockReturnValue(true);
-    syncSession.isAutoSyncEnabled.mockResolvedValue(true);
     passkeyGate.hasGooglePasskeyGate.mockResolvedValue(false);
 
     const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
@@ -173,7 +169,6 @@ describe('useAutoSyncLifecycle', () => {
 
   it('keeps the current route when a Passkey gate can handle reauthentication', async () => {
     syncSession.isGoogleLinked.mockReturnValue(true);
-    syncSession.isAutoSyncEnabled.mockResolvedValue(true);
     passkeyGate.hasGooglePasskeyGate.mockResolvedValue(true);
 
     const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
@@ -191,18 +186,6 @@ describe('useAutoSyncLifecycle', () => {
     });
 
     expect(navigate).toHaveBeenCalledWith('/profile?googleAuth=required', { replace: true });
-    unmount();
-  });
-
-  it('does not require Passkey setup when auto-sync is disabled', async () => {
-    syncSession.isGoogleLinked.mockReturnValue(true);
-    syncSession.isAutoSyncEnabled.mockResolvedValue(false);
-
-    const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
-
-    await waitFor(() => expect(syncSession.isAutoSyncEnabled).toHaveBeenCalledTimes(1));
-    expect(passkeyGate.hasGooglePasskeyGate).not.toHaveBeenCalled();
-    expect(navigate).not.toHaveBeenCalled();
     unmount();
   });
 });

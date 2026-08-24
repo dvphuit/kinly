@@ -34,7 +34,7 @@ describe('browser-only Google Drive authentication architecture', () => {
     expect(sync).toContain('module.requestGoogleAccessToken()');
     expect(sync).not.toContain('requestGoogleAccessTokenSilently');
     expect(lifecycle).toContain('hasGooglePasskeyGate');
-    expect(lifecycle).toContain('isAutoSyncEnabled');
+    expect(lifecycle).toContain('isGoogleLinked');
     expect(lifecycle).toContain('/profile?googleAuth=required');
     expect(lifecycle).toContain('kinly:google-auth-required');
     expect(profile).toContain('createGooglePasskeyGate');
