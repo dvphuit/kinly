@@ -25,9 +25,9 @@ describe('browser-only Google Drive authentication architecture', () => {
     expect(gate).not.toContain('ciphertext');
   });
 
-  it('gates GIS re-authentication with Passkey and falls back to account management', () => {
+  it('gates GIS re-authentication with Passkey and falls back through the existing sync lifecycle', () => {
     const sync = read('src', 'features', 'sync', 'index.ts');
-    const lifecycle = read('src', 'features', 'sync', 'hooks', 'useGoogleDriveReauthLifecycle.ts');
+    const lifecycle = read('src', 'features', 'sync', 'hooks', 'useAutoSyncLifecycle.ts');
     const profile = read('src', 'features', 'profile', 'GoogleSyncCard.tsx');
 
     expect(sync).toContain('authenticateGooglePasskeyGate');
@@ -36,6 +36,7 @@ describe('browser-only Google Drive authentication architecture', () => {
     expect(lifecycle).toContain('hasGooglePasskeyGate');
     expect(lifecycle).toContain('isAutoSyncEnabled');
     expect(lifecycle).toContain('/profile?googleAuth=required');
+    expect(lifecycle).toContain('kinly:google-auth-required');
     expect(profile).toContain('createGooglePasskeyGate');
     expect(profile).toContain('Xác thực Google & tiếp tục');
   });

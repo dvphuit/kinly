@@ -9,7 +9,6 @@ import { PWAInstallPrompt } from '@/shared/ui/PWAInstallPrompt';
 import { ToastContainer } from '@/shared/ui/Toast';
 import { useAppModals } from '@/app/hooks/useAppModals';
 import { useAutoSyncLifecycle } from '@/features/sync/hooks/useAutoSyncLifecycle';
-import { useGoogleDriveReauthLifecycle } from '@/features/sync/hooks/useGoogleDriveReauthLifecycle';
 import { useReminderLifecycle } from '@/features/reminders/hooks/useReminderLifecycle';
 import { useThemeColor } from '@/app/hooks/useThemeColor';
 import { useToast } from '@/shared/hooks/useToast';
@@ -63,7 +62,6 @@ export const AppContent: React.FC = () => {
   useEffect(() => {
     logDiagnostic('navigation', 'info', 'Route changed', { path: location.pathname });
   }, [location.pathname]);
-  useGoogleDriveReauthLifecycle(isInitialized);
   useAutoSyncLifecycle(isInitialized);
 
   const { toasts, addToast } = useToast();

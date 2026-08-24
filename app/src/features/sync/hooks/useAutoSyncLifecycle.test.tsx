@@ -4,8 +4,21 @@ import { waitForAppSnapshotRuntime } from '../appSnapshot';
 import { startAutoSync } from '@/features/sync/googleDriveSync';
 import { useAutoSyncLifecycle } from './useAutoSyncLifecycle';
 
+const navigate = vi.hoisted(() => vi.fn());
+const syncSession = vi.hoisted(() => ({
+  isAutoSyncEnabled: vi.fn(),
+  isGoogleLinked: vi.fn(),
+  isGoogleSessionActive: vi.fn(),
+}));
+const passkeyGate = vi.hoisted(() => ({
+  hasGooglePasskeyGate: vi.fn(),
+}));
+
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
 vi.mock('../appSnapshot', () => ({ waitForAppSnapshotRuntime: vi.fn() }));
 vi.mock('@/features/sync/googleDriveSync', () => ({ startAutoSync: vi.fn() }));
+vi.mock('../index', () => syncSession);
+vi.mock('../googlePasskeyGate', () => passkeyGate);
 
 const waitForAppSnapshotRuntimeMock = vi.mocked(waitForAppSnapshotRuntime);
 const startAutoSyncMock = vi.mocked(startAutoSync);
@@ -23,6 +36,15 @@ function runNextIdleCallback(): void {
 
 describe('useAutoSyncLifecycle', () => {
   beforeEach(() => {
+    navigate.mockReset();
+    syncSession.isGoogleLinked.mockReset();
+    syncSession.isGoogleLinked.mockReturnValue(false);
+    syncSession.isGoogleSessionActive.mockReset();
+    syncSession.isGoogleSessionActive.mockReturnValue(false);
+    syncSession.isAutoSyncEnabled.mockReset();
+    syncSession.isAutoSyncEnabled.mockResolvedValue(false);
+    passkeyGate.hasGooglePasskeyGate.mockReset();
+    passkeyGate.hasGooglePasskeyGate.mockResolvedValue(true);
     waitForAppSnapshotRuntimeMock.mockReset();
     waitForAppSnapshotRuntimeMock.mockResolvedValue();
     startAutoSyncMock.mockReset();
@@ -34,6 +56,7 @@ describe('useAutoSyncLifecycle', () => {
       return nextIdleId++;
     }));
     vi.stubGlobal('cancelIdleCallback', cancelIdleCallbackMock);
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
   });
 
   afterEach(() => {
@@ -132,6 +155,54 @@ describe('useAutoSyncLifecycle', () => {
 
     runNextIdleCallback();
     await waitFor(() => expect(startAutoSyncMock).toHaveBeenCalledTimes(1));
+    unmount();
+  });
+
+  it('opens Google account management when linked auto-sync needs auth and no Passkey exists', async () => {
+    syncSession.isGoogleLinked.mockReturnValue(true);
+    syncSession.isAutoSyncEnabled.mockResolvedValue(true);
+    passkeyGate.hasGooglePasskeyGate.mockResolvedValue(false);
+
+    const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith('/profile?googleAuth=required', { replace: true });
+    });
+    unmount();
+  });
+
+  it('keeps the current route when a Passkey gate can handle reauthentication', async () => {
+    syncSession.isGoogleLinked.mockReturnValue(true);
+    syncSession.isAutoSyncEnabled.mockResolvedValue(true);
+    passkeyGate.hasGooglePasskeyGate.mockResolvedValue(true);
+
+    const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
+
+    await waitFor(() => expect(passkeyGate.hasGooglePasskeyGate).toHaveBeenCalledTimes(1));
+    expect(navigate).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('routes to Google account management when the restore path reports auth is required', () => {
+    const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
+
+    act(() => {
+      window.dispatchEvent(new Event('kinly:google-auth-required'));
+    });
+
+    expect(navigate).toHaveBeenCalledWith('/profile?googleAuth=required', { replace: true });
+    unmount();
+  });
+
+  it('does not require Passkey setup when auto-sync is disabled', async () => {
+    syncSession.isGoogleLinked.mockReturnValue(true);
+    syncSession.isAutoSyncEnabled.mockResolvedValue(false);
+
+    const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
+
+    await waitFor(() => expect(syncSession.isAutoSyncEnabled).toHaveBeenCalledTimes(1));
+    expect(passkeyGate.hasGooglePasskeyGate).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
     unmount();
   });
 });

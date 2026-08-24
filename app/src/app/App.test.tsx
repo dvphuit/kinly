@@ -7,7 +7,6 @@ import { AppContent } from './App';
 
 const addToast = vi.fn();
 const useAutoSyncLifecycleMock = vi.fn();
-const useGoogleDriveReauthLifecycleMock = vi.fn();
 const useReminderLifecycleMock = vi.fn();
 
 const modalController: AppModalController = {
@@ -43,7 +42,6 @@ const modalController: AppModalController = {
 
 vi.mock('@/shared/hooks/useToast', () => ({ useToast: () => ({ toasts: [], addToast, dismissToast: vi.fn() }) }));
 vi.mock('@/features/sync/hooks/useAutoSyncLifecycle', () => ({ useAutoSyncLifecycle: () => useAutoSyncLifecycleMock() }));
-vi.mock('@/features/sync/hooks/useGoogleDriveReauthLifecycle', () => ({ useGoogleDriveReauthLifecycle: () => useGoogleDriveReauthLifecycleMock() }));
 vi.mock('@/features/reminders/hooks/useReminderLifecycle', () => ({ useReminderLifecycle: (options: unknown) => useReminderLifecycleMock(options) }));
 vi.mock('@/app/hooks/useAppModals', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/app/hooks/useAppModals')>();
@@ -104,7 +102,6 @@ describe('AppContent', () => {
     expect(screen.getByText('PWA Prompt marker')).toBeInTheDocument();
     expect(screen.getByText('Version marker')).toBeInTheDocument();
     expect(screen.getByText('PWA Badge marker')).toBeInTheDocument();
-    expect(useGoogleDriveReauthLifecycleMock).toHaveBeenCalled();
     expect(useAutoSyncLifecycleMock).toHaveBeenCalled();
     expect(useReminderLifecycleMock).toHaveBeenCalled();
   });
