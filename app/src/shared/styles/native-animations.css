@@ -57,12 +57,13 @@
 .toast-container { animation: fadeIn 140ms ease-out both; }
 .toast-item { animation: toastSlideDown 180ms cubic-bezier(0.2, 0.75, 0.3, 1) both; }
 
-.ptr-root.ptr-settling .ptr-content,
-.ptr-root.ptr-settling .ptr-indicator,
-.ptr-root.ptr-settling .ptr-pull-icon {
-  transition: transform 220ms cubic-bezier(0.2, 0.75, 0.3, 1), opacity 180ms ease-out;
-}
-.ptr-root.is-refreshing .ptr-spinner-wrap { animation: ptrSpin 800ms linear infinite; }
+.ptr-root.ptr-settling .ptr-content{transition:transform 220ms cubic-bezier(0.2,0.75,0.3,1)}
+.ptr-root.ptr-settling .ptr-indicator{transition:opacity 180ms ease-out}
+.ptr-root.ptr-settling .ptr-card{transition:transform 220ms cubic-bezier(0.2,0.75,0.3,1),opacity 180ms ease-out}
+.ptr-root.ptr-settling .ptr-orbit-motion{transition:transform 200ms cubic-bezier(0.2,0.75,0.3,1)}
+.ptr-root.is-refreshing .ptr-orbit-motion{animation:ptrSpin 760ms linear infinite}
+.ptr-root.is-ready .ptr-card{animation:ptrReadyPop 260ms cubic-bezier(0.34,1.2,0.64,1)}
+@keyframes ptrReadyPop{0%{transform:scale(1)}40%{transform:scale(1.06)}100%{transform:scale(1)}}
 
 .moment-media-preview-page.native-open { animation: nativePreviewIn 180ms cubic-bezier(0.2, 0.75, 0.3, 1) both; }
 .moment-media-preview-page.native-closing { animation: fadeOut 180ms ease-out both; pointer-events: none; }
@@ -103,7 +104,8 @@
   .moment-media-preview-header,
   .moment-media-preview-footer,
   .animate-heart,
-  .ptr-spinner-wrap {
+  .ptr-orbit-motion,
+  .ptr-card {
     animation-duration: 1ms !important;
     animation-iteration-count: 1 !important;
   }
@@ -113,7 +115,8 @@
   .lightbox-close-btn,
   .ptr-content,
   .ptr-indicator,
-  .ptr-pull-icon {
+  .ptr-card,
+  .ptr-orbit-motion {
     transition-duration: 1ms !important;
   }
 }

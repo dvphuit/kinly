@@ -93,6 +93,7 @@ describe('interaction performance audit', () => {
   });
 
   it('uses browser-native animation paths for routes, overlays, and gestures', () => {
+    const main = source('main.tsx');
     const routes = source('app/AppRoutes.tsx');
     const bottomNav = source('shared/ui/BottomNav.tsx');
     const header = source('app/components/Header.tsx');
@@ -107,11 +108,18 @@ describe('interaction performance audit', () => {
     expect(routes).toContain('useLocation');
     expect(routes).toContain('className="app-route-surface" key={location.pathname}');
     expect((bottomNav.match(/viewTransition/g) ?? [])).toHaveLength(2);
+    expect(main).toContain('createBrowserRouter');
+    expect(main).toContain('<RouterProvider router={router} />');
     expect(header).toContain("navigate('/profile', { viewTransition: true })");
     expect(nativeTransitions).toContain('::view-transition-old(root)');
     expect(nativeTransitions).toContain('::view-transition-new(root)');
     expect(nativeTransitions).toContain('view-transition-name: app-route-surface;');
     expect(nativeTransitions).toContain('animation: havenRouteContentIn 260ms');
+    expect(nativeTransitions).toContain('html[data-tab-direction] .app-route-surface');
+    expect(nativeTransitions).toContain('html.has-vt .app-route-surface');
+    expect(nativeTransitions).toContain('::view-transition-old(bottom-nav) { display: none; }');
+    expect(nativeTransitions).toContain('::view-transition-new(bottom-nav)');
+    expect(main).toContain("typeof document.startViewTransition === 'function'");
     expect(nativeTransitions).toContain('view-transition-name: none;');
     expect(nativeAnimations).toContain('@media (prefers-reduced-motion: reduce)');
     expect(bottomSheetCss).toContain('box-shadow: none;');
@@ -209,17 +217,23 @@ describe('interaction performance audit', () => {
     const momHome = source('features/home/components/MomHomeView.tsx');
     const segmentClock = source('features/home/components/SegmentClock.tsx');
     const dayReference = source('shared/hooks/useLocalDayReference.ts');
+    const nativeTransitions = source('shared/styles/native-transitions.css');
 
-    expect(pullToRefresh).toContain("root.addEventListener('touchmove', onTouchMove, { passive: true });");
-    expect(pullToRefresh).not.toContain('event.preventDefault()');
-    expect(pullToRefresh).not.toContain('passive: false');
+    expect(pullToRefresh).toContain("root.addEventListener('touchmove', onTouchMove, { passive: false });");
+    expect(pullToRefresh).toContain("root.removeEventListener('touchmove', onTouchMove);");
+    expect(pullToRefresh).toContain('event.preventDefault();');
 
     expect(bottomNav).not.toContain("from 'motion/react'");
     expect(bottomNav).not.toContain('layoutId=');
     expect(bottomNav).toContain('onPointerDown={handleRouteIntent}');
     expect(bottomNavCss).toContain('.nav-tab-item:active');
     expect(bottomNavCss).toContain('.fab-center-btn:active');
-    expect(bottomNavCss).toContain('view-transition-name: bottom-nav-active-pill;');
+    expect(bottomNavCss).toContain('view-transition-name: bottom-nav-active-tab;');
+    expect(bottomNavCss).toContain('::view-transition-group(bottom-nav-active-tab)');
+    expect(bottomNavCss).toContain('::view-transition-old(bottom-nav-active-tab)');
+    expect(bottomNavCss).toContain('::view-transition-new(bottom-nav-active-tab)');
+    expect(nativeTransitions).toContain('::view-transition-group(bottom-nav-active-tab) { z-index: 51; }');
+    expect(bottomNavCss).toContain('animation: havenRouteTabIn 260ms cubic-bezier(0.05, 0.7, 0.1, 1) both;');
     expect(bottomNavCss).toContain('@media (prefers-reduced-motion: reduce)');
     expect(bottomNavCss).toContain('--bottom-nav-safe-area: var(--safe-area-inset-bottom);');
     expect(bottomNavCss).toContain('--bottom-nav-safe-area-max: var(--safe-area-max-inset-bottom);');
@@ -230,7 +244,7 @@ describe('interaction performance audit', () => {
     expect(headerCss).toContain('min-height: 68px;');
     expect(headerCss).toContain('padding: 9px 12px;');
 
-    expect(routePreload).toContain('export function preloadAppRoute');
+    expect(routePreload).toContain('export async function preloadAppRoute');
     expect(routes).not.toContain('export function preloadAppRoute');
     expect(routes).toContain('memo(function AppRoutes');
     expect(app).toContain('onRouteIntent={preloadAppRoute}');

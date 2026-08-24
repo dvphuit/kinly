@@ -32,5 +32,5 @@ export default defineConfig({
         preset: '2023',
     },
     preset,
-    images: ['public/app-icon-source.png'],
+    images: ['public/pwa-64x64.png'],
 })

@@ -1,41 +1,68 @@
-export async function loadTimelineFeature() {
-  const feature = await import('@/features/timeline');
-  await feature.loadTimelineStyles();
-  return feature;
+function createFeatureLoader<T>(
+  importFeature: () => Promise<T>,
+  loadStyles: (feature: T) => Promise<void>,
+) {
+  let loaded: T | undefined;
+  let pending: Promise<T> | undefined;
+
+  return {
+    getLoaded: () => loaded,
+    load: () => {
+      pending ??= importFeature()
+        .then(async (feature) => {
+          await loadStyles(feature);
+          loaded = feature;
+          return feature;
+        })
+        .catch((error: unknown) => {
+          pending = undefined;
+          throw error;
+        });
+      return pending;
+    },
+  };
 }
 
-export async function loadGrowthFeature() {
-  const feature = await import('@/features/growth');
-  await feature.loadGrowthStyles();
-  return feature;
-}
+const timelineFeature = createFeatureLoader(
+  () => import('@/features/timeline'),
+  (feature) => feature.loadTimelineStyles(),
+);
+const growthFeature = createFeatureLoader(
+  () => import('@/features/growth'),
+  (feature) => feature.loadGrowthStyles(),
+);
+const expensesFeature = createFeatureLoader(
+  () => import('@/features/expenses'),
+  (feature) => feature.loadExpensesStyles(),
+);
+const profileFeature = createFeatureLoader(
+  () => import('@/features/profile'),
+  (feature) => feature.loadProfileStyles(),
+);
 
-export async function loadExpensesFeature() {
-  const feature = await import('@/features/expenses');
-  await feature.loadExpensesStyles();
-  return feature;
-}
+export const loadTimelineFeature = timelineFeature.load;
+export const loadGrowthFeature = growthFeature.load;
+export const loadExpensesFeature = expensesFeature.load;
+export const loadProfileFeature = profileFeature.load;
 
-export async function loadProfileFeature() {
-  const feature = await import('@/features/profile');
-  await feature.loadProfileStyles();
-  return feature;
-}
+export const getLoadedTimelineFeature = timelineFeature.getLoaded;
+export const getLoadedGrowthFeature = growthFeature.getLoaded;
+export const getLoadedExpensesFeature = expensesFeature.getLoaded;
 
-export function preloadAppRoute(pathname: string): void {
+export async function preloadAppRoute(pathname: string): Promise<void> {
   switch (pathname) {
     case '/timeline':
-      void loadTimelineFeature();
+      await loadTimelineFeature();
       return;
     case '/growth':
-      void loadGrowthFeature();
+      await loadGrowthFeature();
       return;
     case '/expenses':
-      void loadExpensesFeature();
+      await loadExpensesFeature();
       return;
     case '/profile':
     case '/profile/google-drive':
-      void loadProfileFeature();
+      await loadProfileFeature();
       return;
     default:
       return;

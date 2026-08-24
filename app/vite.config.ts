@@ -154,7 +154,7 @@ export default defineConfig({
 
       injectManifest: {
         globPatterns: [
-          '**/*.{js,css,html,svg,ico}',
+          '**/*.{js,css,html,svg,ico,woff2}',
           'pwa-*.png',
           'maskable-icon-*.png',
           'apple-touch-icon-*.png',

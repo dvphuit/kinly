@@ -32,7 +32,7 @@ function reloadApp(): void {
 }
 
 function preloadProfileRoute(): void {
-  preloadAppRoute('/profile');
+  void preloadAppRoute('/profile');
 }
 
 export const AppContent: React.FC = () => {
