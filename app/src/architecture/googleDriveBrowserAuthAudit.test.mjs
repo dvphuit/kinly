@@ -8,35 +8,39 @@ function read(...parts) {
   return readFileSync(join(ROOT, ...parts), 'utf8');
 }
 
-describe('browser-only Google Drive authentication architecture', () => {
-  it('keeps production on browser Google auth without Functions or a Passkey token vault', () => {
+describe('Google Drive authentication architecture', () => {
+  it('keeps the Cloudflare OAuth broker optional and keeps refresh credentials out of app source', () => {
     const workflow = read('..', '.github', 'workflows', 'firebase-hosting-merge.yml');
     const routes = read('src', 'app', 'AppRoutes.tsx');
     const sync = read('src', 'features', 'sync', 'index.ts');
+    const broker = read('src', 'features', 'sync', 'googleOAuthBroker.ts');
     const gate = read('src', 'features', 'sync', 'googlePasskeyGate.ts');
+    const worker = read('..', 'workers', 'google-oauth-broker', 'src', 'index.js');
 
     expect(workflow).toContain('VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}');
-    expect(workflow).not.toContain('functions:googleApi');
-    expect(workflow).not.toContain('VITE_GOOGLE_PASSKEY_AUTH');
+    expect(workflow).toContain('VITE_GOOGLE_AUTH_WORKER_URL: ${{ secrets.VITE_GOOGLE_AUTH_WORKER_URL }}');
     expect(routes).not.toContain('passkey-vault');
     expect(sync).not.toContain('firebaseApiFetch');
+    expect(broker).not.toContain('refresh_token');
     expect(gate).not.toContain('refresh_token');
     expect(gate).not.toContain('access_token');
     expect(gate).not.toContain('ciphertext');
+    expect(worker).toContain('GOOGLE_CLIENT_SECRET');
+    expect(worker).toContain('refresh_token');
+    expect(worker).toContain('OAUTH_SESSIONS');
+    expect(worker).toContain("code_challenge_method: 'S256'");
   });
 
-  it('gates GIS re-authentication with Passkey and falls back through the existing sync lifecycle', () => {
+  it('prefers broker refresh on reopen while retaining the Passkey and GIS fallback', () => {
     const sync = read('src', 'features', 'sync', 'index.ts');
     const lifecycle = read('src', 'features', 'sync', 'hooks', 'useAutoSyncLifecycle.ts');
     const profile = read('src', 'features', 'profile', 'GoogleSyncCard.tsx');
 
+    expect(sync).toContain('restoreGoogleAccessTokenFromBroker');
+    expect(sync).toContain('requestGoogleAccessTokenFromBroker');
     expect(sync).toContain('authenticateGooglePasskeyGate');
-    expect(sync).toContain('module.requestGoogleAccessToken()');
-    expect(sync).not.toContain('requestGoogleAccessTokenSilently');
-    expect(lifecycle).toContain('hasGooglePasskeyGate');
-    expect(lifecycle).toContain('isGoogleLinked');
+    expect(lifecycle).toContain('isGoogleOAuthBrokerConfigured');
     expect(lifecycle).toContain('/profile?googleAuth=required');
-    expect(lifecycle).toContain('kinly:google-auth-required');
     expect(profile).toContain('createGooglePasskeyGate');
     expect(profile).toContain('Xác thực Google & tiếp tục');
   });

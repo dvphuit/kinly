@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kinly-google-oauth-broker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "kv_namespaces": [
+    { "binding": "OAUTH_SESSIONS" }
+  ],
+  "vars": {
+    "GOOGLE_CLIENT_ID": "598629342498-c8ltki5l6hfn395ts1497hu5euks33kv.apps.googleusercontent.com",
+    "ALLOWED_ORIGINS": "https://baby-growth-dvphu.web.app"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

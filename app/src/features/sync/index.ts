@@ -1,3 +1,10 @@
+import {
+  isGoogleOAuthBrokerConfigured,
+  requestGoogleAccessTokenFromBroker,
+  restoreGoogleAccessTokenFromBroker,
+  type GoogleOAuthBrokerToken,
+} from './googleOAuthBroker';
+
 export * from './appSnapshot';
 export { SyncSnapshotIntegrityError } from './syncSnapshotEnvelope';
 export {
@@ -8,6 +15,7 @@ export {
   hasGooglePasskeyGate,
   isGooglePasskeyGateSupported,
 } from './googlePasskeyGate';
+export { isGoogleOAuthBrokerConfigured } from './googleOAuthBroker';
 export type SyncSnapshot = import('./syncSnapshotEnvelope').SyncSnapshot;
 export type SyncSnapshotIntegrityReason = import('./syncSnapshotEnvelope').SyncSnapshotIntegrityReason;
 export type GooglePasskeyGateErrorCode = import('./googlePasskeyGate').GooglePasskeyGateErrorCode;
@@ -110,6 +118,37 @@ function isPasskeyCancellation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'cancelled';
 }
 
+/**
+ * Reuses the existing Google Drive runtime session boundary for a broker-provided
+ * short-lived access token. The temporary GIS shim never opens a popup and exists
+ * only until googleDriveSync has validated the account and bound the runtime token.
+ */
+async function acceptBrokerAccessToken(
+  module: GoogleDriveSyncModule,
+  token: GoogleOAuthBrokerToken,
+): Promise<GoogleAccountIdentity> {
+  if (typeof window === 'undefined') throw new Error('Google Drive chỉ khả dụng trong trình duyệt.');
+  const previousGoogle = window.google;
+  window.google = {
+    accounts: {
+      oauth2: {
+        initTokenClient: (config) => ({
+          requestAccessToken: () => {
+            config.callback({ access_token: token.accessToken, expires_in: token.expiresIn });
+          },
+        }),
+      },
+    },
+  };
+
+  try {
+    return await module.requestGoogleAccessToken();
+  } finally {
+    if (previousGoogle) window.google = previousGoogle;
+    else delete window.google;
+  }
+}
+
 export function isGoogleConfigured(): boolean {
   return getGoogleClientId() !== null;
 }
@@ -167,6 +206,17 @@ export function subscribeSyncState(listener: (state: SyncState) => void): () => 
 
 export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
   const module = await loadGoogleDriveSync();
+  if (isGoogleOAuthBrokerConfigured()) {
+    const loginHint = options.selectAccount === true ? undefined : getGoogleLinkedAccount()?.emailAddress;
+    const token = await requestGoogleAccessTokenFromBroker({
+      selectAccount: options.selectAccount === true,
+      ...(loginHint ? { loginHint } : {}),
+    });
+    const account = await acceptBrokerAccessToken(module, token);
+    rememberGoogleLink(account);
+    return account;
+  }
+
   const account = await module.requestGoogleAccessToken(options);
   rememberGoogleLink(account);
   return account;
@@ -174,8 +224,26 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
 
 async function restoreBrowserGoogleSession(): Promise<boolean> {
   if (isGoogleSessionActive()) return true;
-  if (!isGoogleLinked() || typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) return false;
+  if (typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) return false;
 
+  if (isGoogleOAuthBrokerConfigured()) {
+    try {
+      const brokerToken = await restoreGoogleAccessTokenFromBroker();
+      if (!brokerToken) {
+        if (isGoogleLinked()) notifyGoogleAuthRequired();
+        return false;
+      }
+      const module = await loadGoogleDriveSync();
+      const account = await acceptBrokerAccessToken(module, brokerToken);
+      rememberGoogleLink(account);
+      return true;
+    } catch {
+      if (isGoogleLinked()) notifyGoogleAuthRequired();
+      return false;
+    }
+  }
+
+  if (!isGoogleLinked()) return false;
   const { authenticateGooglePasskeyGate, hasGooglePasskeyGate } = await import('./googlePasskeyGate');
   let gateExists = false;
   try {
@@ -209,8 +277,8 @@ async function restoreBrowserGoogleSession(): Promise<boolean> {
 
 /**
  * Best-effort Google Drive restore for a previously linked account.
- * When a local Passkey gate exists, Kinly requests user verification first and then lets GIS open its dialog.
- * No Google access or refresh token is persisted by this layer.
+ * When the optional OAuth broker is configured, Kinly first asks it for a refreshed access token.
+ * Otherwise the local Passkey + GIS flow remains the browser-only fallback.
  */
 export async function restoreGoogleSession(): Promise<boolean> {
   if (isGoogleSessionActive()) return true;

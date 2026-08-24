@@ -10,6 +10,7 @@ import {
   hasGooglePasskeyGate,
   isGoogleConfigured,
   isGoogleLinked,
+  isGoogleOAuthBrokerConfigured,
   isGooglePasskeyGateSupported,
   isGoogleSessionActive,
   requestGoogleAccessToken,
@@ -50,6 +51,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
   const navigate = useNavigate();
   const location = useLocation();
   const authRequested = new URLSearchParams(location.search).get('googleAuth') === 'required';
+  const brokerConfigured = isGoogleOAuthBrokerConfigured();
   const [busy, setBusy] = useState(false);
   const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState<boolean | null>(null);
@@ -77,6 +79,12 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
   }, []);
 
   useEffect(() => {
+    if (brokerConfigured) {
+      setPasskeySupported(false);
+      setPasskeyEnabled(false);
+      return undefined;
+    }
+
     let active = true;
     void Promise.all([isGooglePasskeyGateSupported(), hasGooglePasskeyGate()])
       .then(([supported, enabled]) => {
@@ -92,7 +100,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     return () => {
       active = false;
     };
-  }, []);
+  }, [brokerConfigured]);
 
   useEffect(() => {
     if (!authRequested) return;
@@ -232,8 +240,8 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
             <div className="medical-info-item full">
               <div className="medical-item-icon"><ShieldCheck size={15} /></div>
               <div>
-              <span className="medical-item-lbl">Sao lưu Google Drive</span>
-              <span className="medical-item-val">Tính năng sao lưu chưa sẵn sàng trên phiên bản ứng dụng này.</span>
+                <span className="medical-item-lbl">Sao lưu Google Drive</span>
+                <span className="medical-item-val">Tính năng sao lưu chưa sẵn sàng trên phiên bản ứng dụng này.</span>
               </div>
             </div>
           </div>
@@ -261,7 +269,11 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
         {authRequested && !sessionActive && (
           <div className="medical-allergy-box" style={{ marginBottom: 16 }} role="status">
             <div className="allergy-header"><ShieldCheck size={14} color="var(--color-sage-dark)" /> Google Drive đang chờ xác thực</div>
-            <p className="summary-desc">Kinly đã đưa bạn đến đây vì auto-sync cần một thao tác thật để Google mở cửa sổ xác thực.</p>
+            <p className="summary-desc">
+              {brokerConfigured
+                ? 'Kinly cần mở Google một lần để tạo phiên xác thực bền vững cho thiết bị này.'
+                : 'Kinly đã đưa bạn đến đây vì auto-sync cần một thao tác thật để Google mở cửa sổ xác thực.'}
+            </p>
           </div>
         )}
 
@@ -301,7 +313,11 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
 
         <div className="medical-allergy-box" style={{ marginTop: 16 }}>
           <div className="allergy-header"><RefreshCw size={14} color="var(--color-sage-dark)" /> Tự động đồng bộ</div>
-          <p className="summary-desc">Khi bật, thay đổi mới sẽ được sao lưu khi ứng dụng có mạng. Google có thể yêu cầu xác thực lại sau một thời gian.</p>
+          <p className="summary-desc">
+            {brokerConfigured
+              ? 'Khi bật, Kinly tự làm mới quyền Google ở nền khi cần và sao lưu khi ứng dụng có mạng.'
+              : 'Khi bật, thay đổi mới sẽ được sao lưu khi ứng dụng có mạng. Google có thể yêu cầu xác thực lại sau một thời gian.'}
+          </p>
           <button
             type="button"
             className={`profile-action-btn ${syncState.autoSyncEnabled ? 'primary' : 'secondary'}`}
@@ -314,7 +330,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
           </button>
         </div>
 
-        {linked && (
+        {linked && !brokerConfigured && (
           <div className="medical-allergy-box" style={{ marginTop: 16 }}>
             <div className="allergy-header"><KeyRound size={14} color="var(--color-sage-dark)" /> Passkey khi mở Kinly</div>
             <p className="summary-desc">Passkey chỉ xác nhận người dùng trước khi Kinly yêu cầu Google mở cửa sổ GIS. Kinly không lưu access token hoặc refresh token trong Passkey.</p>

@@ -2,7 +2,7 @@
 
 Kinly is a local-first React application for tracking baby care, growth, family timeline, reminders, expenses, and postpartum routines.
 
-The app stores data in IndexedDB and can back up one semantic application snapshot to the user's private Google Drive `appDataFolder`. It has no application backend.
+The app stores data in IndexedDB and can back up one semantic application snapshot to the user's private Google Drive `appDataFolder`. The core app can run without an application backend. An optional Cloudflare OAuth broker can keep Google refresh tokens server-side so Drive access can be restored after the app reopens without repeating browser authentication every time the short-lived access token expires.
 
 ## Features
 
@@ -27,6 +27,7 @@ The app stores data in IndexedDB and can back up one semantic application snapsh
 - IndexedDB
 - Chart.js
 - vite-plugin-pwa and Workbox
+- Optional Cloudflare Worker + Workers KV for durable Google OAuth sessions
 
 ## Architecture
 
@@ -119,6 +120,15 @@ npm run test:e2e
 
 CI uses Node.js 22.
 
+The optional OAuth broker has its own tests and Wrangler dry-run check:
+
+```bash
+cd workers/google-oauth-broker
+npm install
+npm test
+npm run check
+```
+
 ## Google Drive setup
 
 Create an OAuth 2.0 Web application client in Google Cloud Console. Enable the Google Drive API and add each development or production origin to Authorized JavaScript origins.
@@ -136,13 +146,35 @@ Set:
 VITE_GOOGLE_CLIENT_ID=<your web OAuth client ID>
 ```
 
-The app requests `https://www.googleapis.com/auth/drive.appdata`. Google access tokens remain in memory. The app does not store a refresh token.
+The app requests only `https://www.googleapis.com/auth/drive.appdata`. Google access tokens remain in browser memory.
+
+### Optional durable OAuth broker
+
+`workers/google-oauth-broker/` implements an opt-in Authorization Code + PKCE broker on Cloudflare Workers. When enabled, the Google client secret is a Worker Secret and Google refresh tokens remain in Workers KV. Kinly persists only an opaque broker session capability in its existing IndexedDB storage and still keeps Google access tokens runtime-only.
+
+After deploying the Worker, add its exact callback URL to the OAuth client's Authorized redirect URIs:
+
+```text
+https://<your-worker-host>/oauth/callback
+```
+
+Then configure the app build with:
+
+```text
+VITE_GOOGLE_AUTH_WORKER_URL=https://<your-worker-host>
+```
+
+If `VITE_GOOGLE_AUTH_WORKER_URL` is absent, Kinly keeps the browser GIS + Passkey reauthentication fallback.
+
+See `workers/google-oauth-broker/README.md` for Worker secrets, KV, deployment, and verification steps.
 
 ## Deployment
 
 Firebase Hosting serves `app/dist/`. Production and preview deployment scripts live in `app/package.json` and `app/scripts/`.
 
-Never commit `.env.local`, service account JSON, access tokens, or other credentials.
+The optional Google OAuth broker deploys separately from `workers/google-oauth-broker/`. It is not required for the local-first application or for browser-only Google authentication.
+
+Never commit `.env.local`, Worker secret values, service account JSON, access tokens, refresh tokens, or other credentials.
 
 ## Contributing
 
