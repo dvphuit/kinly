@@ -93,25 +93,6 @@ Schema-1 Drive backups are incompatible with the current generation and are reje
 
 Timeline media uses separate private files in `appDataFolder`. Snapshot data stores Drive file identifiers on timeline media records.
 
-### Google authentication boundary
-
-Browser-only Google authentication remains supported through Google Identity Services. That path keeps access tokens in memory and can use the device-local Passkey gate before an interactive reauthentication attempt.
-
-The optional `workers/google-oauth-broker/` service is a separate OAuth boundary, not a data backend. When `VITE_GOOGLE_AUTH_WORKER_URL` is configured:
-
-- Kinly starts Authorization Code + PKCE through the Worker for explicit Google authorization.
-- `GOOGLE_CLIENT_SECRET` exists only as a Worker Secret.
-- `TOKEN_ENCRYPTION_KEY` exists only as a Worker Secret and encrypts Google refresh tokens with AES-GCM before D1 persistence.
-- Durable OAuth state lives in the Worker's `OAUTH_DB` D1 binding; raw refresh tokens are never stored in D1.
-- Kinly stores an opaque broker session capability under `babygrowth_v4_google_oauth_broker_session` in the existing IndexedDB boundary.
-- The browser receives only short-lived Google access tokens and keeps them in runtime memory.
-- App reopen asks the broker to refresh a short-lived access token before falling back to explicit Google authorization.
-- A revoked Google grant causes the Worker to delete the broker session and requires explicit reauthorization.
-
-D1 is intentionally used instead of Workers KV for the OAuth broker because state/result consumption and session creation require predictable read-after-write behavior. This does not move application snapshots, timeline media, profile state, or sync conflict logic into Cloudflare; those contracts remain in the existing Sync feature and Google Drive `appDataFolder`.
-
-`VITE_GOOGLE_AUTH_WORKER_URL` is intentionally optional. If it is absent, the existing Passkey + GIS browser flow remains active. This allows broker deployment/configuration to be validated independently of the application release.
-
 ## State rules
 
 Persist raw domain facts. Use selectors for values that can be calculated from those facts.
@@ -153,7 +134,5 @@ npm test
 npm run lint
 npm run build
 ```
-
-The optional OAuth Worker also runs its Node tests, applies its D1 migration locally, and runs a Wrangler dry-run bundle check in `Google OAuth Worker CI`.
 
 Before removing a component, style, asset, or export, verify that no production consumer remains.
