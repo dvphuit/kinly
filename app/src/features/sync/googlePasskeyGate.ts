@@ -29,8 +29,12 @@ interface StoredGooglePasskeyGateV1 {
   createdAt: string;
 }
 
-function randomChallenge(): Uint8Array {
+function randomBytes(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(CHALLENGE_BYTES));
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -114,12 +118,11 @@ export async function createGooglePasskeyGate(): Promise<void> {
   }
 
   const rpId = currentRpId();
-  const userId = randomChallenge();
   const publicKey: PublicKeyCredentialCreationOptions = {
-    challenge: randomChallenge(),
+    challenge: toArrayBuffer(randomBytes()),
     rp: { id: rpId, name: 'Kinly' },
     user: {
-      id: userId,
+      id: toArrayBuffer(randomBytes()),
       name: 'kinly-google-drive',
       displayName: 'Kinly Google Drive',
     },
@@ -169,11 +172,11 @@ export async function authenticateGooglePasskeyGate(): Promise<void> {
   }
 
   const publicKey: PublicKeyCredentialRequestOptions = {
-    challenge: randomChallenge(),
+    challenge: toArrayBuffer(randomBytes()),
     rpId: record.rpId,
     allowCredentials: [{
       type: 'public-key',
-      id: base64UrlToBytes(record.credentialId),
+      id: toArrayBuffer(base64UrlToBytes(record.credentialId)),
     }],
     userVerification: 'required',
     timeout: 60_000,
