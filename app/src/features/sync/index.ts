@@ -1,7 +1,16 @@
 export * from './appSnapshot';
 export { SyncSnapshotIntegrityError } from './syncSnapshotEnvelope';
+export {
+  authenticateGooglePasskeyGate,
+  clearGooglePasskeyGate,
+  createGooglePasskeyGate,
+  GooglePasskeyGateError,
+  hasGooglePasskeyGate,
+  isGooglePasskeyGateSupported,
+} from './googlePasskeyGate';
 export type SyncSnapshot = import('./syncSnapshotEnvelope').SyncSnapshot;
 export type SyncSnapshotIntegrityReason = import('./syncSnapshotEnvelope').SyncSnapshotIntegrityReason;
+export type GooglePasskeyGateErrorCode = import('./googlePasskeyGate').GooglePasskeyGateErrorCode;
 
 type GoogleDriveSyncModule = typeof import('./googleDriveSync');
 
@@ -28,6 +37,7 @@ export const SYNC_KEYS = [
 
 const GOOGLE_LINKED_CLIENT_KEY = 'babygrowth_v4_google_linked_client';
 const GOOGLE_LINKED_ACCOUNT_KEY = 'babygrowth_v4_google_linked_account';
+export const GOOGLE_AUTH_REQUIRED_EVENT = 'kinly:google-auth-required';
 
 const UNLOADED_SYNC_STATE = {
   status: 'idle',
@@ -89,6 +99,15 @@ function rememberGoogleLink(account: GoogleAccountIdentity): void {
   if (!clientId || typeof window === 'undefined') return;
   window.localStorage.setItem(GOOGLE_LINKED_CLIENT_KEY, clientId);
   window.localStorage.setItem(GOOGLE_LINKED_ACCOUNT_KEY, JSON.stringify({ clientId, account }));
+}
+
+function notifyGoogleAuthRequired(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(GOOGLE_AUTH_REQUIRED_EVENT));
+}
+
+function isPasskeyCancellation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'cancelled';
 }
 
 export function isGoogleConfigured(): boolean {
@@ -157,20 +176,42 @@ async function restoreBrowserGoogleSession(): Promise<boolean> {
   if (isGoogleSessionActive()) return true;
   if (!isGoogleLinked() || typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) return false;
 
-  const rememberedAccount = getGoogleLinkedAccount();
+  const { authenticateGooglePasskeyGate, hasGooglePasskeyGate } = await import('./googlePasskeyGate');
+  let gateExists = false;
+  try {
+    gateExists = await hasGooglePasskeyGate();
+  } catch {
+    gateExists = false;
+  }
+
+  if (!gateExists) {
+    notifyGoogleAuthRequired();
+    return false;
+  }
+
+  try {
+    await authenticateGooglePasskeyGate();
+  } catch (error) {
+    if (!isPasskeyCancellation(error)) notifyGoogleAuthRequired();
+    return false;
+  }
+
   const module = await loadGoogleDriveSync();
   try {
-    const account = await module.requestGoogleAccessTokenSilently(
-      rememberedAccount?.emailAddress ? { loginHint: rememberedAccount.emailAddress } : {},
-    );
+    const account = await module.requestGoogleAccessToken();
     rememberGoogleLink(account);
     return true;
   } catch {
+    notifyGoogleAuthRequired();
     return false;
   }
 }
 
-/** Best-effort silent restore for a previously linked browser Google account. Never opens consent UI. */
+/**
+ * Best-effort Google Drive restore for a previously linked account.
+ * When a local Passkey gate exists, Kinly requests user verification first and then lets GIS open its dialog.
+ * No Google access or refresh token is persisted by this layer.
+ */
 export async function restoreGoogleSession(): Promise<boolean> {
   if (isGoogleSessionActive()) return true;
   if (!browserGoogleRestorePromise) {
