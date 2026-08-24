@@ -2,15 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const googleDriveSync = vi.hoisted(() => ({
   isGoogleConnected: vi.fn(() => false),
-  requestGoogleAccessToken: vi.fn(),
-}));
-const passkeyGate = vi.hoisted(() => ({
-  hasGooglePasskeyGate: vi.fn(),
-  authenticateGooglePasskeyGate: vi.fn(),
+  requestGoogleAccessTokenSilently: vi.fn(),
 }));
 
 vi.mock('./googleDriveSync', () => googleDriveSync);
-vi.mock('./googlePasskeyGate', () => passkeyGate);
 
 const ACCOUNT = {
   permissionId: 'account-1',
@@ -28,53 +23,43 @@ describe('browser Google session restore', () => {
     vi.clearAllMocks();
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', CLIENT_ID);
     window.localStorage.clear();
-    passkeyGate.hasGooglePasskeyGate.mockResolvedValue(true);
-    passkeyGate.authenticateGooglePasskeyGate.mockResolvedValue(undefined);
-    googleDriveSync.requestGoogleAccessToken.mockResolvedValue(ACCOUNT);
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
   });
 
-  it('authenticates the local Passkey before opening the GIS token dialog', async () => {
+  it('silently restores a remembered Google account using its email as login hint', async () => {
     window.localStorage.setItem(LINKED_CLIENT_KEY, CLIENT_ID);
     window.localStorage.setItem(LINKED_ACCOUNT_KEY, JSON.stringify({ clientId: CLIENT_ID, account: ACCOUNT }));
+    googleDriveSync.requestGoogleAccessTokenSilently.mockResolvedValue(ACCOUNT);
 
     const sync = await import('./index');
 
     await expect(sync.restoreGoogleSession()).resolves.toBe(true);
-    expect(passkeyGate.authenticateGooglePasskeyGate).toHaveBeenCalledTimes(1);
-    expect(googleDriveSync.requestGoogleAccessToken).toHaveBeenCalledTimes(1);
+    expect(googleDriveSync.requestGoogleAccessTokenSilently).toHaveBeenCalledTimes(1);
+    expect(googleDriveSync.requestGoogleAccessTokenSilently).toHaveBeenCalledWith({
+      loginHint: 'parent@example.com',
+    });
     expect(sync.isGoogleLinked()).toBe(true);
   });
 
-  it('does not open GIS when no Passkey gate is configured', async () => {
+  it('keeps the remembered link when silent restore needs user interaction', async () => {
     window.localStorage.setItem(LINKED_CLIENT_KEY, CLIENT_ID);
-    passkeyGate.hasGooglePasskeyGate.mockResolvedValue(false);
+    window.localStorage.setItem(LINKED_ACCOUNT_KEY, JSON.stringify({ clientId: CLIENT_ID, account: ACCOUNT }));
+    googleDriveSync.requestGoogleAccessTokenSilently.mockRejectedValue(new Error('interaction_required'));
 
     const sync = await import('./index');
 
     await expect(sync.restoreGoogleSession()).resolves.toBe(false);
-    expect(passkeyGate.authenticateGooglePasskeyGate).not.toHaveBeenCalled();
-    expect(googleDriveSync.requestGoogleAccessToken).not.toHaveBeenCalled();
+    expect(sync.isGoogleLinked()).toBe(true);
+    expect(window.localStorage.getItem(LINKED_ACCOUNT_KEY)).toContain('parent@example.com');
   });
 
-  it('does not open GIS when Passkey verification is cancelled', async () => {
-    window.localStorage.setItem(LINKED_CLIENT_KEY, CLIENT_ID);
-    passkeyGate.authenticateGooglePasskeyGate.mockRejectedValue({ code: 'cancelled' });
-
+  it('does not contact Google when no account was linked before', async () => {
     const sync = await import('./index');
 
     await expect(sync.restoreGoogleSession()).resolves.toBe(false);
-    expect(googleDriveSync.requestGoogleAccessToken).not.toHaveBeenCalled();
-  });
-
-  it('does not prompt Passkey or Google when no account was linked before', async () => {
-    const sync = await import('./index');
-
-    await expect(sync.restoreGoogleSession()).resolves.toBe(false);
-    expect(passkeyGate.hasGooglePasskeyGate).not.toHaveBeenCalled();
-    expect(googleDriveSync.requestGoogleAccessToken).not.toHaveBeenCalled();
+    expect(googleDriveSync.requestGoogleAccessTokenSilently).not.toHaveBeenCalled();
   });
 });
