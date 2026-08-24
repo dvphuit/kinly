@@ -2,5 +2,4 @@ node_modules/
 .dev.vars
 .env
 .wrangler/
-.wrangler-state/
 .wrangler-dry-run/

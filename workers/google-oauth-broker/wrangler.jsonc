@@ -4,12 +4,10 @@
   "main": "src/index.js",
   "compatibility_date": "2026-08-24",
   "compatibility_flags": ["nodejs_compat"],
-  "d1_databases": [
+  "kv_namespaces": [
     {
-      "binding": "OAUTH_DB",
-      "database_name": "kinly-google-oauth",
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
+      "binding": "OAUTH_SESSIONS",
+      "id": "00000000000000000000000000000000"
     }
   ],
   "vars": {

@@ -1,8 +1,8 @@
 import { getLocalRecord, removeLocalRecord, setLocalRecord } from '@/data/localDb';
 
 const BROKER_SESSION_KEY = 'babygrowth_v4_google_oauth_broker_session';
+const COMPLETION_CHANNEL_PREFIX = 'kinly-google-oauth:';
 const POPUP_TIMEOUT_MS = 2 * 60 * 1000;
-const RESULT_POLL_MS = 500;
 
 export interface GoogleOAuthBrokerToken {
   accessToken: string;
@@ -16,20 +16,18 @@ interface BrokerStartResponse {
 
 interface BrokerCompleteResponse extends GoogleOAuthBrokerToken {
   status: 'complete';
+  attemptToken: string;
   sessionToken: string;
-}
-
-interface BrokerPendingResponse {
-  status: 'pending';
 }
 
 interface BrokerErrorResponse {
   status: 'error';
+  attemptToken: string;
   error: string;
   errorDescription?: string;
 }
 
-type BrokerResultResponse = BrokerCompleteResponse | BrokerPendingResponse | BrokerErrorResponse;
+type BrokerResultResponse = BrokerCompleteResponse | BrokerErrorResponse;
 
 function getBrokerBaseUrl(): URL | null {
   const raw = import.meta.env.VITE_GOOGLE_AUTH_WORKER_URL;
@@ -73,30 +71,45 @@ function parseStartPayload(value: unknown): BrokerStartResponse {
 }
 
 function parseResultPayload(value: unknown): BrokerResultResponse {
-  if (typeof value !== 'object' || value === null || !('status' in value) || typeof value.status !== 'string') {
+  if (
+    typeof value !== 'object' || value === null
+    || !('status' in value) || typeof value.status !== 'string'
+    || !('attemptToken' in value) || typeof value.attemptToken !== 'string' || !value.attemptToken
+  ) {
     throw new Error('OAuth broker trả về trạng thái xác thực không hợp lệ.');
   }
-  if (value.status === 'pending') return { status: 'pending' };
+
   if (value.status === 'error' && 'error' in value && typeof value.error === 'string') {
     return {
       status: 'error',
+      attemptToken: value.attemptToken,
       error: value.error,
       ...('errorDescription' in value && typeof value.errorDescription === 'string'
         ? { errorDescription: value.errorDescription }
         : {}),
     };
   }
+
   if (value.status === 'complete' && 'sessionToken' in value && typeof value.sessionToken === 'string' && value.sessionToken) {
-    return { status: 'complete', sessionToken: value.sessionToken, ...parseTokenPayload(value) };
+    return {
+      status: 'complete',
+      attemptToken: value.attemptToken,
+      sessionToken: value.sessionToken,
+      ...parseTokenPayload(value),
+    };
   }
+
   throw new Error('OAuth broker trả về trạng thái xác thực không hoàn chỉnh.');
 }
 
 async function readResponseError(response: Response): Promise<string> {
-  const payload = await response.json().catch(() => null) as unknown;
+  const payload: unknown = await response.json().catch(() => null);
   if (typeof payload === 'object' && payload !== null) {
     if ('message' in payload && typeof payload.message === 'string') return payload.message;
-    if ('error' in payload && typeof payload.error === 'object' && payload.error !== null && 'message' in payload.error && typeof payload.error.message === 'string') {
+    if (
+      'error' in payload && typeof payload.error === 'object' && payload.error !== null
+      && 'message' in payload.error && typeof payload.error.message === 'string'
+    ) {
       return payload.error.message;
     }
   }
@@ -112,23 +125,36 @@ async function revokeBrokerSession(sessionToken: string): Promise<void> {
   });
 }
 
-async function pollAuthorizationResult(base: URL, attemptToken: string): Promise<BrokerCompleteResponse> {
-  const deadline = Date.now() + POPUP_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    const response = await fetch(new URL('/oauth/result', base), {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${attemptToken}` },
-    });
-    if (!response.ok) throw new Error(await readResponseError(response));
-
-    const result = parseResultPayload(await response.json());
-    if (result.status === 'complete') return result;
-    if (result.status === 'error') throw new Error(result.errorDescription || result.error);
-    await new Promise<void>((resolve) => window.setTimeout(resolve, RESULT_POLL_MS));
+function waitForAuthorizationResult(attemptToken: string): Promise<BrokerCompleteResponse> {
+  if (typeof BroadcastChannel === 'undefined') {
+    throw new Error('Trình duyệt này chưa hỗ trợ hoàn tất xác thực Google an toàn.');
   }
 
-  throw new Error('Xác thực Google hết thời gian chờ. Hãy thử lại.');
+  return new Promise((resolve, reject) => {
+    const channel = new BroadcastChannel(`${COMPLETION_CHANNEL_PREFIX}${attemptToken}`);
+    const timeout = window.setTimeout(() => {
+      channel.close();
+      reject(new Error('Xác thực Google hết thời gian chờ. Hãy thử lại.'));
+    }, POPUP_TIMEOUT_MS);
+
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      let result: BrokerResultResponse;
+      try {
+        result = parseResultPayload(event.data);
+      } catch {
+        return;
+      }
+      if (result.attemptToken !== attemptToken) return;
+
+      window.clearTimeout(timeout);
+      channel.close();
+      if (result.status === 'complete') {
+        resolve(result);
+        return;
+      }
+      reject(new Error(result.errorDescription || result.error));
+    };
+  });
 }
 
 export function isGoogleOAuthBrokerConfigured(): boolean {
@@ -190,8 +216,9 @@ export async function requestGoogleAccessTokenFromBroker(options: {
     if (!response.ok) throw new Error(await readResponseError(response));
 
     const start = parseStartPayload(await response.json());
+    const resultPromise = waitForAuthorizationResult(start.attemptToken);
     popup.location.href = start.authorizationUrl;
-    const result = await pollAuthorizationResult(base, start.attemptToken);
+    const result = await resultPromise;
 
     const previousSession = await previousSessionPromise;
     await setLocalRecord(BROKER_SESSION_KEY, result.sessionToken);

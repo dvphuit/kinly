@@ -14,6 +14,7 @@ describe('Google Drive authentication architecture', () => {
     const routes = read('src', 'app', 'AppRoutes.tsx');
     const sync = read('src', 'features', 'sync', 'index.ts');
     const broker = read('src', 'features', 'sync', 'googleOAuthBroker.ts');
+    const completion = read('public', 'google-oauth-complete.html');
     const worker = read('..', 'workers', 'google-oauth-broker', 'src', 'index.js');
     const workerConfig = read('..', 'workers', 'google-oauth-broker', 'wrangler.jsonc');
 
@@ -23,12 +24,18 @@ describe('Google Drive authentication architecture', () => {
     expect(sync).not.toContain('firebaseApiFetch');
     expect(sync).not.toContain('googlePasskeyGate');
     expect(broker).not.toContain('refresh_token');
+    expect(broker).not.toContain('/oauth/result');
+    expect(broker).toContain('BroadcastChannel');
+    expect(completion).toContain('BroadcastChannel');
+    expect(completion).toContain('history.replaceState');
     expect(worker).toContain('GOOGLE_CLIENT_SECRET');
     expect(worker).toContain('TOKEN_ENCRYPTION_KEY');
     expect(worker).toContain('refresh_token');
-    expect(worker).toContain('OAUTH_DB');
-    expect(workerConfig).toContain('"d1_databases"');
-    expect(workerConfig).not.toContain('"kv_namespaces"');
+    expect(worker).toContain('OAUTH_SESSIONS');
+    expect(worker).not.toContain('OAUTH_DB');
+    expect(worker).not.toContain('oauth_transients');
+    expect(workerConfig).toContain('"kv_namespaces"');
+    expect(workerConfig).not.toContain('"d1_databases"');
     expect(worker).toContain("code_challenge_method: 'S256'");
   });
 

@@ -1,21 +1,33 @@
 # Kinly Google OAuth broker
 
-This Cloudflare Worker is an optional OAuth backend for Kinly's Google Drive backup. It keeps Google refresh credentials off the browser so Kinly can restore a short-lived Drive access token after the app reopens without repeating Passkey + GIS whenever the access token expires.
+This Cloudflare Worker keeps the Google refresh token outside the browser so Kinly can request a new short-lived Drive access token when the app opens again.
+
+## Storage model
+
+Workers KV stores only durable broker sessions. OAuth state is encrypted into the Google `state` parameter, and the first authorization result returns through Kinly's same-origin completion page. KV is therefore not used for read-after-write OAuth handoff state.
+
+The stored mapping is effectively:
+
+```text
+SHA-256(opaque broker session token)
+  -> AES-GCM encrypted Google refresh token
+```
+
+Kinly stores only the opaque broker session token in IndexedDB. Google access tokens stay in browser memory and expire normally.
 
 ## Security model
 
-- `GOOGLE_CLIENT_SECRET` is a Cloudflare Worker Secret and is never committed.
-- `TOKEN_ENCRYPTION_KEY` is a 32-byte Worker Secret used to encrypt Google refresh tokens with AES-GCM before D1 persistence.
-- Durable OAuth sessions live in the `OAUTH_DB` D1 binding; raw refresh tokens are never stored in D1.
-- Kinly stores an opaque broker session token in IndexedDB. D1 stores only a SHA-256-derived session lookup key, not the opaque token itself.
-- Google access tokens returned to Kinly remain runtime-only and expire normally.
-- OAuth authorization uses Authorization Code + PKCE and single-use state/result records with a 10-minute expiry.
-- Browser requests are restricted to `ALLOWED_ORIGINS`; there is no wildcard CORS.
-- If Google returns `invalid_grant`, the broker deletes the durable session and Kinly falls back to explicit reauthorization.
+- `GOOGLE_CLIENT_SECRET` is a Worker Secret and is never committed.
+- `TOKEN_ENCRYPTION_KEY` is a 32-byte Worker Secret used for AES-GCM encryption.
+- `OAUTH_SESSIONS` is a Workers KV binding. Raw Google refresh tokens are never stored in KV.
+- The browser never receives a Google refresh token.
+- Authorization Code + PKCE is used for the initial Google grant.
+- OAuth state expires after 10 minutes and is authenticated by AES-GCM instead of being persisted.
+- The callback redirects only to an origin listed in `ALLOWED_ORIGINS`.
+- The completion page uses a same-origin `BroadcastChannel`, so the Worker does not depend on `window.opener` surviving Google's popup flow.
+- If Google returns `invalid_grant`, the Worker deletes the broker session and Kinly requires explicit Google authorization again.
 
-D1 is used instead of Workers KV because OAuth state/result consumption and session creation need predictable read-after-write behavior. Cloudflare documents Workers KV as eventually consistent and recommends stronger consistency for transactional state.
-
-The opaque broker session is still a sensitive capability: JavaScript running in the Kinly origin can use it while it is present. Keep the app's XSS protections strong and delete the broker session when disconnecting an account.
+The opaque broker session is a sensitive capability. JavaScript running on the Kinly origin can use it while it exists, so keep the app's XSS protections strong and delete the session when disconnecting the account.
 
 ## Local verification
 
@@ -26,9 +38,9 @@ npm test
 npm run check
 ```
 
-`npm run check` applies the D1 migration to a local Wrangler database and then runs `wrangler deploy --dry-run` to validate the Worker bundle.
+`npm run check` runs a Wrangler dry-run bundle validation. There is no database migration.
 
-## Provision D1
+## Provision Workers KV
 
 Authenticate Wrangler with the Cloudflare account that should own the Worker:
 
@@ -38,23 +50,17 @@ npm install
 npx wrangler login
 ```
 
-Create the D1 database:
+Create the KV namespace:
 
 ```bash
-npx wrangler d1 create kinly-google-oauth
+npx wrangler kv namespace create OAUTH_SESSIONS
 ```
 
-Copy the returned database UUID into `wrangler.jsonc` as `d1_databases[0].database_id`, replacing the all-zero placeholder.
-
-Apply migrations remotely:
-
-```bash
-npx wrangler d1 migrations apply OAUTH_DB --remote
-```
+Copy the returned namespace ID into `wrangler.jsonc` as `kv_namespaces[0].id`, replacing the all-zero placeholder.
 
 ## Secrets
 
-Store the Google OAuth client secret in Cloudflare, not GitHub source:
+Store the Google OAuth client secret in Cloudflare:
 
 ```bash
 npx wrangler secret put GOOGLE_CLIENT_SECRET
@@ -66,7 +72,7 @@ Generate and store a 32-byte encryption key:
 openssl rand -base64 32 | npx wrangler secret put TOKEN_ENCRYPTION_KEY
 ```
 
-Do not rotate `TOKEN_ENCRYPTION_KEY` without a migration plan for existing encrypted refresh tokens. Rotating it immediately invalidates existing broker sessions.
+Keep `TOKEN_ENCRYPTION_KEY` in a password manager or another secure recovery location. Replacing it immediately invalidates existing encrypted broker sessions.
 
 ## Deploy
 
@@ -74,9 +80,19 @@ Do not rotate `TOKEN_ENCRYPTION_KEY` without a migration plan for existing encry
 npx wrangler deploy
 ```
 
+The Worker should expose:
+
+```text
+GET /health
+POST /oauth/start
+GET /oauth/callback
+POST /oauth/token
+DELETE /oauth/session
+```
+
 ## Google Cloud Console
 
-Use the same OAuth 2.0 Web application client ID configured for Kinly. Add the deployed Worker callback as an **Authorized redirect URI**:
+Use the same OAuth 2.0 Web application client ID configured for Kinly. Add the deployed Worker callback as an Authorized redirect URI:
 
 ```text
 https://<your-worker-host>/oauth/callback
@@ -90,10 +106,12 @@ https://www.googleapis.com/auth/drive.appdata
 
 ## Enable the broker in Kinly
 
-Set the Firebase Hosting build secret/environment variable to the Worker origin, without a trailing path:
+Set the Firebase Hosting build secret or environment variable to the Worker origin, without a trailing path:
 
 ```text
 VITE_GOOGLE_AUTH_WORKER_URL=https://<your-worker-host>
 ```
 
-When this variable is absent, Kinly keeps the existing browser GIS + Passkey fallback path. This lets the broker be deployed and verified before it becomes the production authentication path.
+Kinly includes `/google-oauth-complete.html` as the same-origin popup completion page. The Worker redirects the initial authorization result there using a URL fragment. The page broadcasts the result to the already-open Kinly tab and immediately removes the fragment from its history entry.
+
+When `VITE_GOOGLE_AUTH_WORKER_URL` is absent, Kinly keeps the pre-PR-74 browser-only silent GIS restore path.
