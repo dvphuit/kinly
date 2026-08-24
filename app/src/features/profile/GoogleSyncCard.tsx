@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Cloud, CloudDownload, CloudUpload, Database, RefreshCw, ShieldCheck, UserRound } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ChevronRight, Cloud, CloudDownload, CloudUpload, Database, KeyRound, RefreshCw, ShieldCheck, UserRound } from 'lucide-react';
 import {
+  clearGooglePasskeyGate,
+  createGooglePasskeyGate,
   getGoogleLinkedAccount,
   getLastSyncedAt,
   getSyncState,
+  hasGooglePasskeyGate,
   isGoogleConfigured,
   isGoogleLinked,
+  isGooglePasskeyGateSupported,
   isGoogleSessionActive,
   requestGoogleAccessToken,
   resolveSyncConflict,
@@ -44,7 +48,12 @@ const STATUS_LABELS: Record<SyncState['status'], string> = {
 
 export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const authRequested = new URLSearchParams(location.search).get('googleAuth') === 'required';
   const [busy, setBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeySupported, setPasskeySupported] = useState<boolean | null>(null);
+  const [passkeyEnabled, setPasskeyEnabled] = useState(false);
   const [linked, setLinked] = useState(isGoogleLinked());
   const [sessionActive, setSessionActive] = useState(isGoogleSessionActive());
   const [account, setAccount] = useState<GoogleAccountIdentity | null>(getGoogleLinkedAccount());
@@ -67,6 +76,31 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void Promise.all([isGooglePasskeyGateSupported(), hasGooglePasskeyGate()])
+      .then(([supported, enabled]) => {
+        if (!active) return;
+        setPasskeySupported(supported);
+        setPasskeyEnabled(enabled);
+      })
+      .catch(() => {
+        if (!active) return;
+        setPasskeySupported(false);
+        setPasskeyEnabled(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authRequested) return;
+    window.requestAnimationFrame(() => {
+      document.getElementById('google-sync-card')?.scrollIntoView?.({ block: 'start' });
+    });
+  }, [authRequested]);
+
   const showResult = (result: Exclude<SyncResult, { status: 'conflict' }>) => {
     if (result.status === 'uploaded') onShowToast?.('Đã tự động đẩy dữ liệu lên Google Drive.', '☁️');
     if (result.status === 'downloaded') onShowToast?.('Đã nhận dữ liệu mới từ Google Drive.', '⬇️');
@@ -79,6 +113,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     setAccount(nextAccount);
     setLinked(true);
     setSessionActive(true);
+    if (authRequested) navigate('/profile', { replace: true });
   };
 
   const handleSync = async () => {
@@ -145,6 +180,27 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     }
   };
 
+  const handleTogglePasskey = async () => {
+    if (passkeyBusy) return;
+    setPasskeyBusy(true);
+    setError(null);
+    try {
+      if (passkeyEnabled) {
+        await clearGooglePasskeyGate();
+        setPasskeyEnabled(false);
+        onShowToast?.('Đã tắt Passkey cho bước xác thực Google Drive.', '◌');
+      } else {
+        await createGooglePasskeyGate();
+        setPasskeyEnabled(true);
+        onShowToast?.('Đã bật Passkey trước khi xác thực Google Drive.', '🔑');
+      }
+    } catch (passkeyError) {
+      setError(passkeyError instanceof Error ? passkeyError.message : 'Không thể cập nhật Passkey.');
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
   const handleResolve = async (choice: 'local' | 'remote') => {
     const conflict = syncState.conflict;
     if (!conflict) return;
@@ -195,13 +251,20 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
   const visibleError = syncState.status === 'auth-required' && linked ? null : error;
 
   return (
-    <div className="profile-section-block">
+    <div className="profile-section-block" id="google-sync-card">
       <div className="section-title-row">
         <span className="section-main-title"><Cloud size={16} /> Đồng bộ dữ liệu</span>
         <span className="section-score-pill">{connectionLabel}</span>
       </div>
 
       <div className="profile-medical-card">
+        {authRequested && !sessionActive && (
+          <div className="medical-allergy-box" style={{ marginBottom: 16 }} role="status">
+            <div className="allergy-header"><ShieldCheck size={14} color="var(--color-sage-dark)" /> Google Drive đang chờ xác thực</div>
+            <p className="summary-desc">Kinly đã đưa bạn đến đây vì auto-sync cần một thao tác thật để Google mở cửa sổ xác thực.</p>
+          </div>
+        )}
+
         <div className="medical-info-row single">
           <div className="medical-info-item full">
             <div className="medical-item-icon"><ShieldCheck size={15} /></div>
@@ -251,6 +314,29 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
           </button>
         </div>
 
+        {linked && (
+          <div className="medical-allergy-box" style={{ marginTop: 16 }}>
+            <div className="allergy-header"><KeyRound size={14} color="var(--color-sage-dark)" /> Passkey khi mở Kinly</div>
+            <p className="summary-desc">Passkey chỉ xác nhận người dùng trước khi Kinly yêu cầu Google mở cửa sổ GIS. Kinly không lưu access token hoặc refresh token trong Passkey.</p>
+            {passkeySupported === null ? (
+              <p className="summary-desc" style={{ marginTop: 10 }}>Đang kiểm tra hỗ trợ Passkey…</p>
+            ) : passkeySupported ? (
+              <button
+                type="button"
+                className={`profile-action-btn ${passkeyEnabled ? 'secondary' : 'primary'}`}
+                style={{ marginTop: 12 }}
+                onClick={() => void handleTogglePasskey()}
+                disabled={passkeyBusy}
+              >
+                <KeyRound size={16} />
+                <span>{passkeyBusy ? 'Đang cập nhật Passkey…' : passkeyEnabled ? 'Tắt Passkey' : 'Thiết lập Passkey'}</span>
+              </button>
+            ) : (
+              <p className="summary-desc" style={{ marginTop: 10 }}>Thiết bị hoặc trình duyệt này chưa hỗ trợ Passkey platform qua HTTPS.</p>
+            )}
+          </div>
+        )}
+
         {conflict && (
           <div className="medical-allergy-box" style={{ marginTop: 16 }}>
             <div className="allergy-header"><RefreshCw size={14} color="#E97332" /> Dữ liệu đã thay đổi ở cả hai nơi</div>
@@ -270,7 +356,7 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
 
         <button type="button" className="profile-action-btn secondary" style={{ marginTop: 16 }} onClick={handleSync} disabled={busy}>
           <RefreshCw size={16} className={busy ? 'spin' : ''} />
-          <span>{busy ? 'Đang đồng bộ...' : sessionActive ? 'Đồng bộ ngay với Google Drive' : linked ? 'Xác thực lại & đồng bộ' : 'Kết nối Google & đồng bộ'}</span>
+          <span>{busy ? 'Đang đồng bộ...' : sessionActive ? 'Đồng bộ ngay với Google Drive' : authRequested ? 'Xác thực Google & tiếp tục' : linked ? 'Xác thực lại & đồng bộ' : 'Kết nối Google & đồng bộ'}</span>
         </button>
         {linked && (
           <button type="button" className="profile-action-btn secondary" style={{ marginTop: 10 }} onClick={handleSwitchGoogleAccount} disabled={busy}>
