@@ -41,6 +41,7 @@ let loadedGoogleDriveSyncModule: GoogleDriveSyncModule | null = null;
 let googleDriveSyncModulePromise: Promise<GoogleDriveSyncModule> | null = null;
 let firebaseGoogleLinked = false;
 let firebaseGoogleAccount: GoogleAccountIdentity | null = null;
+let browserGoogleRestorePromise: Promise<boolean> | null = null;
 
 function loadGoogleDriveSync(): Promise<GoogleDriveSyncModule> {
   if (loadedGoogleDriveSyncModule) return Promise.resolve(loadedGoogleDriveSyncModule);
@@ -177,8 +178,33 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
   return account;
 }
 
+async function restoreBrowserGoogleSession(): Promise<boolean> {
+  if (isGoogleSessionActive()) return true;
+  if (!isGoogleLinked() || typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) return false;
+
+  const rememberedAccount = getGoogleLinkedAccount();
+  const module = await loadGoogleDriveSync();
+  try {
+    const account = await module.requestGoogleAccessTokenSilently(
+      rememberedAccount?.emailAddress ? { loginHint: rememberedAccount.emailAddress } : {},
+    );
+    rememberGoogleLink(account);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function restoreGoogleSession(): Promise<boolean> {
-  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') return isGoogleSessionActive();
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') {
+    if (isGoogleSessionActive()) return true;
+    if (!browserGoogleRestorePromise) {
+      browserGoogleRestorePromise = restoreBrowserGoogleSession().finally(() => {
+        browserGoogleRestorePromise = null;
+      });
+    }
+    return browserGoogleRestorePromise;
+  }
   const { firebaseApiFetch } = await import('@/shared/firebase/firebaseClient');
   const response = await firebaseApiFetch('/api/google/status');
   if (response.status === 401) {
