@@ -14,6 +14,11 @@ if [ ! -d "$APP_DIR" ]; then
   exit 0
 fi
 
+if ! grep -q '"test:lighthouse"' "$APP_DIR/package.json" 2>/dev/null; then
+  echo "⚠️  Script 'test:lighthouse' không tồn tại trong branch này. Bỏ qua kiểm tra."
+  exit 0
+fi
+
 # Run lighthouse test in app/
 (cd "$APP_DIR" && npm run test:lighthouse)
 LH_EXIT_CODE=$?
