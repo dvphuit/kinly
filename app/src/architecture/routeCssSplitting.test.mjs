@@ -50,8 +50,9 @@ describe('route CSS splitting', () => {
       'loadExpensesStyles',
       'loadProfileStyles',
     ]) {
-      expect(routePreload).toContain(`await feature.${loader}();`);
+      expect(routePreload).toContain(`(feature) => feature.${loader}(),`);
     }
+    expect(routePreload).toContain('await loadStyles(feature);');
 
     expect(appModals).toContain('const loadAddGrowthModal = loadGrowthFeature;');
     expect(appModals).toContain('const loadAddExpenseModal = loadExpensesFeature;');

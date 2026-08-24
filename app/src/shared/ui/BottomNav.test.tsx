@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BottomNav } from './BottomNav';
 
 function renderNav(onRouteIntent = vi.fn(), onOpenQuickLog = vi.fn()) {
@@ -18,6 +18,10 @@ function renderNav(onRouteIntent = vi.fn(), onOpenQuickLog = vi.fn()) {
   return { onRouteIntent, onOpenQuickLog };
 }
 
+afterEach(() => {
+  delete document.documentElement.dataset.tabDirection;
+});
+
 describe('BottomNav', () => {
   it('prefetches on interaction intent before navigation', () => {
     const { onRouteIntent } = renderNav();
@@ -32,6 +36,40 @@ describe('BottomNav', () => {
 
     fireEvent.click(timelineLink);
     expect(screen.getByText('Timeline route')).toBeInTheDocument();
+  });
+
+  it('waits for an async route preload before starting navigation', async () => {
+    let finishPreload: (() => void) | undefined;
+    const onRouteIntent = vi.fn(() => new Promise<void>((resolve) => {
+      finishPreload = resolve;
+    }));
+    renderNav(onRouteIntent);
+
+    fireEvent.pointerEnter(screen.getByRole('link', { name: 'Nhật ký' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Nhật ký' }));
+    expect(screen.getByText('Home route')).toBeInTheDocument();
+    expect(onRouteIntent).toHaveBeenCalledTimes(1);
+
+    finishPreload?.();
+    expect(await screen.findByText('Timeline route')).toBeInTheDocument();
+  });
+
+  it('only completes the most recent navigation when preloads resolve out of order', async () => {
+    const finishPreload = new Map<string, () => void>();
+    const onRouteIntent = vi.fn((pathname: string) => new Promise<void>((resolve) => {
+      finishPreload.set(pathname, resolve);
+    }));
+    renderNav(onRouteIntent);
+
+    fireEvent.click(screen.getByRole('link', { name: 'Nhật ký' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Tăng trưởng' }));
+
+    await act(async () => finishPreload.get('/growth')?.());
+    expect(await screen.findByText('Growth route')).toBeInTheDocument();
+
+    await act(async () => finishPreload.get('/timeline')?.());
+    expect(screen.getByText('Growth route')).toBeInTheDocument();
+    expect(screen.queryByText('Timeline route')).not.toBeInTheDocument();
   });
 
   it('keeps the center Quick Log action functional', () => {
@@ -57,5 +95,15 @@ describe('BottomNav', () => {
     expect(growthLink).toHaveClass('nav-tab-item-growth', 'active');
     fireEvent.click(expensesLink);
     expect(expensesLink).toHaveClass('nav-tab-item-expenses', 'active');
+  });
+
+  it('marks whether the next primary tab is forward or backward', () => {
+    renderNav();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Tăng trưởng' }));
+    expect(document.documentElement).toHaveAttribute('data-tab-direction', 'forward');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Nhật ký' }));
+    expect(document.documentElement).toHaveAttribute('data-tab-direction', 'backward');
   });
 });

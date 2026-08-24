@@ -1,7 +1,3 @@
-/* ==========================================================================
-   11. BOTTOM NAVIGATION BAR (Spacious 4 Tabs + 1 Center FAB)
-   ========================================================================== */
-
 .bottom-nav-container {
   --bottom-nav-safe-area: var(--safe-area-inset-bottom);
   --bottom-nav-safe-area-max: var(--safe-area-max-inset-bottom);
@@ -39,7 +35,7 @@
   align-items: center;
   gap: 2px;
   cursor: pointer;
-  transition: color 220ms cubic-bezier(0.2, 0.75, 0.3, 1), transform 220ms cubic-bezier(0.2, 0.75, 0.3, 1);
+  transition: color 200ms cubic-bezier(0.2, 0, 0, 1), transform 240ms cubic-bezier(0.05, 0.7, 0.1, 1);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   flex: 1;
@@ -74,14 +70,13 @@
   width: 40px;
   height: 27px;
   margin-left: -20px;
-  border-radius: 999px;
+  border-radius: 13px;
   background: var(--nav-tab-accent-soft);
   border: 1px solid var(--nav-tab-accent-border);
   z-index: -1;
   box-shadow: 0 3px 10px var(--nav-tab-accent-shadow);
   opacity: 0;
-  transform: translate3d(0, 2px, 0) scale(0.86);
-  transition: opacity 220ms cubic-bezier(0.2, 0.75, 0.3, 1), transform 260ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  transform: translate3d(0, 16px, 0);
 }
 
 .nav-tab-icon-motion {
@@ -91,7 +86,7 @@
   align-items: center;
   justify-content: center;
   transform: translate3d(0, 0, 0) scale(1);
-  transition: transform 220ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  transition: transform 220ms cubic-bezier(0.05, 0.7, 0.1, 1);
 }
 
 .nav-tab-item svg {
@@ -114,11 +109,12 @@
 
 .nav-tab-item.active .nav-tab-active-pill {
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
+  transform: translate3d(0, 0, 0);
+  animation: havenRouteTabIn 260ms cubic-bezier(0.05, 0.7, 0.1, 1) both;
 }
 
 .nav-tab-item.active .nav-tab-icon-motion {
-  transform: translate3d(0, -2px, 0) scale(1.06);
+  transform: translate3d(0, -1px, 0) scale(1.06);
 }
 
 .nav-tab-item.active svg {
@@ -136,18 +132,30 @@
 }
 
 @supports (view-transition-name: none) {
-  .nav-tab-item.active .nav-tab-active-pill {
-    view-transition-name: bottom-nav-active-pill;
+  html.has-vt .bottom-nav-container {
+    view-transition-name: bottom-nav;
   }
 
-  ::view-transition-group(bottom-nav-active-pill) {
-    animation-duration: 240ms;
-    animation-timing-function: cubic-bezier(0.2, 0.85, 0.25, 1);
+  html.has-vt .nav-tab-item.active {
+    transition: none;
+    view-transition-name: bottom-nav-active-tab;
   }
 
-  ::view-transition-old(bottom-nav-active-pill),
-  ::view-transition-new(bottom-nav-active-pill) {
+  html.has-vt .nav-tab-item.active .nav-tab-active-pill {
     animation: none;
+  }
+
+  ::view-transition-group(bottom-nav-active-tab) {
+    animation: none;
+  }
+
+  ::view-transition-old(bottom-nav-active-tab) {
+    display: none;
+  }
+
+  ::view-transition-new(bottom-nav-active-tab) {
+    animation: havenRouteTabIn 260ms cubic-bezier(0.05, 0.7, 0.1, 1) both;
+    mix-blend-mode: normal;
   }
 }
 
@@ -159,7 +167,15 @@
     transition: none !important;
   }
 
-  .nav-tab-item.active .nav-tab-active-pill {
+  .nav-tab-item.active .nav-tab-active-pill,
+  ::view-transition-group(bottom-nav-active-tab),
+  ::view-transition-old(bottom-nav-active-tab),
+  ::view-transition-new(bottom-nav-active-tab) {
+    animation: none !important;
+  }
+
+  .bottom-nav-container,
+  .nav-tab-item.active {
     view-transition-name: none;
   }
 }

@@ -5,7 +5,6 @@
   z-index: 2;
   display: grid;
   gap: 16px;
-  margin-top: -6px;
   padding-bottom: 6px;
 }
 
@@ -750,8 +749,6 @@
 .pwa-install-sub { display: none; }
 .pwa-install-btn { min-height: 28px; padding: 5px 8px; background: var(--color-sage); }
 .pwa-dismiss-btn { width: 26px; height: 26px; background: transparent; }
-.bottom-nav-container { min-height: calc(64px + env(safe-area-inset-bottom, 0px)); padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); border: 1px solid rgba(232, 221, 213, 0.92); border-bottom: none; border-radius: 22px 22px 0 0; background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 -8px 26px rgba(57, 38, 29, 0.09); }
-.fab-center-btn { width: 54px; height: 54px; color: #fff; border: 5px solid var(--color-canvas); background: var(--color-sage); box-shadow: 0 9px 18px rgba(111, 139, 74, 0.28); }
 
 @media (max-width: 360px) {
   .haven-daily-summary-card { padding: 12px; }

@@ -9,7 +9,7 @@
   --color-primary-brown: #5C3A27;
   
   --color-sage: #9AB76E;                /* Restorative Sage */
-  --color-sage-dark: #6F8B4A;
+  --color-sage-dark: #587535;
   --color-sage-light: #EDF4E3;
   --color-sage-subtle: #F6F8F0;
   
@@ -37,7 +37,7 @@
 
   /* Text & Typography */
   --color-text-primary: #39261D;        /* Espresso heading ink */
-  --color-text-secondary: #846E62;      /* Warm muted copy */
+  --color-text-secondary: #6E5A4E;      /* Warm muted copy (WCAG AA compliant) */
   --color-text-muted: #A89A90;         /* Quiet metadata */
   --color-text-light: #FFFFFF;
 
@@ -79,7 +79,7 @@
 
   /* Typography */
   --font-family-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-family-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-body: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   /* Transitions */

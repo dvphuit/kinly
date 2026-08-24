@@ -44,7 +44,7 @@ export const WHOChart: React.FC<WHOChartProps> = ({ chartData, metric }) => {
             padding: 10,
             cornerRadius: 12,
             titleFont: { family: "'Outfit', -apple-system, sans-serif", size: 12, weight: 'bold' },
-            bodyFont: { family: "'Plus Jakarta Sans', -apple-system, sans-serif", size: 11 },
+            bodyFont: { family: "'Be Vietnam Pro', -apple-system, sans-serif", size: 11 },
             callbacks: {
               label: (context) => {
                 if (context.raw === null || context.raw === undefined) return '';
@@ -57,14 +57,14 @@ export const WHOChart: React.FC<WHOChartProps> = ({ chartData, metric }) => {
           x: {
             grid: { display: false },
             ticks: {
-              font: { family: "'Plus Jakarta Sans', -apple-system, sans-serif", size: 10, weight: 'bold' },
+              font: { family: "'Be Vietnam Pro', -apple-system, sans-serif", size: 10, weight: 'bold' },
               color: '#64807D',
             },
           },
           y: {
             grid: { color: '#DFEBE8' },
             ticks: {
-              font: { family: "'Plus Jakarta Sans', -apple-system, sans-serif", size: 10, weight: 'bold' },
+              font: { family: "'Be Vietnam Pro', -apple-system, sans-serif", size: 10, weight: 'bold' },
               color: '#64807D',
               callback: (value) => `${value} ${unitRef.current}`,
             },

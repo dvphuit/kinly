@@ -154,6 +154,24 @@ describe('stylesheet architecture audit', () => {
     expect(bottomSheetCss).toMatch(/\.sheet-content-body\s*\{[^}]*min-height:\s*0\s*;/s);
   });
 
+  it('keeps primary route top spacing owned by the shared page shell', () => {
+    const primaryRouteStyles = [
+      ['features/home/home.css', '.haven-home'],
+      ['features/timeline/timeline.css', '.journal-page'],
+      ['features/growth/growth-view.css', '.haven-growth'],
+      ['features/expenses/expenses.css', '.haven-expenses'],
+    ];
+
+    for (const [file, rootSelector] of primaryRouteStyles) {
+      const css = readFileSync(join(SRC, file), 'utf8');
+      expect(css, `${file} must not style the shared page wrapper`).not.toContain('.view-content-wrapper');
+      expect(css, `${file} must not style the shared route surface`).not.toContain('.app-route-surface');
+      expect(css, `${rootSelector} must not offset the shared top spacing`).not.toMatch(
+        new RegExp(`\\${rootSelector}\\s*\\{[^}]*margin-top\\s*:`, 's'),
+      );
+    }
+  });
+
   it('reports ownership overlap without changing runtime behavior', () => {
     const report = buildReport();
     console.info('[css-architecture-audit]', JSON.stringify({
