@@ -34,6 +34,7 @@ export function TimelineMediaSyncBadge({ media, className = '' }: TimelineMediaS
   const details = {
     local: { title: 'Đang lưu trên thiết bị, chờ đồng bộ Google Drive', icon: Cloud },
     queued: { title: 'Đã xếp hàng để đồng bộ Google Drive', icon: CloudUpload },
+    compressing: { title: `Đang tối ưu trước khi đồng bộ: ${roundedProgress}%`, icon: CloudUpload },
     uploading: { title: `Đang tải lên Google Drive: ${roundedProgress}%`, icon: CloudUpload },
     synced: { title: 'Đã đồng bộ lên Google Drive', icon: Cloud },
     error: { title: state.error || 'Không thể đồng bộ lên Google Drive', icon: CloudOff },
