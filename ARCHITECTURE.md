@@ -101,13 +101,14 @@ The optional `workers/google-oauth-broker/` service is a separate OAuth boundary
 
 - Kinly starts Authorization Code + PKCE through the Worker for explicit Google authorization.
 - `GOOGLE_CLIENT_SECRET` exists only as a Worker Secret.
-- Google refresh tokens exist only in the Worker's `OAUTH_SESSIONS` KV binding.
+- `TOKEN_ENCRYPTION_KEY` exists only as a Worker Secret and encrypts Google refresh tokens with AES-GCM before D1 persistence.
+- Durable OAuth state lives in the Worker's `OAUTH_DB` D1 binding; raw refresh tokens are never stored in D1.
 - Kinly stores an opaque broker session capability under `babygrowth_v4_google_oauth_broker_session` in the existing IndexedDB boundary.
 - The browser receives only short-lived Google access tokens and keeps them in runtime memory.
 - App reopen asks the broker to refresh a short-lived access token before falling back to explicit Google authorization.
 - A revoked Google grant causes the Worker to delete the broker session and requires explicit reauthorization.
 
-The broker does not own snapshots, timeline media, profile state, or sync conflict logic. Those contracts remain in the existing Sync feature and Google Drive `appDataFolder`.
+D1 is intentionally used instead of Workers KV for the OAuth broker because state/result consumption and session creation require predictable read-after-write behavior. This does not move application snapshots, timeline media, profile state, or sync conflict logic into Cloudflare; those contracts remain in the existing Sync feature and Google Drive `appDataFolder`.
 
 `VITE_GOOGLE_AUTH_WORKER_URL` is intentionally optional. If it is absent, the existing Passkey + GIS browser flow remains active. This allows broker deployment/configuration to be validated independently of the application release.
 
@@ -153,6 +154,6 @@ npm run lint
 npm run build
 ```
 
-The optional OAuth Worker also runs its Node tests and a Wrangler dry-run bundle check in `Google OAuth Worker CI`.
+The optional OAuth Worker also runs its Node tests, applies its D1 migration locally, and runs a Wrangler dry-run bundle check in `Google OAuth Worker CI`.
 
 Before removing a component, style, asset, or export, verify that no production consumer remains.

@@ -27,7 +27,7 @@ The app stores data in IndexedDB and can back up one semantic application snapsh
 - IndexedDB
 - Chart.js
 - vite-plugin-pwa and Workbox
-- Optional Cloudflare Worker + Workers KV for durable Google OAuth sessions
+- Optional Cloudflare Worker + D1 for durable Google OAuth sessions
 
 ## Architecture
 
@@ -120,7 +120,7 @@ npm run test:e2e
 
 CI uses Node.js 22.
 
-The optional OAuth broker has its own tests and Wrangler dry-run check:
+The optional OAuth broker has its own tests, local D1 migration check, and Wrangler dry-run check:
 
 ```bash
 cd workers/google-oauth-broker
@@ -150,7 +150,7 @@ The app requests only `https://www.googleapis.com/auth/drive.appdata`. Google ac
 
 ### Optional durable OAuth broker
 
-`workers/google-oauth-broker/` implements an opt-in Authorization Code + PKCE broker on Cloudflare Workers. When enabled, the Google client secret is a Worker Secret and Google refresh tokens remain in Workers KV. Kinly persists only an opaque broker session capability in its existing IndexedDB storage and still keeps Google access tokens runtime-only.
+`workers/google-oauth-broker/` implements an opt-in Authorization Code + PKCE broker on Cloudflare Workers. When enabled, the Google client secret is a Worker Secret. Google refresh tokens are AES-GCM encrypted before storage in D1, and Kinly persists only an opaque broker session capability in its existing IndexedDB storage. Google access tokens remain runtime-only in the browser.
 
 After deploying the Worker, add its exact callback URL to the OAuth client's Authorized redirect URIs:
 
@@ -166,7 +166,7 @@ VITE_GOOGLE_AUTH_WORKER_URL=https://<your-worker-host>
 
 If `VITE_GOOGLE_AUTH_WORKER_URL` is absent, Kinly keeps the browser GIS + Passkey reauthentication fallback.
 
-See `workers/google-oauth-broker/README.md` for Worker secrets, KV, deployment, and verification steps.
+See `workers/google-oauth-broker/README.md` for D1 provisioning, Worker secrets, deployment, and verification steps.
 
 ## Deployment
 
