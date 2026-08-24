@@ -23,8 +23,3 @@ dev-dist
 *.njsproj
 *.sln
 *.sw?
-
-# Firebase Functions
-functions/lib
-functions/.env*
-functions/.runtimeconfig.json

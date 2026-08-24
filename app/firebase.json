@@ -1,10 +1,4 @@
 {
-  "firestore": {
-    "rules": "firestore.rules"
-  },
-  "functions": {
-    "source": "functions"
-  },
   "hosting": {
     "public": "dist",
     "ignore": [
@@ -51,13 +45,6 @@
       }
     ],
     "rewrites": [
-      {
-        "source": "/api/**",
-        "function": {
-          "functionId": "googleApi",
-          "region": "asia-southeast1"
-        }
-      },
       {
         "source": "**",
         "destination": "/index.html"
