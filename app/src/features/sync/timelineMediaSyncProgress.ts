@@ -1,4 +1,4 @@
-export type TimelineMediaSyncStatus = 'local' | 'queued' | 'uploading' | 'synced' | 'error';
+export type TimelineMediaSyncStatus = 'local' | 'queued' | 'compressing' | 'uploading' | 'synced' | 'error';
 
 export interface TimelineMediaSyncProgress {
   status: TimelineMediaSyncStatus;

@@ -1,6 +1,7 @@
 import { getLocalMedia, waitForLocalRecordWrites } from '@/data/localDb';
 import { uploadTimelineMediaToDrive } from '@/features/sync/googleDriveSync';
 import { logDiagnostic } from '@/app/diagnostics/diagnosticLog';
+import { prepareTimelineMediaForDrive } from './mediaCompression';
 import { publishTimelineMediaSyncProgress } from './timelineMediaSyncProgress';
 import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import type { TimelineItem, TimelineMediaItem } from '@/features/timeline';
@@ -43,10 +44,22 @@ export async function syncTimelineMediaToDrive(
         nextMediaItems.push(media);
         continue;
       }
-      publishTimelineMediaSyncProgress(mediaId, { status: 'uploading', progress: 0 });
       try {
-        const driveFileId = await uploadTimelineMediaToDrive(mediaId, blob, {
-          name: media.name,
+        const prepared = await prepareTimelineMediaForDrive(blob, {
+          kind: media.type,
+          name: media.name || mediaId,
+          onProgress: (progress) => publishTimelineMediaSyncProgress(mediaId, { status: 'compressing', progress }),
+        });
+        logDiagnostic('drive-sync', 'info', 'Timeline media prepared for upload', {
+          mediaId,
+          kind: media.type,
+          compressed: prepared.compressed,
+          originalSize: prepared.originalSize,
+          uploadSize: prepared.blob.size,
+        });
+        publishTimelineMediaSyncProgress(mediaId, { status: 'uploading', progress: 0 });
+        const driveFileId = await uploadTimelineMediaToDrive(mediaId, prepared.blob, {
+          name: prepared.name,
           interactive: options.interactive,
           onProgress: (progress) => publishTimelineMediaSyncProgress(mediaId, { status: 'uploading', progress }),
         });
