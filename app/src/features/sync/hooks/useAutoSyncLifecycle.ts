@@ -9,19 +9,24 @@ export function useAutoSyncLifecycle(enabled = true): void {
     if (!enabled) return undefined;
 
     let disposed = false;
+    let autoSyncEnabled = false;
     let stopAutoSync: (() => void) | undefined;
+    let unsubscribeSyncState: (() => void) | undefined;
+    let startAutoSyncPromise: Promise<void> | null = null;
 
     const cancelStart = scheduleIdleTask(() => {
       void import('../appSnapshot')
         .then(({ waitForAppSnapshotRuntime }) => waitForAppSnapshotRuntime())
-        .then(() => import('../googleDriveSync'))
-        .then(({ startAutoSync }) => startAutoSync())
-        .then((stop) => {
-          if (disposed) {
-            stop();
-          } else {
-            stopAutoSync = stop;
-          }
+        .then(() => import('../index'))
+        .then(async (sync) => {
+          if (disposed) return;
+
+          updateAutoSyncEnabled(await sync.isAutoSyncEnabled());
+          if (disposed) return;
+
+          unsubscribeSyncState = sync.subscribeSyncState((state) => {
+            updateAutoSyncEnabled(state.autoSyncEnabled);
+          });
         })
         .catch(() => {});
     }, {
@@ -29,10 +34,44 @@ export function useAutoSyncLifecycle(enabled = true): void {
       fallbackDelayMs: AUTO_SYNC_START_FALLBACK_MS,
     });
 
+    function stopStartedAutoSync() {
+      stopAutoSync?.();
+      stopAutoSync = undefined;
+    }
+
+    function ensureAutoSyncStarted() {
+      if (disposed || !autoSyncEnabled || stopAutoSync || startAutoSyncPromise) return;
+
+      startAutoSyncPromise = import('../googleDriveSync')
+        .then(({ startAutoSync }) => startAutoSync())
+        .then((stop) => {
+          if (disposed || !autoSyncEnabled) {
+            stop();
+          } else {
+            stopAutoSync = stop;
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          startAutoSyncPromise = null;
+        });
+    }
+
+    function updateAutoSyncEnabled(nextEnabled: boolean) {
+      autoSyncEnabled = nextEnabled;
+      if (nextEnabled) {
+        ensureAutoSyncStarted();
+      } else {
+        stopStartedAutoSync();
+      }
+    }
+
     return () => {
       disposed = true;
+      autoSyncEnabled = false;
       cancelStart();
-      stopAutoSync?.();
+      unsubscribeSyncState?.();
+      stopStartedAutoSync();
     };
   }, [enabled]);
 }

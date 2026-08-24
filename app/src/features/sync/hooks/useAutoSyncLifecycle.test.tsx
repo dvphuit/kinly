@@ -4,14 +4,25 @@ import { waitForAppSnapshotRuntime } from '../appSnapshot';
 import { startAutoSync } from '@/features/sync/googleDriveSync';
 import { useAutoSyncLifecycle } from './useAutoSyncLifecycle';
 
+type AutoSyncStateListener = (state: { autoSyncEnabled: boolean }) => void;
+
+const syncSession = vi.hoisted(() => ({
+  isAutoSyncEnabled: vi.fn(),
+  subscribeSyncState: vi.fn(),
+}));
+
 vi.mock('../appSnapshot', () => ({ waitForAppSnapshotRuntime: vi.fn() }));
+vi.mock('../index', () => syncSession);
 vi.mock('@/features/sync/googleDriveSync', () => ({ startAutoSync: vi.fn() }));
 
 const waitForAppSnapshotRuntimeMock = vi.mocked(waitForAppSnapshotRuntime);
 const startAutoSyncMock = vi.mocked(startAutoSync);
 let idleCallbacks: IdleRequestCallback[] = [];
 let nextIdleId = 1;
+let currentAutoSyncEnabled = true;
+let syncStateListener: AutoSyncStateListener | null = null;
 const cancelIdleCallbackMock = vi.fn();
+const unsubscribeSyncStateMock = vi.fn();
 
 function runNextIdleCallback(): void {
   const callback = idleCallbacks.shift();
@@ -26,9 +37,20 @@ describe('useAutoSyncLifecycle', () => {
     waitForAppSnapshotRuntimeMock.mockReset();
     waitForAppSnapshotRuntimeMock.mockResolvedValue();
     startAutoSyncMock.mockReset();
+    syncSession.isAutoSyncEnabled.mockReset();
+    syncSession.isAutoSyncEnabled.mockImplementation(async () => currentAutoSyncEnabled);
+    syncSession.subscribeSyncState.mockReset();
+    syncSession.subscribeSyncState.mockImplementation((listener: AutoSyncStateListener) => {
+      syncStateListener = listener;
+      listener({ autoSyncEnabled: currentAutoSyncEnabled });
+      return unsubscribeSyncStateMock;
+    });
     cancelIdleCallbackMock.mockReset();
+    unsubscribeSyncStateMock.mockReset();
     idleCallbacks = [];
     nextIdleId = 1;
+    currentAutoSyncEnabled = true;
+    syncStateListener = null;
     vi.stubGlobal('requestIdleCallback', vi.fn((callback: IdleRequestCallback) => {
       idleCallbacks.push(callback);
       return nextIdleId++;
@@ -60,6 +82,36 @@ describe('useAutoSyncLifecycle', () => {
 
     unmount();
     expect(stop).toHaveBeenCalledTimes(1);
+    expect(unsubscribeSyncStateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the auto-sync service stopped until auto-sync is enabled', async () => {
+    currentAutoSyncEnabled = false;
+    const stop = vi.fn();
+    startAutoSyncMock.mockResolvedValue(stop);
+
+    const { unmount } = renderHook(() => useAutoSyncLifecycle(true));
+    runNextIdleCallback();
+
+    await waitFor(() => expect(syncSession.subscribeSyncState).toHaveBeenCalledTimes(1));
+    expect(syncSession.isAutoSyncEnabled).toHaveBeenCalledTimes(1);
+    expect(startAutoSyncMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      currentAutoSyncEnabled = true;
+      syncStateListener?.({ autoSyncEnabled: true });
+    });
+    await waitFor(() => expect(startAutoSyncMock).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      currentAutoSyncEnabled = false;
+      syncStateListener?.({ autoSyncEnabled: false });
+    });
+    expect(stop).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(unsubscribeSyncStateMock).toHaveBeenCalledTimes(1);
   });
 
   it('starts auto-sync when the profile becomes initialized', async () => {
