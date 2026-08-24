@@ -28,7 +28,6 @@ export const SYNC_KEYS = [
 
 const GOOGLE_LINKED_CLIENT_KEY = 'babygrowth_v4_google_linked_client';
 const GOOGLE_LINKED_ACCOUNT_KEY = 'babygrowth_v4_google_linked_account';
-const USE_PASSKEY_GOOGLE_AUTH = import.meta.env.VITE_GOOGLE_PASSKEY_AUTH === 'true';
 
 const UNLOADED_SYNC_STATE = {
   status: 'idle',
@@ -42,7 +41,6 @@ let loadedGoogleDriveSyncModule: GoogleDriveSyncModule | null = null;
 let googleDriveSyncModulePromise: Promise<GoogleDriveSyncModule> | null = null;
 let firebaseGoogleLinked = false;
 let firebaseGoogleAccount: GoogleAccountIdentity | null = null;
-let passkeyRestorePromise: Promise<boolean> | null = null;
 
 function loadGoogleDriveSync(): Promise<GoogleDriveSyncModule> {
   if (loadedGoogleDriveSyncModule) return Promise.resolve(loadedGoogleDriveSyncModule);
@@ -63,14 +61,6 @@ function loadGoogleDriveSync(): Promise<GoogleDriveSyncModule> {
 function getGoogleClientId(): string | null {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   return typeof clientId === 'string' && clientId.trim() ? clientId.trim() : null;
-}
-
-function hasFirebaseWebConfig(): boolean {
-  return Boolean(import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_APP_ID);
-}
-
-function usesServerGoogleOAuth(): boolean {
-  return import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase' || USE_PASSKEY_GOOGLE_AUTH;
 }
 
 function parseStoredGoogleAccount(raw: string | null, clientId: string): GoogleAccountIdentity | null {
@@ -102,41 +92,9 @@ function rememberGoogleLink(account: GoogleAccountIdentity): void {
   window.localStorage.setItem(GOOGLE_LINKED_ACCOUNT_KEY, JSON.stringify({ clientId, account }));
 }
 
-function errorMessageFromPayload(payload: unknown): string | null {
-  if (typeof payload !== 'object' || payload === null || !('error' in payload)) return null;
-  const error = payload.error;
-  if (typeof error !== 'object' || error === null || !('message' in error) || typeof error.message !== 'string') return null;
-  return error.message;
-}
-
-function errorCodeFromPayload(payload: unknown): string | null {
-  if (typeof payload !== 'object' || payload === null || !('error' in payload)) return null;
-  const error = payload.error;
-  if (typeof error !== 'object' || error === null || !('code' in error) || typeof error.code !== 'string') return null;
-  return error.code;
-}
-
-function readRefreshTokenClaim(payload: unknown): string | null {
-  if (typeof payload !== 'object' || payload === null || !('refreshToken' in payload) || typeof payload.refreshToken !== 'string') return null;
-  return payload.refreshToken.trim() || null;
-}
-
-function clearGoogleOAuthCallbackQuery(): void {
-  if (typeof window === 'undefined') return;
-  const url = new URL(window.location.href);
-  url.searchParams.delete('google');
-  url.searchParams.delete('google_error');
-  const query = url.searchParams.toString();
-  window.history.replaceState(window.history.state, '', `${url.pathname}${query ? `?${query}` : ''}${url.hash}`);
-}
-
-export function isPasskeyGoogleAuthEnabled(): boolean {
-  return USE_PASSKEY_GOOGLE_AUTH;
-}
-
 export function isGoogleConfigured(): boolean {
-  if (usesServerGoogleOAuth()) {
-    return getGoogleClientId() !== null && hasFirebaseWebConfig();
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
+    return Boolean(import.meta.env.VITE_FIREBASE_API_KEY && import.meta.env.VITE_FIREBASE_APP_ID);
   }
   return getGoogleClientId() !== null;
 }
@@ -195,26 +153,23 @@ export function subscribeSyncState(listener: (state: SyncState) => void): () => 
 }
 
 export async function startGoogleOAuth(options: GoogleAuthOptions = {}): Promise<void> {
-  if (!usesServerGoogleOAuth()) {
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') {
     await requestGoogleAccessToken(options);
     return;
   }
   const { firebaseApiFetch } = await import('@/shared/firebase/firebaseClient');
   const query = options.selectAccount ? '?selectAccount=true' : '';
   const response = await firebaseApiFetch(`/api/google/oauth/start${query}`);
-  const payload: unknown = await response.json().catch(() => null);
-  const authorizationUrl = typeof payload === 'object' && payload !== null && 'authorizationUrl' in payload && typeof payload.authorizationUrl === 'string'
-    ? payload.authorizationUrl
-    : null;
-  if (!response.ok || !authorizationUrl) {
-    throw new Error(errorMessageFromPayload(payload) || 'Không thể bắt đầu kết nối Google Drive.');
+  const payload = await response.json().catch(() => null) as { authorizationUrl?: string; error?: { message?: string } } | null;
+  if (!response.ok || !payload?.authorizationUrl) {
+    throw new Error(payload?.error?.message || 'Không thể bắt đầu kết nối Google Drive.');
   }
-  window.location.assign(authorizationUrl);
+  window.location.assign(payload.authorizationUrl);
 }
 
 export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
-  if (usesServerGoogleOAuth()) {
-    throw new Error('Hãy kết nối Google Drive qua luồng OAuth bảo vệ bằng Passkey.');
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
+    throw new Error('Hãy kết nối Google Drive qua Firebase OAuth backend.');
   }
   const module = await loadGoogleDriveSync();
   const account = await module.requestGoogleAccessToken(options);
@@ -222,51 +177,8 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
   return account;
 }
 
-async function restorePasskeyGoogleSession(): Promise<boolean> {
-  if (isGoogleSessionActive()) return true;
-  const [{ firebaseApiFetch }, vault, module] = await Promise.all([
-    import('@/shared/firebase/firebaseClient'),
-    import('./passkeyTokenVault'),
-    loadGoogleDriveSync(),
-  ]);
-
-  let refreshToken: string | null = null;
-  const callbackConnected = typeof window !== 'undefined'
-    && new URL(window.location.href).searchParams.get('google') === 'connected';
-
-  if (callbackConnected) {
-    const claimResponse = await firebaseApiFetch('/api/google/local-token/claim', { method: 'POST' });
-    const claimPayload: unknown = await claimResponse.json().catch(() => null);
-    refreshToken = readRefreshTokenClaim(claimPayload);
-
-    if (!claimResponse.ok || !refreshToken) {
-      const alreadyLocal = await vault.hasGoogleRefreshTokenInPasskeyVault();
-      const claimCode = errorCodeFromPayload(claimPayload);
-      if (!alreadyLocal || (claimResponse.status !== 404 && claimResponse.status !== 409 && claimCode !== 'GOOGLE_LOCAL_TOKEN_NOT_AVAILABLE')) {
-        throw new Error(errorMessageFromPayload(claimPayload) || 'Không thể nhận refresh token Google để lưu bằng Passkey.');
-      }
-      clearGoogleOAuthCallbackQuery();
-      refreshToken = await vault.unlockGoogleRefreshTokenFromPasskeyVault();
-    } else {
-      await vault.storeGoogleRefreshTokenInPasskeyVault(refreshToken);
-      const commitResponse = await firebaseApiFetch('/api/google/local-token/commit', { method: 'POST' });
-      const commitPayload: unknown = commitResponse.status === 204 ? null : await commitResponse.json().catch(() => null);
-      if (!commitResponse.ok) {
-        throw new Error(errorMessageFromPayload(commitPayload) || 'Refresh token đã được mã hóa local nhưng chưa xóa được bản tạm trên server.');
-      }
-      clearGoogleOAuthCallbackQuery();
-    }
-  } else {
-    if (!(await vault.hasGoogleRefreshTokenInPasskeyVault())) return false;
-    refreshToken = await vault.unlockGoogleRefreshTokenFromPasskeyVault();
-  }
-
-  const account = await module.restoreGoogleSessionFromPasskeyRefreshToken(refreshToken);
-  rememberGoogleLink(account);
-  return true;
-}
-
-async function restoreFirebaseGoogleSession(): Promise<boolean> {
+export async function restoreGoogleSession(): Promise<boolean> {
+  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') return isGoogleSessionActive();
   const { firebaseApiFetch } = await import('@/shared/firebase/firebaseClient');
   const response = await firebaseApiFetch('/api/google/status');
   if (response.status === 401) {
@@ -275,37 +187,23 @@ async function restoreFirebaseGoogleSession(): Promise<boolean> {
     return false;
   }
   if (!response.ok) throw new Error('Không thể đọc trạng thái Google Drive.');
-  const status: unknown = await response.json();
-  if (typeof status !== 'object' || status === null) throw new Error('Trạng thái Google Drive không hợp lệ.');
-  const linked = 'linked' in status && status.linked === true;
-  const needsReauth = 'needsReauth' in status && status.needsReauth === true;
-  const permissionId = 'permissionId' in status && typeof status.permissionId === 'string' ? status.permissionId : null;
-  const email = 'email' in status && typeof status.email === 'string' ? status.email : null;
-  const displayName = 'displayName' in status && typeof status.displayName === 'string' ? status.displayName : null;
-  firebaseGoogleLinked = linked;
-  firebaseGoogleAccount = linked && permissionId
+  const status = await response.json() as {
+    linked?: boolean;
+    needsReauth?: boolean;
+    email?: string | null;
+    displayName?: string | null;
+    permissionId?: string | null;
+  };
+  firebaseGoogleLinked = status.linked === true;
+  firebaseGoogleAccount = status.linked && status.permissionId
     ? {
-      permissionId,
-      ...(email ? { emailAddress: email } : {}),
-      ...(displayName ? { displayName } : {}),
+      permissionId: status.permissionId,
+      ...(status.email ? { emailAddress: status.email } : {}),
+      ...(status.displayName ? { displayName: status.displayName } : {}),
     }
     : null;
-  publishFirebaseRestoreState(needsReauth);
-  return firebaseGoogleLinked && !needsReauth;
-}
-
-export async function restoreGoogleSession(): Promise<boolean> {
-  if (USE_PASSKEY_GOOGLE_AUTH) {
-    if (isGoogleSessionActive()) return true;
-    if (!passkeyRestorePromise) {
-      passkeyRestorePromise = restorePasskeyGoogleSession().finally(() => {
-        passkeyRestorePromise = null;
-      });
-    }
-    return passkeyRestorePromise;
-  }
-  if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND !== 'firebase') return isGoogleSessionActive();
-  return restoreFirebaseGoogleSession();
+  publishFirebaseRestoreState(status.needsReauth === true);
+  return firebaseGoogleLinked && status.needsReauth !== true;
 }
 
 export async function uploadTimelineMediaToDrive(

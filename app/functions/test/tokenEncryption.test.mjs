@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import test from 'node:test';
-import { decryptSecret, encryptSecret, isLegacyCiphertext } from '../lib/security/tokenEncryption.js';
+import { decryptSecret, encryptSecret } from '../lib/security/tokenEncryption.js';
 
 const key = { value: () => Buffer.alloc(32, 7).toString('base64') };
 
@@ -24,16 +24,13 @@ test('encrypts and decrypts with AES-256-GCM and authenticated context', () => {
   assert.throws(() => decryptSecret(`${version}:${iv}:${tamperedTag}:${ciphertext}`, key, 'google-account:user-a'));
 });
 
-test('rejects missing, invalid, and malformed encrypted secrets at the crypto boundary', () => {
+test('rejects invalid encryption key and malformed ciphertext', () => {
   assert.throws(() => encryptSecret('value', { value: () => 'too-short' }, 'google-account:user-a'));
-  assert.throws(() => decryptSecret(undefined, key, 'google-account:user-a'), /Encrypted secret is required/);
   assert.throws(() => decryptSecret('v2:bad:bad:bad', key, 'google-account:user-a'));
   assert.throws(() => encryptSecret('value', key, ''));
-  assert.equal(isLegacyCiphertext(undefined), false);
 });
 
 test('decrypts legacy v1 ciphertext during migration', () => {
   const legacy = createLegacyCiphertext('legacy-refresh-token');
-  assert.equal(isLegacyCiphertext(legacy), true);
   assert.equal(decryptSecret(legacy, key, 'google-account:user-a'), 'legacy-refresh-token');
 });

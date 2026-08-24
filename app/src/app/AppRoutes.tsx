@@ -12,8 +12,8 @@ const ProfileView = lazy(async () => ({ default: (await loadProfileFeature()).Pr
 const GoogleDriveDataView = lazy(async () => ({ default: (await loadProfileFeature()).GoogleDriveDataView }));
 const PasskeyVaultPrototypeView = lazy(async () => {
   const sync = await import('@/features/sync');
-  const passkey = await sync.loadPasskeyVaultPrototypeView();
-  return { default: passkey.PasskeyVaultPrototypeView };
+  const prototype = await sync.loadPasskeyVaultPrototypeView();
+  return { default: prototype.PasskeyVaultPrototypeView };
 });
 
 const RouteLoadingFallback = () => <div className="route-loading-state" role="status" aria-live="polite">Đang mở trang…</div>;
@@ -62,15 +62,14 @@ export const AppRoutes = memo(function AppRoutes({
           <Route path="/expenses" element={<ExpensesView onOpenAddExpense={onOpenAddExpense} onShowToast={onShowToast} />} />
           <Route path="/profile" element={<ProfileView onOpenEditProfile={onOpenEditProfile} onOpenNotifications={onOpenNotifications} onShowToast={onShowToast} />} />
           <Route path="/profile/google-drive" element={<GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={onShowToast} />} />
-          <Route path="/profile/google-drive/passkey" element={<PasskeyVaultPrototypeView />} />
-          <Route path="/experiments/passkey-vault" element={<Navigate to="/profile/google-drive/passkey" replace />} />
+          <Route path="/experiments/passkey-vault" element={<PasskeyVaultPrototypeView />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
       {showPasskeySetup && createPortal(
         <Link
-          to="/profile/google-drive/passkey"
-          aria-label="Google Drive bằng Passkey"
+          to="/experiments/passkey-vault"
+          aria-label="Thiết lập Passkey"
           style={{
             position: 'fixed',
             right: 16,
@@ -90,7 +89,7 @@ export const AppRoutes = memo(function AppRoutes({
             textDecoration: 'none',
           }}
         >
-          Google Drive bằng Passkey
+          Thiết lập Passkey
         </Link>,
         document.body,
       )}

@@ -1,18 +1,16 @@
 import { getLocalRecord, removeLocalRecord, setLocalRecord } from '@/data/localDb';
 
+/** Experimental device-local vault. Google OAuth never writes a real refresh token here in the current flow. */
 const VAULT_STORAGE_KEY = 'babygrowth_v4_google_passkey_token_vault';
 const VAULT_VERSION = 1;
 const HKDF_INFO = 'kinly/google-passkey-token-vault/v1';
 const RANDOM_BYTES = 32;
 const AES_GCM_IV_BYTES = 12;
 
-export type PasskeyTokenVaultPurpose = 'prototype' | 'google-refresh-token';
-
 export type PasskeyTokenVaultErrorCode =
   | 'unsupported'
   | 'already-exists'
   | 'not-found'
-  | 'wrong-purpose'
   | 'invalid-record'
   | 'rp-mismatch'
   | 'prf-unavailable'
@@ -38,8 +36,6 @@ interface StoredPasskeyTokenVaultV1 {
   iv: string;
   ciphertext: string;
   createdAt: string;
-  purpose?: PasskeyTokenVaultPurpose;
-  updatedAt?: string;
 }
 
 interface PrfCreationExtensionInput {
@@ -132,10 +128,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
-function isVaultPurpose(value: unknown): value is PasskeyTokenVaultPurpose {
-  return value === undefined || value === 'prototype' || value === 'google-refresh-token';
-}
-
 function parseStoredVault(raw: string): StoredPasskeyTokenVaultV1 {
   let value: unknown;
   try {
@@ -158,8 +150,6 @@ function parseStoredVault(raw: string): StoredPasskeyTokenVaultV1 {
     || !isNonEmptyString(record.iv)
     || !isNonEmptyString(record.ciphertext)
     || !isNonEmptyString(record.createdAt)
-    || !isVaultPurpose(record.purpose)
-    || (record.updatedAt !== undefined && !isNonEmptyString(record.updatedAt))
   ) {
     throw new PasskeyTokenVaultError('invalid-record', 'Vault passkey thiếu metadata bắt buộc.');
   }
@@ -302,28 +292,6 @@ async function createCredentialAndPrf(rpId: string, prfInput: Uint8Array): Promi
   return { credentialId, prfOutput };
 }
 
-async function encryptSecret(
-  secret: string,
-  record: Pick<StoredPasskeyTokenVaultV1, 'credentialId' | 'rpId' | 'hkdfSalt'>,
-  prfOutput: Uint8Array,
-): Promise<{ iv: string; ciphertext: string }> {
-  const iv = randomBytes(AES_GCM_IV_BYTES);
-  const key = await deriveEncryptionKey(prfOutput, base64UrlToBytes(record.hkdfSalt));
-  const ciphertext = await crypto.subtle.encrypt(
-    {
-      name: 'AES-GCM',
-      iv: toArrayBuffer(iv),
-      additionalData: additionalData(record),
-    },
-    key,
-    toArrayBuffer(textEncoder.encode(secret)),
-  );
-  return {
-    iv: bytesToBase64Url(iv),
-    ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
-  };
-}
-
 export async function isPasskeyTokenVaultSupported(): Promise<boolean> {
   try {
     assertWebAuthnPrerequisites();
@@ -340,13 +308,7 @@ export async function hasPasskeyTokenVault(): Promise<boolean> {
   return true;
 }
 
-export async function hasGoogleRefreshTokenInPasskeyVault(): Promise<boolean> {
-  const raw = await getLocalRecord(VAULT_STORAGE_KEY);
-  if (!raw) return false;
-  return parseStoredVault(raw).purpose === 'google-refresh-token';
-}
-
-export async function createPasskeyTokenVault(secret: string, purpose: PasskeyTokenVaultPurpose = 'prototype'): Promise<void> {
+export async function createPasskeyTokenVault(secret: string): Promise<void> {
   if (!secret) throw new TypeError('Passkey token vault secret must not be empty.');
   assertWebAuthnPrerequisites();
   if (!(await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())) {
@@ -359,53 +321,30 @@ export async function createPasskeyTokenVault(secret: string, purpose: PasskeyTo
   const rpId = currentRpId();
   const prfInput = randomBytes(RANDOM_BYTES);
   const hkdfSalt = randomBytes(RANDOM_BYTES);
+  const iv = randomBytes(AES_GCM_IV_BYTES);
   const { credentialId, prfOutput } = await createCredentialAndPrf(rpId, prfInput);
-  const encrypted = await encryptSecret(secret, {
-    credentialId,
-    rpId,
-    hkdfSalt: bytesToBase64Url(hkdfSalt),
-  }, prfOutput);
+  const key = await deriveEncryptionKey(prfOutput, hkdfSalt);
+  const ciphertext = await crypto.subtle.encrypt(
+    {
+      name: 'AES-GCM',
+      iv: toArrayBuffer(iv),
+      additionalData: additionalData({ credentialId, rpId }),
+    },
+    key,
+    toArrayBuffer(textEncoder.encode(secret)),
+  );
 
-  const now = new Date().toISOString();
   const record: StoredPasskeyTokenVaultV1 = {
     version: VAULT_VERSION,
     credentialId,
     rpId,
     prfInput: bytesToBase64Url(prfInput),
     hkdfSalt: bytesToBase64Url(hkdfSalt),
-    iv: encrypted.iv,
-    ciphertext: encrypted.ciphertext,
-    createdAt: now,
-    purpose,
-    updatedAt: now,
+    iv: bytesToBase64Url(iv),
+    ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
+    createdAt: new Date().toISOString(),
   };
   await setLocalRecord(VAULT_STORAGE_KEY, JSON.stringify(record));
-}
-
-async function replacePasskeyTokenVaultSecret(secret: string, purpose: PasskeyTokenVaultPurpose): Promise<void> {
-  if (!secret) throw new TypeError('Passkey token vault secret must not be empty.');
-  assertWebAuthnPrerequisites();
-  const raw = await getLocalRecord(VAULT_STORAGE_KEY);
-  if (!raw) {
-    await createPasskeyTokenVault(secret, purpose);
-    return;
-  }
-  const record = parseStoredVault(raw);
-  if (record.rpId !== currentRpId()) {
-    throw new PasskeyTokenVaultError('rp-mismatch', 'Vault passkey thuộc một relying party ID khác.');
-  }
-  const prfOutput = await requestPrfOutput(record.credentialId, record.rpId, base64UrlToBytes(record.prfInput));
-  const encrypted = await encryptSecret(secret, record, prfOutput);
-  await setLocalRecord(VAULT_STORAGE_KEY, JSON.stringify({
-    ...record,
-    ...encrypted,
-    purpose,
-    updatedAt: new Date().toISOString(),
-  } satisfies StoredPasskeyTokenVaultV1));
-}
-
-export async function storeGoogleRefreshTokenInPasskeyVault(refreshToken: string): Promise<void> {
-  await replacePasskeyTokenVaultSecret(refreshToken, 'google-refresh-token');
 }
 
 export async function unlockPasskeyTokenVault(): Promise<string> {
@@ -433,14 +372,6 @@ export async function unlockPasskeyTokenVault(): Promise<string> {
   } catch (error) {
     throw new PasskeyTokenVaultError('decrypt-failed', 'Không thể giải mã vault bằng passkey hiện tại.', { cause: error });
   }
-}
-
-export async function unlockGoogleRefreshTokenFromPasskeyVault(): Promise<string> {
-  const raw = await getLocalRecord(VAULT_STORAGE_KEY);
-  if (!raw || parseStoredVault(raw).purpose !== 'google-refresh-token') {
-    throw new PasskeyTokenVaultError('wrong-purpose', 'Chưa có Google refresh token được bảo vệ bằng Passkey trên thiết bị này.');
-  }
-  return unlockPasskeyTokenVault();
 }
 
 export async function clearPasskeyTokenVault(): Promise<void> {
