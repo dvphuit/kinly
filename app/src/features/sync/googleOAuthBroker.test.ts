@@ -12,9 +12,11 @@ class FakeBroadcastChannel {
   static instances: FakeBroadcastChannel[] = [];
 
   readonly close = vi.fn();
+  readonly name: string;
   onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
 
-  constructor(readonly name: string) {
+  constructor(name: string) {
+    this.name = name;
     FakeBroadcastChannel.instances.push(this);
   }
 
