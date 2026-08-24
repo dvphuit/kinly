@@ -195,6 +195,21 @@ describe('generation-2 Google Drive sync', () => {
     );
   });
 
+  it('requests a Google token silently with the remembered account hint', async () => {
+    const requestAccessToken = installGoogleTokenClient('silent-token');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(accountResponse()));
+    const sync = await import('@/features/sync/googleDriveSync');
+
+    const account = await sync.requestGoogleAccessTokenSilently({ loginHint: 'parent@example.com' });
+
+    expect(account).toMatchObject(DEFAULT_ACCOUNT);
+    expect(requestAccessToken).toHaveBeenCalledWith({
+      prompt: 'none',
+      login_hint: 'parent@example.com',
+    });
+    expect(sync.isGoogleConnected()).toBe(true);
+  });
+
   it('expires the runtime session proactively and publishes re-authentication state', async () => {
     vi.useFakeTimers();
     installGoogleTokenClient('short-token', 61);
@@ -213,7 +228,7 @@ describe('generation-2 Google Drive sync', () => {
     });
   });
 
-  it('does not publish re-authentication state when background auto-sync has no runtime token after reload', async () => {
+  it('does not publish re-authentication state when background auto-sync has no remembered Google link', async () => {
     vi.useFakeTimers();
     localDb.getLocalRecord.mockResolvedValue(JSON.stringify({
       lastSyncedFingerprint: 'fingerprint-1',
