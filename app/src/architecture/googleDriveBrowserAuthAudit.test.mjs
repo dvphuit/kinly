@@ -16,6 +16,7 @@ describe('Google Drive authentication architecture', () => {
     const broker = read('src', 'features', 'sync', 'googleOAuthBroker.ts');
     const gate = read('src', 'features', 'sync', 'googlePasskeyGate.ts');
     const worker = read('..', 'workers', 'google-oauth-broker', 'src', 'index.js');
+    const workerConfig = read('..', 'workers', 'google-oauth-broker', 'wrangler.jsonc');
 
     expect(workflow).toContain('VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}');
     expect(workflow).toContain('VITE_GOOGLE_AUTH_WORKER_URL: ${{ secrets.VITE_GOOGLE_AUTH_WORKER_URL }}');
@@ -26,8 +27,11 @@ describe('Google Drive authentication architecture', () => {
     expect(gate).not.toContain('access_token');
     expect(gate).not.toContain('ciphertext');
     expect(worker).toContain('GOOGLE_CLIENT_SECRET');
+    expect(worker).toContain('TOKEN_ENCRYPTION_KEY');
     expect(worker).toContain('refresh_token');
-    expect(worker).toContain('OAUTH_SESSIONS');
+    expect(worker).toContain('OAUTH_DB');
+    expect(workerConfig).toContain('"d1_databases"');
+    expect(workerConfig).not.toContain('"kv_namespaces"');
     expect(worker).toContain("code_challenge_method: 'S256'");
   });
 

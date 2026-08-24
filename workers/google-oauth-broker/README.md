@@ -1,18 +1,21 @@
 # Kinly Google OAuth broker
 
-This Cloudflare Worker is an optional OAuth backend for Kinly's Google Drive backup. It keeps the Google `client_secret` and refresh token off the browser so Kinly can restore a short-lived Drive access token after the app reopens without asking for Passkey + GIS on every expired browser session.
+This Cloudflare Worker is an optional OAuth backend for Kinly's Google Drive backup. It keeps Google refresh credentials off the browser so Kinly can restore a short-lived Drive access token after the app reopens without repeating Passkey + GIS whenever the access token expires.
 
 ## Security model
 
 - `GOOGLE_CLIENT_SECRET` is a Cloudflare Worker Secret and is never committed.
-- Google refresh tokens are stored only in the `OAUTH_SESSIONS` Workers KV binding.
-- Kinly stores an opaque broker session token in IndexedDB. The Worker stores only a SHA-256-derived lookup key, not the opaque token itself.
+- `TOKEN_ENCRYPTION_KEY` is a 32-byte Worker Secret used to encrypt Google refresh tokens with AES-GCM before D1 persistence.
+- Durable OAuth sessions live in the `OAUTH_DB` D1 binding; raw refresh tokens are never stored in D1.
+- Kinly stores an opaque broker session token in IndexedDB. D1 stores only a SHA-256-derived session lookup key, not the opaque token itself.
 - Google access tokens returned to Kinly remain runtime-only and expire normally.
-- OAuth authorization uses Authorization Code + PKCE and a single-use state record with a 10-minute TTL.
+- OAuth authorization uses Authorization Code + PKCE and single-use state/result records with a 10-minute expiry.
 - Browser requests are restricted to `ALLOWED_ORIGINS`; there is no wildcard CORS.
-- If Google returns `invalid_grant`, the broker deletes the session and Kinly falls back to explicit reauthorization.
+- If Google returns `invalid_grant`, the broker deletes the durable session and Kinly falls back to explicit reauthorization.
 
-The opaque broker session is still a sensitive capability: JavaScript running in the Kinly origin can use it while it is present. Keep the app's XSS protections strong and revoke the broker session when disconnecting an account.
+D1 is used instead of Workers KV because OAuth state/result consumption and session creation need predictable read-after-write behavior. Cloudflare documents Workers KV as eventually consistent and recommends stronger consistency for transactional state.
+
+The opaque broker session is still a sensitive capability: JavaScript running in the Kinly origin can use it while it is present. Keep the app's XSS protections strong and delete the broker session when disconnecting an account.
 
 ## Local verification
 
@@ -23,9 +26,9 @@ npm test
 npm run check
 ```
 
-`wrangler deploy --dry-run` validates the Worker bundle. Wrangler can automatically provision the KV binding because `wrangler.jsonc` declares `OAUTH_SESSIONS` without an account-specific ID.
+`npm run check` applies the D1 migration to a local Wrangler database and then runs `wrangler deploy --dry-run` to validate the Worker bundle.
 
-## Deploy
+## Provision D1
 
 Authenticate Wrangler with the Cloudflare account that should own the Worker:
 
@@ -35,19 +38,41 @@ npm install
 npx wrangler login
 ```
 
+Create the D1 database:
+
+```bash
+npx wrangler d1 create kinly-google-oauth
+```
+
+Copy the returned database UUID into `wrangler.jsonc` as `d1_databases[0].database_id`, replacing the all-zero placeholder.
+
+Apply migrations remotely:
+
+```bash
+npx wrangler d1 migrations apply OAUTH_DB --remote
+```
+
+## Secrets
+
 Store the Google OAuth client secret in Cloudflare, not GitHub source:
 
 ```bash
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 ```
 
-Deploy:
+Generate and store a 32-byte encryption key:
+
+```bash
+openssl rand -base64 32 | npx wrangler secret put TOKEN_ENCRYPTION_KEY
+```
+
+Do not rotate `TOKEN_ENCRYPTION_KEY` without a migration plan for existing encrypted refresh tokens. Rotating it immediately invalidates existing broker sessions.
+
+## Deploy
 
 ```bash
 npx wrangler deploy
 ```
-
-The first deploy may automatically provision the `OAUTH_SESSIONS` KV namespace and write its ID back to `wrangler.jsonc`.
 
 ## Google Cloud Console
 
