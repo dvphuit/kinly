@@ -10,8 +10,6 @@ import {
   isGoogleSessionActive,
   requestGoogleAccessToken,
   resolveSyncConflict,
-  restoreGoogleSession,
-  startGoogleOAuth,
   setAutoSyncEnabled,
   subscribeSyncState,
   syncWithGoogleDrive,
@@ -66,13 +64,6 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     getLastSyncedAt().then((value) => {
       setLastSyncedAt(value);
     }).catch(() => {});
-    if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
-      void restoreGoogleSession().then((active) => {
-        setLinked(isGoogleLinked());
-        setSessionActive(active);
-        setAccount(getGoogleLinkedAccount());
-      }).catch(() => {});
-    }
     return unsubscribe;
   }, []);
 
@@ -84,10 +75,6 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
 
   const ensureGoogleSession = async () => {
     if (isGoogleSessionActive()) return;
-    if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
-      await startGoogleOAuth();
-      return;
-    }
     const nextAccount = await requestGoogleAccessToken();
     setAccount(nextAccount);
     setLinked(true);
@@ -144,10 +131,6 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
     setBusy(true);
     setError(null);
     try {
-      if (import.meta.env.VITE_GOOGLE_DRIVE_BACKEND === 'firebase') {
-        await startGoogleOAuth({ selectAccount: true });
-        return;
-      }
       const nextAccount = await requestGoogleAccessToken({ selectAccount: true });
       setAccount(nextAccount);
       setLinked(true);
