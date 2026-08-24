@@ -39,6 +39,7 @@ const UNLOADED_SYNC_STATE = {
 
 let loadedGoogleDriveSyncModule: GoogleDriveSyncModule | null = null;
 let googleDriveSyncModulePromise: Promise<GoogleDriveSyncModule> | null = null;
+let browserGoogleRestorePromise: Promise<boolean> | null = null;
 
 function loadGoogleDriveSync(): Promise<GoogleDriveSyncModule> {
   if (loadedGoogleDriveSyncModule) return Promise.resolve(loadedGoogleDriveSyncModule);
@@ -150,6 +151,34 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
   const account = await module.requestGoogleAccessToken(options);
   rememberGoogleLink(account);
   return account;
+}
+
+async function restoreBrowserGoogleSession(): Promise<boolean> {
+  if (isGoogleSessionActive()) return true;
+  if (!isGoogleLinked() || typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) return false;
+
+  const rememberedAccount = getGoogleLinkedAccount();
+  const module = await loadGoogleDriveSync();
+  try {
+    const account = await module.requestGoogleAccessTokenSilently(
+      rememberedAccount?.emailAddress ? { loginHint: rememberedAccount.emailAddress } : {},
+    );
+    rememberGoogleLink(account);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Best-effort silent restore for a previously linked browser Google account. Never opens consent UI. */
+export async function restoreGoogleSession(): Promise<boolean> {
+  if (isGoogleSessionActive()) return true;
+  if (!browserGoogleRestorePromise) {
+    browserGoogleRestorePromise = restoreBrowserGoogleSession().finally(() => {
+      browserGoogleRestorePromise = null;
+    });
+  }
+  return browserGoogleRestorePromise;
 }
 
 export async function uploadTimelineMediaToDrive(
