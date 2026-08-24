@@ -2,15 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import './PullToRefresh.css';
 
-const THRESHOLD = 64;
-const MAX_PULL = 96;
+const SOFT_THRESHOLD = 64;
+const HARD_THRESHOLD = 120;
+const MAX_PULL = 144;
 const RESISTANCE = 0.5;
 const SETTLE_MS = 220;
 
 interface PullToRefreshProps {
-  onRefresh: () => void;
+  onSoftRefresh: () => void;
+  onHardRefresh: () => void;
   children: React.ReactNode;
 }
+
+type PullLevel = 'idle' | 'pull' | 'soft' | 'hard';
 
 function getNearestScrollable(node: EventTarget | null, root: HTMLElement): HTMLElement | null {
   let el = node as HTMLElement | null;
@@ -25,10 +29,24 @@ function getNearestScrollable(node: EventTarget | null, root: HTMLElement): HTML
   return null;
 }
 
-export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, children }) => {
+function getPullLevel(value: number): PullLevel {
+  if (value >= HARD_THRESHOLD) return 'hard';
+  if (value >= SOFT_THRESHOLD) return 'soft';
+  if (value > 0) return 'pull';
+  return 'idle';
+}
+
+function getPullLabel(level: PullLevel): string {
+  if (level === 'hard') return 'Thả để tải lại ứng dụng';
+  if (level === 'soft') return 'Thả để làm mới';
+  return 'Kéo để làm mới';
+}
+
+export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onSoftRefresh, onHardRefresh, children }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const settleTimerRef = useRef<number | null>(null);
   const startY = useRef(0);
@@ -38,18 +56,23 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, childre
 
   const applyPullVisuals = (value: number) => {
     const clamped = Math.max(0, Math.min(value, MAX_PULL));
+    const level = getPullLevel(clamped);
     distance.current = clamped;
+
     if (contentRef.current) contentRef.current.style.transform = `translate3d(0, ${clamped}px, 0)`;
     if (indicatorRef.current) {
       const opacity = clamped <= 12
         ? (clamped / 12) * 0.45
-        : 0.45 + ((Math.min(clamped, THRESHOLD) - 12) / (THRESHOLD - 12)) * 0.55;
+        : 0.45 + ((Math.min(clamped, SOFT_THRESHOLD) - 12) / (SOFT_THRESHOLD - 12)) * 0.55;
       indicatorRef.current.style.opacity = String(refreshing ? 1 : Math.max(0, Math.min(1, opacity)));
+      indicatorRef.current.dataset.level = level;
     }
+    if (labelRef.current) labelRef.current.textContent = getPullLabel(level);
     if (iconRef.current) {
-      const progress = Math.min(1, clamped / THRESHOLD);
-      const rotation = progress * 270;
-      const scale = 0.82 + progress * 0.18;
+      const softProgress = Math.min(1, clamped / SOFT_THRESHOLD);
+      const hardProgress = Math.max(0, Math.min(1, (clamped - SOFT_THRESHOLD) / (HARD_THRESHOLD - SOFT_THRESHOLD)));
+      const rotation = (softProgress * 270) + (hardProgress * 180);
+      const scale = 0.82 + (softProgress * 0.18) + (hardProgress * 0.08);
       iconRef.current.style.transform = `rotate(${rotation}deg) scale(${scale})`;
     }
   };
@@ -111,13 +134,26 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, childre
     const finish = () => {
       if (!pulling.current) return;
       pulling.current = false;
-      if (distance.current >= THRESHOLD) {
+
+      if (distance.current >= HARD_THRESHOLD) {
         setRefreshing(true);
-        settleTo(THRESHOLD);
-        onRefresh();
-      } else {
-        reset();
+        if (labelRef.current) labelRef.current.textContent = 'Đang tải lại ứng dụng…';
+        settleTo(HARD_THRESHOLD);
+        onHardRefresh();
+        return;
       }
+
+      if (distance.current >= SOFT_THRESHOLD) {
+        setRefreshing(true);
+        if (labelRef.current) labelRef.current.textContent = 'Đang làm mới…';
+        settleTo(SOFT_THRESHOLD);
+        onSoftRefresh();
+        setRefreshing(false);
+        settleTo(0);
+        return;
+      }
+
+      reset();
     };
 
     const onTouchEnd = () => finish();
@@ -137,20 +173,22 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, childre
       root.removeEventListener('touchend', onTouchEnd);
       root.removeEventListener('touchcancel', onTouchCancel);
     };
-  }, [onRefresh, refreshing]);
+  }, [onHardRefresh, onSoftRefresh, refreshing]);
 
   return (
     <div className={`ptr-root ${refreshing ? 'is-refreshing' : ''}`} ref={rootRef}>
       <div
         ref={indicatorRef}
         className="ptr-indicator"
+        data-level="idle"
         style={{ height: MAX_PULL, opacity: refreshing ? 1 : 0 }}
         aria-hidden="true"
       >
-        <div className="ptr-spinner-wrap">
+        <div className="ptr-feedback">
           <div ref={iconRef} className="ptr-pull-icon">
             <Loader2 className="ptr-spinner" size={26} strokeWidth={2.5} />
           </div>
+          <span ref={labelRef} className="ptr-label">Kéo để làm mới</span>
         </div>
       </div>
       <div ref={contentRef} className="ptr-content">

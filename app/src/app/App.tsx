@@ -41,6 +41,7 @@ export const AppContent: React.FC = () => {
   const familyData = useProfileStore((state) => state.familyData);
   const profileMode = useUIStore((state) => state.profileMode);
   const [profileHydrated, setProfileHydrated] = useState(() => useProfileStore.persist.hasHydrated());
+  const [routeRefreshKey, setRouteRefreshKey] = useState(0);
   const isInitialized = profileHydrated && Boolean(familyData?.isInitialized && familyData?.childName);
 
   useEffect(() => {
@@ -72,6 +73,9 @@ export const AppContent: React.FC = () => {
     () => handleQuickAction('diary'),
     [handleQuickAction],
   );
+  const softRefreshCurrentRoute = useCallback(() => {
+    setRouteRefreshKey((value) => value + 1);
+  }, []);
 
   useThemeColor({ pathname: location.pathname, isModalOpen: isFullScreenOverlayOpen, profileMode });
   useReminderLifecycle({ onQuickLog: handleQuickAction, onOpenNotifications: modals.openNotifications });
@@ -108,8 +112,9 @@ export const AppContent: React.FC = () => {
         />
       )}
       <main id="appMainContent" className="view-content-wrapper">
-        <PullToRefresh onRefresh={reloadApp}>
+        <PullToRefresh onSoftRefresh={softRefreshCurrentRoute} onHardRefresh={reloadApp}>
           <AppRoutes
+            key={routeRefreshKey}
             onOpenQuickLog={modals.openQuickLog}
             onOpenPumping={modals.openAddPumping}
             onShowToast={addToast}
