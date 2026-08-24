@@ -1,5 +1,13 @@
+import {
+  isGoogleOAuthBrokerConfigured,
+  requestGoogleAccessTokenFromBroker,
+  restoreGoogleAccessTokenFromBroker,
+  type GoogleOAuthBrokerToken,
+} from './googleOAuthBroker';
+
 export * from './appSnapshot';
 export { SyncSnapshotIntegrityError } from './syncSnapshotEnvelope';
+export { isGoogleOAuthBrokerConfigured } from './googleOAuthBroker';
 export type SyncSnapshot = import('./syncSnapshotEnvelope').SyncSnapshot;
 export type SyncSnapshotIntegrityReason = import('./syncSnapshotEnvelope').SyncSnapshotIntegrityReason;
 
@@ -91,6 +99,37 @@ function rememberGoogleLink(account: GoogleAccountIdentity): void {
   window.localStorage.setItem(GOOGLE_LINKED_ACCOUNT_KEY, JSON.stringify({ clientId, account }));
 }
 
+/**
+ * Reuses the existing Google Drive runtime session boundary for a broker-provided
+ * short-lived access token. The temporary GIS shim never opens a popup and exists
+ * only until googleDriveSync has validated the account and bound the runtime token.
+ */
+async function acceptBrokerAccessToken(
+  module: GoogleDriveSyncModule,
+  token: GoogleOAuthBrokerToken,
+): Promise<GoogleAccountIdentity> {
+  if (typeof window === 'undefined') throw new Error('Google Drive chỉ khả dụng trong trình duyệt.');
+  const previousGoogle = window.google;
+  window.google = {
+    accounts: {
+      oauth2: {
+        initTokenClient: (config) => ({
+          requestAccessToken: () => {
+            config.callback({ access_token: token.accessToken, expires_in: token.expiresIn });
+          },
+        }),
+      },
+    },
+  };
+
+  try {
+    return await module.requestGoogleAccessToken();
+  } finally {
+    if (previousGoogle) window.google = previousGoogle;
+    else delete window.google;
+  }
+}
+
 export function isGoogleConfigured(): boolean {
   return getGoogleClientId() !== null;
 }
@@ -148,6 +187,17 @@ export function subscribeSyncState(listener: (state: SyncState) => void): () => 
 
 export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
   const module = await loadGoogleDriveSync();
+  if (isGoogleOAuthBrokerConfigured()) {
+    const loginHint = options.selectAccount === true ? undefined : getGoogleLinkedAccount()?.emailAddress;
+    const token = await requestGoogleAccessTokenFromBroker({
+      selectAccount: options.selectAccount === true,
+      ...(loginHint ? { loginHint } : {}),
+    });
+    const account = await acceptBrokerAccessToken(module, token);
+    rememberGoogleLink(account);
+    return account;
+  }
+
   const account = await module.requestGoogleAccessToken(options);
   rememberGoogleLink(account);
   return account;
@@ -155,8 +205,22 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
 
 async function restoreBrowserGoogleSession(): Promise<boolean> {
   if (isGoogleSessionActive()) return true;
-  if (!isGoogleLinked() || typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) return false;
+  if (typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) return false;
 
+  if (isGoogleOAuthBrokerConfigured()) {
+    try {
+      const brokerToken = await restoreGoogleAccessTokenFromBroker();
+      if (!brokerToken) return false;
+      const module = await loadGoogleDriveSync();
+      const account = await acceptBrokerAccessToken(module, brokerToken);
+      rememberGoogleLink(account);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  if (!isGoogleLinked()) return false;
   const rememberedAccount = getGoogleLinkedAccount();
   const module = await loadGoogleDriveSync();
   try {
@@ -170,7 +234,10 @@ async function restoreBrowserGoogleSession(): Promise<boolean> {
   }
 }
 
-/** Best-effort silent restore for a previously linked browser Google account. Never opens consent UI. */
+/**
+ * Best-effort Google Drive restore for a previously linked account.
+ * The optional OAuth broker is preferred when configured; otherwise Kinly keeps the browser-only silent GIS fallback.
+ */
 export async function restoreGoogleSession(): Promise<boolean> {
   if (isGoogleSessionActive()) return true;
   if (!browserGoogleRestorePromise) {

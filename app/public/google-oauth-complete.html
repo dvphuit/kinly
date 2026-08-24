@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Kinly · Google Drive</title>
+</head>
+<body>
+  <p id="status">Đang hoàn tất xác thực Google Drive…</p>
+  <script>
+    (() => {
+      const status = document.getElementById('status');
+
+      function decodeBase64Url(value) {
+        const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+        const binary = atob(normalized + '='.repeat((4 - normalized.length % 4) % 4));
+        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+      }
+
+      try {
+        const encoded = location.hash.slice(1);
+        history.replaceState(null, '', location.pathname);
+        if (!encoded) throw new Error('missing OAuth result');
+
+        const payload = JSON.parse(decodeBase64Url(encoded));
+        if (
+          typeof payload !== 'object' || payload === null
+          || typeof payload.attemptToken !== 'string' || !payload.attemptToken
+          || (payload.status !== 'complete' && payload.status !== 'error')
+        ) {
+          throw new Error('invalid OAuth result');
+        }
+        if (typeof BroadcastChannel === 'undefined') throw new Error('BroadcastChannel unavailable');
+
+        const channel = new BroadcastChannel(`kinly-google-oauth:${payload.attemptToken}`);
+        channel.postMessage(payload);
+        channel.close();
+        status.textContent = payload.status === 'complete'
+          ? 'Đã kết nối Google Drive. Bạn có thể đóng cửa sổ này.'
+          : 'Không thể hoàn tất xác thực Google Drive.';
+        window.setTimeout(() => window.close(), 100);
+      } catch {
+        status.textContent = 'Không thể hoàn tất xác thực Google Drive. Hãy quay lại Kinly và thử lại.';
+      }
+    })();
+  </script>
+</body>
+</html>

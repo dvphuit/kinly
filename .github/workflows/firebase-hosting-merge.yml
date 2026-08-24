@@ -28,6 +28,7 @@ jobs:
           VITE_BUILD_REF: ${{ github.ref_name }}
           VITE_BUILD_TIME: ${{ github.run_started_at }}
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_AUTH_WORKER_URL: ${{ secrets.VITE_GOOGLE_AUTH_WORKER_URL }}
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
