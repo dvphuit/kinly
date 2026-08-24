@@ -39,8 +39,15 @@ interface GoogleTokenResponse {
   error_description?: string;
 }
 
+type GoogleTokenPrompt = '' | 'none' | 'select_account';
+
+interface GoogleTokenRequestOverrides {
+  prompt?: GoogleTokenPrompt;
+  login_hint?: string;
+}
+
 interface GoogleTokenClient {
-  requestAccessToken: (overrides?: { prompt?: string }) => void;
+  requestAccessToken: (overrides?: GoogleTokenRequestOverrides) => void;
 }
 
 declare global {
@@ -61,6 +68,11 @@ declare global {
 }
 
 export type GoogleAuthOptions = { selectAccount?: boolean };
+export type GoogleSilentAuthOptions = { loginHint?: string };
+
+type GoogleAccessRequest =
+  | { kind: 'interactive'; selectAccount: boolean }
+  | { kind: 'silent'; loginHint?: string };
 
 export interface GoogleAccountIdentity {
   permissionId: string;
@@ -367,8 +379,22 @@ async function readCurrentGoogleAccount(): Promise<GoogleAccountIdentity> {
   return parseGoogleAccountIdentity(value);
 }
 
-export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
-  logDiagnostic('drive-auth', 'info', 'Requesting Google access', { selectAccount: options.selectAccount === true });
+function tokenRequestOverrides(request: GoogleAccessRequest): GoogleTokenRequestOverrides {
+  if (request.kind === 'silent') {
+    return request.loginHint
+      ? { prompt: 'none', login_hint: request.loginHint }
+      : { prompt: 'none' };
+  }
+  return { prompt: request.selectAccount ? 'select_account' : '' };
+}
+
+async function requestGoogleAccess(request: GoogleAccessRequest): Promise<GoogleAccountIdentity> {
+  const silent = request.kind === 'silent';
+  logDiagnostic('drive-auth', 'info', silent ? 'Requesting silent Google access' : 'Requesting Google access', {
+    silent,
+    selectAccount: request.kind === 'interactive' && request.selectAccount,
+    hasLoginHint: request.kind === 'silent' && Boolean(request.loginHint),
+  });
   let receivedToken = false;
   try {
     const clientId = getClientId();
@@ -390,15 +416,15 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
           publishSyncState({ status: 'idle', error: null });
           resolve();
         },
-        error_callback: (error) => reject(new Error(error.message || 'Không thể mở cửa sổ cấp quyền Google.')),
+        error_callback: (error) => reject(new Error(error.message || 'Không thể lấy quyền truy cập Google.')),
       });
-      client.requestAccessToken({ prompt: options.selectAccount ? 'select_account' : '' });
+      client.requestAccessToken(tokenRequestOverrides(request));
     });
 
     const account = await readCurrentGoogleAccount();
     activeGoogleAccount = account;
     await bindGoogleAccount(account);
-    logDiagnostic('drive-auth', 'info', 'Google access granted', {
+    logDiagnostic('drive-auth', 'info', silent ? 'Silent Google access granted' : 'Google access granted', {
       accountId: account.permissionId,
       emailAddress: account.emailAddress,
       expiresAt: new Date(accessTokenExpiresAt).toISOString(),
@@ -406,9 +432,24 @@ export async function requestGoogleAccessToken(options: GoogleAuthOptions = {}):
     return account;
   } catch (error) {
     if (receivedToken) clearGoogleSession();
-    logDiagnostic('drive-auth', 'error', 'Google access failed', error);
+    logDiagnostic(
+      'drive-auth',
+      silent ? 'info' : 'error',
+      silent ? 'Silent Google access unavailable' : 'Google access failed',
+      error,
+    );
     throw error;
   }
+}
+
+export function requestGoogleAccessToken(options: GoogleAuthOptions = {}): Promise<GoogleAccountIdentity> {
+  return requestGoogleAccess({ kind: 'interactive', selectAccount: options.selectAccount === true });
+}
+
+export function requestGoogleAccessTokenSilently(options: GoogleSilentAuthOptions = {}): Promise<GoogleAccountIdentity> {
+  return requestGoogleAccess(options.loginHint
+    ? { kind: 'silent', loginHint: options.loginHint }
+    : { kind: 'silent' });
 }
 
 async function ensureAccessToken(interactive: boolean): Promise<string> {
@@ -1043,11 +1084,10 @@ function runAutoSync(): Promise<void> {
     try {
       const meta = await readMeta();
       if (!meta.autoSyncEnabled) return;
-      // A linked account can survive a reload while the short-lived access token
-      // cannot. Background sync must not turn that normal state into a visible
-      // auth error or attempt to open Google's consent UI. The next explicit
-      // Drive action will obtain a fresh token through ensureGoogleSession().
-      if (!isGoogleConnected()) return;
+      if (!isGoogleConnected()) {
+        const { restoreGoogleSession } = await import('./index');
+        if (!(await restoreGoogleSession())) return;
+      }
       await syncWithGoogleDrive({ interactive: false });
     } catch {
       // Sync state already contains a user-facing error. Local writes continue normally.
@@ -1065,14 +1105,19 @@ export async function startAutoSync(): Promise<() => void> {
   if (autoSyncStartPromise) return autoSyncStartPromise;
 
   autoSyncStartPromise = (async () => {
-    if (USE_FIREBASE_BACKEND) {
+    const restoreSession = async (): Promise<boolean> => {
       try {
         const { restoreGoogleSession } = await import('./index');
-        await restoreGoogleSession();
+        return await restoreGoogleSession();
       } catch (restoreError) {
-        logDiagnostic('drive-auth', 'error', 'Firebase Google session restore failed', restoreError);
+        logDiagnostic('drive-auth', 'info', 'Google session restore was not completed', {
+          reason: restoreError instanceof Error ? restoreError.message : String(restoreError),
+        });
+        return false;
       }
-    }
+    };
+
+    await restoreSession();
     const meta = await readMeta();
     publishSyncState({
       autoSyncEnabled: meta.autoSyncEnabled,
@@ -1081,10 +1126,18 @@ export async function startAutoSync(): Promise<() => void> {
       error: navigator.onLine ? null : 'Đang offline; dữ liệu vẫn được lưu cục bộ.',
     });
 
+    const restoreAndSchedule = (delay = 500) => {
+      void restoreSession().finally(() => scheduleAutoSync(delay));
+    };
     const onDomainChanged = () => { if (!suppressAutoSync) scheduleAutoSync(); };
-    const onOnline = () => { publishSyncState({ status: 'idle', error: null }); scheduleAutoSync(500); };
+    const onOnline = () => {
+      publishSyncState({ status: 'idle', error: null });
+      restoreAndSchedule();
+    };
     const onOffline = () => publishSyncState({ status: 'offline', error: 'Đang offline; dữ liệu vẫn được lưu cục bộ.' });
-    const onVisibilityChange = () => { if (document.visibilityState === 'visible') scheduleAutoSync(500); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') restoreAndSchedule();
+    };
 
     const unsubscribe = subscribeAppSnapshotChanges(onDomainChanged);
     window.addEventListener('online', onOnline);
