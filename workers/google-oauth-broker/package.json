@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test src/index.test.js",
-    "check:migrations": "wrangler d1 migrations apply OAUTH_DB --local --persist-to .wrangler-state --yes",
+    "check:migrations": "wrangler d1 migrations apply OAUTH_DB --local --persist-to .wrangler-state",
     "check": "npm run check:migrations && wrangler deploy --dry-run --outdir .wrangler-dry-run"
   },
   "devDependencies": {
