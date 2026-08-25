@@ -1,5 +1,5 @@
 .baby-profile-v2 { background: var(--color-canvas); }
-.baby-profile-v2-main { display: flex; flex-direction: column; gap: 12px; padding-bottom: 18px; }
+.baby-profile-v2-main { display: flex; flex-direction: column; gap: 10px; padding-bottom: 18px; }
 
 .profile-summary-card,
 .profile-quick-action,
@@ -10,8 +10,8 @@
 }
 
 .profile-summary-card { overflow: hidden; border-radius: 24px; }
-.profile-summary-hero { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 13px; align-items: center; padding: 15px; }
-.profile-summary-avatar { width: 72px; height: 72px; border: 3px solid #fff; border-radius: 22px; object-fit: cover; box-shadow: 0 8px 18px rgba(74, 57, 48, 0.13); }
+.profile-summary-hero { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 12px; align-items: center; padding: 14px; }
+.profile-summary-avatar { width: 68px; height: 68px; border: 3px solid #fff; border-radius: 21px; object-fit: cover; box-shadow: 0 8px 18px rgba(74, 57, 48, 0.13); }
 .profile-summary-identity { min-width: 0; }
 
 .profile-summary-overline,
@@ -69,7 +69,7 @@
 .profile-growth-metric > span:nth-child(2) { overflow: hidden; color: var(--color-text-muted); font-size: 7.5px; text-overflow: ellipsis; white-space: nowrap; }
 .profile-growth-metric strong { overflow: hidden; color: var(--color-primary-dark); font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
 
-.profile-quick-action { width: 100%; min-height: 60px; display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 10px 12px; border-radius: 18px; color: var(--color-primary-dark); text-align: left; }
+.profile-quick-action { width: 100%; min-height: 56px; display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 9px 11px; border-radius: 18px; color: var(--color-primary-dark); text-align: left; }
 .profile-quick-action-icon { width: 36px; height: 36px; border-radius: 12px; color: #79582b; background: #f4e2b7; }
 .profile-quick-action-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .profile-quick-action-copy strong { font-family: var(--font-family-display); font-size: 12px; }
@@ -79,7 +79,7 @@
 .baby-profile-v2-system-separator::before,
 .baby-profile-v2-system-separator::after { content: ''; height: 1px; flex: 1; background: var(--color-border-subtle); }
 
-.profile-sync-card { padding: 13px; border-radius: 21px; }
+.profile-sync-card { padding: 12px; border-radius: 21px; }
 .profile-sync-header { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 9px; align-items: center; }
 .profile-sync-icon { width: 36px; height: 36px; border-radius: 12px; color: #5f744b; background: #e8efdf; }
 .profile-sync-title h2 { margin: 2px 0 0; color: var(--color-primary-dark); font-family: var(--font-family-display); font-size: 15px; }
@@ -119,41 +119,5 @@
 .profile-sync-manage strong { display: block; font-size: 10.5px; }
 .profile-sync-manage small { display: block; margin-top: 1px; color: var(--color-text-muted); font-size: 9px; }
 .profile-sync-footnote { display: flex; gap: 5px; margin-top: 6px; color: var(--color-text-muted); font-size: 8px; }
-
-/* Keep destructive data tools visually secondary to the everyday profile flow. */
-.profile-reset-section .section-title-row { margin: 0 2px 5px; }
-.profile-reset-section .section-main-title { display: inline-flex; align-items: center; gap: 5px; color: var(--color-text-muted); font-size: 10px; }
-.profile-reset-card { display: grid; gap: 9px; padding: 11px 12px; border: 1px solid #eddcd4; border-radius: 17px; background: #fffaf7; box-shadow: none; }
-.profile-reset-heading { margin: 0; color: var(--color-primary-dark); font-size: 10.5px; font-weight: 800; }
-.profile-reset-description { margin: 3px 0 0; color: var(--color-text-muted); font-size: 9px; line-height: 1.4; }
-.profile-reset-trigger { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #efd4c7; border-radius: 12px; color: #9b4c34; background: #fff; font-size: 9.5px; font-weight: 800; }
-.profile-reset-confirmation { display: grid; gap: 9px; padding: 2px 1px; }
-.profile-reset-confirmation p { margin: 0; }
-.profile-reset-confirmation-intro { color: #9b4c34; font-size: 11px; font-weight: 800; }
-.profile-reset-confirmation-copy { color: var(--color-text-secondary); font-size: 10px; line-height: 1.45; }
-.profile-reset-error { padding: 8px 9px; border-radius: 11px; color: #9b4c34; background: #fff0ea; font-size: 9.5px; }
-.profile-reset-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.profile-reset-actions button { min-height: 40px; border-radius: var(--radius-pill); font-size: 10px; font-weight: 800; }
-.profile-reset-cancel { color: var(--color-text-secondary); background: var(--color-card-warm); }
-.profile-reset-confirm { color: #fff; background: #a6533a; }
-.profile-reset-actions button:disabled { opacity: 0.48; }
-.profile-zodiac-note { margin: -2px 8px 0; color: var(--color-text-muted); font-size: 8px; line-height: 1.45; text-align: center; }
-
-/* Match the edit sheet density to the compact profile cards on narrow phones. */
-.edit-profile-bottom-sheet .sheet-content-body { padding-top: 5px; }
-.edit-profile-form { gap: 10px; }
-.edit-profile-form .tracker-sheet-intro { min-height: 60px; padding: 11px 12px; border-radius: 18px; }
-.edit-profile-form .tracker-sheet-section { padding: 11px; border-radius: 17px; }
-.edit-profile-form .tracker-sheet-section-header { margin-bottom: 7px; }
-.edit-profile-form .tracker-sheet-section-header > span { font-size: 12px; }
-.edit-profile-form .tracker-sheet-section-header > small { font-size: 8.5px; }
-
-@media (max-width: 380px) {
-  .profile-summary-hero { grid-template-columns: 64px minmax(0, 1fr); padding: 13px; }
-  .profile-summary-avatar { width: 64px; height: 64px; border-radius: 20px; }
-  .profile-summary-identity h2 { font-size: 27px; }
-  .profile-reset-card { padding: 10px; }
-  .edit-profile-form .tracker-sheet-section { padding: 9px; }
-}
 
 .baby-profile-v2 button:focus-visible { outline: 3px solid rgba(116, 135, 86, 0.32); outline-offset: 2px; }
