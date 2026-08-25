@@ -40,6 +40,23 @@ describe('startup critical path', () => {
     expect(app).toContain('window.setTimeout(() => setShouldRegister(true), PWA_REGISTRATION_DELAY_MS)');
   });
 
+  it('keeps React Router out of the uninitialized onboarding path', () => {
+    const main = source('main.tsx');
+    const app = source('app/App.tsx');
+    const routedApp = source('app/RoutedInitializedApp.tsx');
+    const viteConfig = readFileSync(join(ROOT, 'vite.config.ts'), 'utf8');
+
+    expect(main).not.toContain('react-router-dom');
+    expect(main).not.toContain('createBrowserRouter');
+    expect(main).not.toContain('RouterProvider');
+    expect(app).not.toContain('react-router-dom');
+    expect(app).toContain("const loadInitializedApp = () => import('./RoutedInitializedApp');");
+    expect(routedApp).toContain("from 'react-router-dom'");
+    expect(routedApp).toContain('<BrowserRouter>');
+    expect(viteConfig).toContain("return 'react-router-vendor';");
+    expect(viteConfig).toContain("return 'react-vendor';");
+  });
+
   it('keeps development store hydration out of the production entry module', () => {
     const main = source('main.tsx');
     const bootstrap = source('data/bootstrapMockData.ts');

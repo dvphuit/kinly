@@ -1,6 +1,5 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './app/App';
 import './index.css';
 
@@ -40,11 +39,10 @@ async function handleResetRequest(): Promise<boolean> {
 function renderApp(): void {
   const root = document.getElementById('root');
   if (!root) throw new Error('Missing #root application element.');
-  const router = createBrowserRouter([{ path: '*', element: <App /> }]);
 
   createRoot(root).render(
     <StrictMode>
-      <RouterProvider router={router} />
+      <App />
     </StrictMode>,
   );
   markStartup('render-requested');

@@ -1,5 +1,4 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { AppModalController } from '@/app/hooks/useAppModals';
 import { initializeChildProfile, resetChildStoresToDefaults, useProfileStore } from '@/features/profile';
@@ -60,7 +59,7 @@ vi.mock('@/PWABadge', () => ({ default: () => <div>PWA Badge marker</div> }));
 describe('AppContent', () => {
   it('renders onboarding view when baby profile is not initialized', async () => {
     resetChildStoresToDefaults();
-    render(<MemoryRouter initialEntries={['/']}><AppContent /></MemoryRouter>);
+    render(<AppContent />);
 
     expect(await screen.findByRole('heading', { name: /Đăng nhập Google Drive/i })).toBeInTheDocument();
     expect(screen.queryByText('Header marker')).not.toBeInTheDocument();
@@ -75,7 +74,7 @@ describe('AppContent', () => {
       return () => undefined;
     });
 
-    render(<MemoryRouter initialEntries={['/']}><AppContent /></MemoryRouter>);
+    render(<AppContent />);
 
     expect(screen.getByRole('status')).toHaveTextContent('Đang khôi phục hồ sơ');
     expect(screen.queryByRole('heading', { name: /Đăng nhập Google Drive/i })).not.toBeInTheDocument();
@@ -90,9 +89,9 @@ describe('AppContent', () => {
     onFinishHydration.mockRestore();
   });
 
-  it('composes the shell and mounts sync/reminder lifecycles when initialized', async () => {
+  it('composes the routed shell and mounts sync/reminder lifecycles when initialized', async () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2025-11-20' });
-    render(<MemoryRouter initialEntries={['/']}><AppContent /></MemoryRouter>);
+    render(<AppContent />);
 
     expect(await screen.findByText('Header marker')).toBeInTheDocument();
     expect(screen.getByText('App Routes marker')).toBeInTheDocument();
@@ -106,9 +105,9 @@ describe('AppContent', () => {
     expect(useReminderLifecycleMock).toHaveBeenCalled();
   });
 
-  it('does not render the shell when reset is requested', () => {
+  it('keeps the initialized shell out of the uninitialized profile path', () => {
     resetChildStoresToDefaults();
-    render(<MemoryRouter initialEntries={['/?reset=1']}><AppContent /></MemoryRouter>);
+    render(<AppContent />);
 
     expect(screen.queryByText('Header marker')).not.toBeInTheDocument();
     expect(screen.queryByText('App Routes marker')).not.toBeInTheDocument();

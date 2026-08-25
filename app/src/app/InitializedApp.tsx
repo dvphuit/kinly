@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppVersionBadge } from '@/shared/ui/AppVersionBadge';
 import { BottomNav } from '@/shared/ui/BottomNav';
@@ -8,6 +8,7 @@ import { PullToRefresh } from '@/shared/ui/PullToRefresh';
 import { PWAInstallPrompt } from '@/shared/ui/PWAInstallPrompt';
 import { ToastContainer } from '@/shared/ui/Toast';
 import { useAppModals, type AddToast } from '@/app/hooks/useAppModals';
+import { logDiagnostic } from '@/app/diagnostics/diagnosticLog';
 import { useAutoSyncLifecycle } from '@/features/sync/hooks/useAutoSyncLifecycle';
 import { useReminderLifecycle } from '@/features/reminders/hooks/useReminderLifecycle';
 import { useThemeColor } from '@/app/hooks/useThemeColor';
@@ -50,6 +51,10 @@ export const InitializedApp: React.FC<InitializedAppProps> = ({ toasts, addToast
     setRouteRefreshKey((value) => value + 1);
   }, []);
 
+  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+  useEffect(() => {
+    logDiagnostic('navigation', 'info', 'Route changed', { path: location.pathname });
+  }, [location.pathname]);
   useThemeColor({ pathname: location.pathname, isModalOpen: isFullScreenOverlayOpen, profileMode });
 
   return (

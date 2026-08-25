@@ -195,10 +195,14 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (
+            id.includes('node_modules/react-router')
+            || id.includes('node_modules/react-router-dom')
+          ) {
+            return 'react-router-vendor';
+          }
+          if (
             id.includes('node_modules/react/')
             || id.includes('node_modules/react-dom/')
-            || id.includes('node_modules/react-router')
-            || id.includes('node_modules/react-router-dom')
           ) {
             return 'react-vendor';
           }

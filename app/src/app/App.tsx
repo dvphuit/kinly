@@ -1,12 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { ToastContainer } from '@/shared/ui/Toast';
-import { useThemeColor } from '@/app/hooks/useThemeColor';
 import { useToast } from '@/shared/hooks/useToast';
 import { installGlobalDiagnosticLogging, logDiagnostic } from '@/app/diagnostics/diagnosticLog';
 import { hasInitializedProfile, markProfileInitialized } from '@/app/lifecycle/profileInitMarker';
 import { useProfileStore } from '@/features/profile/store/useProfileStore';
-import { useUIStore } from '@/store/useUIStore';
 
 const PWA_REGISTRATION_DELAY_MS = 10_000;
 
@@ -17,10 +14,10 @@ const loadOnboarding = () => (async () => {
   return { default: module.OnboardingView };
 })();
 
-const loadInitializedApp = () => import('./InitializedApp');
+const loadInitializedApp = () => import('./RoutedInitializedApp');
 
 const OnboardingView = lazy(loadOnboarding);
-const InitializedApp = lazy(async () => ({ default: (await loadInitializedApp()).InitializedApp }));
+const RoutedInitializedApp = lazy(async () => ({ default: (await loadInitializedApp()).RoutedInitializedApp }));
 const PWABadge = lazy(() => import('@/PWABadge'));
 
 if (typeof window !== 'undefined') {
@@ -48,9 +45,7 @@ const DeferredPWABadge: React.FC = () => {
 };
 
 export const AppContent: React.FC = () => {
-  const location = useLocation();
   const familyData = useProfileStore((state) => state.familyData);
-  const profileMode = useUIStore((state) => state.profileMode);
   const [profileHydrated, setProfileHydrated] = useState(() => useProfileStore.persist.hasHydrated());
   const { toasts, addToast } = useToast();
   const isInitialized = profileHydrated && Boolean(familyData?.isInitialized && familyData?.childName);
@@ -62,7 +57,6 @@ export const AppContent: React.FC = () => {
     }
     return useProfileStore.persist.onFinishHydration(() => setProfileHydrated(true));
   }, []);
-  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
   useEffect(() => {
     logDiagnostic('app', 'info', 'App started', {
       version: import.meta.env.VITE_APP_VERSION,
@@ -71,11 +65,6 @@ export const AppContent: React.FC = () => {
     });
     return installGlobalDiagnosticLogging();
   }, []);
-  useEffect(() => {
-    logDiagnostic('navigation', 'info', 'Route changed', { path: location.pathname });
-  }, [location.pathname]);
-
-  useThemeColor({ pathname: location.pathname, isModalOpen: false, profileMode });
 
   if (!profileHydrated) {
     return (
@@ -109,7 +98,7 @@ export const AppContent: React.FC = () => {
           </div>
         )}
       >
-        <InitializedApp toasts={toasts} addToast={addToast} />
+        <RoutedInitializedApp toasts={toasts} addToast={addToast} />
       </Suspense>
       <DeferredPWABadge />
     </>
