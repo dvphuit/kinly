@@ -90,11 +90,11 @@ describe('AppContent', () => {
     onFinishHydration.mockRestore();
   });
 
-  it('composes the shell and mounts sync/reminder lifecycles when initialized', () => {
+  it('composes the shell and mounts sync/reminder lifecycles when initialized', async () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2025-11-20' });
     render(<MemoryRouter initialEntries={['/']}><AppContent /></MemoryRouter>);
 
-    expect(screen.getByText('Header marker')).toBeInTheDocument();
+    expect(await screen.findByText('Header marker')).toBeInTheDocument();
     expect(screen.getByText('App Routes marker')).toBeInTheDocument();
     expect(screen.getByText('App Modals marker')).toBeInTheDocument();
     expect(screen.getByText('Bottom Nav marker')).toBeInTheDocument();
