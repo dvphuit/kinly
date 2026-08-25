@@ -54,6 +54,15 @@ precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
 registerRoute(
+  ({ request, url }) => (
+    url.origin === self.location.origin
+    && url.pathname.startsWith('/assets/WHOChart-')
+    && (request.destination === 'script' || request.destination === 'style')
+  ),
+  new CacheFirst({ cacheName: 'babygrowth-runtime-who-chart' }),
+)
+
+registerRoute(
   ({ request, url }) => request.destination === 'image' && url.origin === self.location.origin,
   new CacheFirst({ cacheName: 'babygrowth-runtime-images' }),
 )

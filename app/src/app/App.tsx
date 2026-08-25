@@ -3,11 +3,12 @@ import { useLocation } from 'react-router-dom';
 import { ToastContainer } from '@/shared/ui/Toast';
 import { useThemeColor } from '@/app/hooks/useThemeColor';
 import { useToast } from '@/shared/hooks/useToast';
-import PWABadge from '@/PWABadge';
 import { installGlobalDiagnosticLogging, logDiagnostic } from '@/app/diagnostics/diagnosticLog';
 import { hasInitializedProfile, markProfileInitialized } from '@/app/lifecycle/profileInitMarker';
 import { useProfileStore } from '@/features/profile/store/useProfileStore';
 import { useUIStore } from '@/store/useUIStore';
+
+const PWA_REGISTRATION_DELAY_MS = 10_000;
 
 const loadOnboarding = () => (async () => {
   const stylesReady = import('@/app/onboarding/onboarding.css');
@@ -20,11 +21,31 @@ const loadInitializedApp = () => import('./InitializedApp');
 
 const OnboardingView = lazy(loadOnboarding);
 const InitializedApp = lazy(async () => ({ default: (await loadInitializedApp()).InitializedApp }));
+const PWABadge = lazy(() => import('@/PWABadge'));
 
 if (typeof window !== 'undefined') {
   if (hasInitializedProfile()) void loadInitializedApp();
   else void loadOnboarding();
 }
+
+const DeferredPWABadge: React.FC = () => {
+  const [shouldRegister, setShouldRegister] = useState(false);
+
+  useEffect(() => {
+    // Offline installation/update checks are not startup-critical. Delaying this
+    // mount keeps service-worker install/precache work away from first render and
+    // first interaction while preserving PWA setup for normal app sessions.
+    const timeoutId = window.setTimeout(() => setShouldRegister(true), PWA_REGISTRATION_DELAY_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  if (!shouldRegister) return null;
+  return (
+    <Suspense fallback={null}>
+      <PWABadge />
+    </Suspense>
+  );
+};
 
 export const AppContent: React.FC = () => {
   const location = useLocation();
@@ -61,7 +82,7 @@ export const AppContent: React.FC = () => {
       <div className="app-container" id="appContainer">
         <ToastContainer toasts={toasts} />
         <div className="route-loading-state" role="status">Đang khôi phục hồ sơ…</div>
-        <PWABadge />
+        <DeferredPWABadge />
       </div>
     );
   }
@@ -73,23 +94,25 @@ export const AppContent: React.FC = () => {
         <Suspense fallback={<div className="route-loading-state" role="status">Đang chuẩn bị hồ sơ…</div>}>
           <OnboardingView onComplete={() => { markProfileInitialized(); addToast('Chào mừng Ba Mẹ đến với Kinly! Hồ sơ của Bé đã sẵn sàng.'); }} />
         </Suspense>
-        <PWABadge />
+        <DeferredPWABadge />
       </div>
     );
   }
 
   return (
-    <Suspense
-      fallback={(
-        <div className="app-container" id="appContainer">
-          <ToastContainer toasts={toasts} />
-          <div className="route-loading-state" role="status">Đang mở ứng dụng…</div>
-          <PWABadge />
-        </div>
-      )}
-    >
-      <InitializedApp toasts={toasts} addToast={addToast} />
-    </Suspense>
+    <>
+      <Suspense
+        fallback={(
+          <div className="app-container" id="appContainer">
+            <ToastContainer toasts={toasts} />
+            <div className="route-loading-state" role="status">Đang mở ứng dụng…</div>
+          </div>
+        )}
+      >
+        <InitializedApp toasts={toasts} addToast={addToast} />
+      </Suspense>
+      <DeferredPWABadge />
+    </>
   );
 };
 

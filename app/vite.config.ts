@@ -173,6 +173,10 @@ export default defineConfig({
           'maskable-icon-*.png',
           'apple-touch-icon-*.png',
         ],
+        globIgnores: [
+          '**/WHOChart-*.js',
+          '**/WHOChart-*.css',
+        ],
       },
 
       devOptions: {
