@@ -94,6 +94,7 @@ describe('interaction performance audit', () => {
 
   it('uses browser-native animation paths for routes, overlays, and gestures', () => {
     const main = source('main.tsx');
+    const routedApp = source('app/RoutedInitializedApp.tsx');
     const routes = source('app/AppRoutes.tsx');
     const bottomNav = source('shared/ui/BottomNav.tsx');
     const header = source('app/components/Header.tsx');
@@ -108,8 +109,9 @@ describe('interaction performance audit', () => {
     expect(routes).toContain('useLocation');
     expect(routes).toContain('className="app-route-surface" key={location.pathname}');
     expect((bottomNav.match(/viewTransition/g) ?? [])).toHaveLength(2);
-    expect(main).toContain('createBrowserRouter');
-    expect(main).toContain('<RouterProvider router={router} />');
+    expect(main).not.toContain('react-router-dom');
+    expect(routedApp).toContain("from 'react-router-dom'");
+    expect(routedApp).toContain('<BrowserRouter>');
     expect(header).toContain("navigate('/profile', { viewTransition: true })");
     expect(nativeTransitions).toContain('::view-transition-old(root)');
     expect(nativeTransitions).toContain('::view-transition-new(root)');
@@ -258,6 +260,7 @@ describe('interaction performance audit', () => {
     expect(segmentClock).toContain('LiveSegmentClock');
     expect(dayReference).toContain('scheduleMidnightCheck');
   });
+
   it('keeps native animation ownership out of the React projection runtime', () => {
     const main = source('main.tsx');
     const modals = source('app/AppModals.tsx');
@@ -272,5 +275,4 @@ describe('interaction performance audit', () => {
     expect(nativeAnimation).toContain('element.animate');
     expect(nativeAnimation).toContain('prefersReducedMotion');
   });
-
 });
