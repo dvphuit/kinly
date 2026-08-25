@@ -196,6 +196,10 @@
 }
 
 .dual-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   min-height: 28px;
   padding: 4px 8px;
   border: 0;
@@ -204,7 +208,13 @@
   background: transparent;
   font-size: 9.5px;
   font-weight: 800;
+  line-height: 1;
   cursor: pointer;
+}
+
+.dual-mode-btn svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .dual-mode-btn.active {
@@ -249,16 +259,8 @@
   background: var(--color-sad);
 }
 
-.header-profile-main:focus-visible,
-.dual-mode-btn:focus-visible,
-.header-notification-btn:focus-visible {
-  outline: 3px solid rgba(154, 183, 110, 0.35);
-  outline-offset: 2px;
-}
-
-.app-bar-mom .header-profile-main:focus-visible,
-.app-bar-mom .dual-mode-btn:focus-visible,
-.app-bar-mom .header-notification-btn:focus-visible { outline-color: rgba(217, 115, 125, 0.32); }
+.header-profile-main:focus-visible, .dual-mode-btn:focus-visible, .header-notification-btn:focus-visible { outline: 3px solid rgba(154, 183, 110, 0.35); outline-offset: 2px; }
+.app-bar-mom .header-profile-main:focus-visible, .app-bar-mom .dual-mode-btn:focus-visible, .app-bar-mom .header-notification-btn:focus-visible { outline-color: rgba(217, 115, 125, 0.32); }
 
 @media (max-width: 360px) {
   .app-bar { padding-inline: 10px; }

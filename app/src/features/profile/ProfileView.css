@@ -454,7 +454,7 @@
 }
 
 .baby-profile-v2 button {
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  transition: transform var(--transition-fast), background var(--transition-fast);
 }
 
 .baby-profile-v2 button:active {

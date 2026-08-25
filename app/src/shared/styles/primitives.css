@@ -213,7 +213,7 @@
   flex: 1; min-height: 34px; padding: 0 10px; border: 0; border-radius: 10px 10px 0 0;
   background: transparent; color: var(--color-text-secondary);
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  font: 700 11.5px var(--font-family-body); cursor: pointer; transition: all var(--transition-fast);
+  font: 700 11.5px var(--font-family-body); cursor: pointer; transition: background var(--transition-fast), color var(--transition-fast);
 }
 .haven-dt-tab.active {
   background: #ffffff; color: var(--color-primary-dark);
@@ -267,7 +267,7 @@
 .haven-time-chip {
   padding: 6px 10px; border: 1px solid var(--color-border-subtle); border-radius: 999px;
   background: var(--color-canvas); color: var(--color-text-secondary);
-  font: 650 11px var(--font-family-body); cursor: pointer; transition: all var(--transition-fast);
+  font: 650 11px var(--font-family-body); cursor: pointer; transition: background var(--transition-fast);
 }
 .haven-time-chip:hover {
   background: var(--color-sage-light); color: var(--color-sage-dark); border-color: transparent;
@@ -308,7 +308,7 @@
   gap: 6px;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(57, 38, 29, 0.04);
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 .haven-dt-now-btn:hover {
   background: var(--color-card-warm);
@@ -333,9 +333,7 @@
   opacity: 0.92;
 }
 
-/* ==========================================================================
-   Haven Milk Amount Input & Chip Selectors (Flat Clean 2D)
-   ========================================================================== */
+/* Haven Milk Amount Input & Chip Selectors */
 .haven-milk-card {
   background: var(--color-canvas, #fbf7f2);
   border: 1px solid var(--color-border-subtle, #e8ddd5);
@@ -362,7 +360,7 @@
   gap: 4px;
   font: 750 12px var(--font-family-body);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast);
 }
 .haven-milk-btn:hover:not(:disabled) {
   background: var(--color-sage-subtle, #edf4e3);
@@ -585,7 +583,7 @@
   color: var(--color-text-secondary, #5c3a27);
   font: 700 11px var(--font-family-body);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast);
 }
 .haven-milk-chip:hover:not(:disabled) {
   background: var(--color-sage-subtle, #edf4e3);
@@ -617,7 +615,7 @@
   gap: 6px;
   font: 700 11.5px var(--font-family-body);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background var(--transition-fast);
 }
 .haven-chip-select-btn:hover {
   background: var(--color-card-warm, #fbf7f2);

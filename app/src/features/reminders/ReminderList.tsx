@@ -48,10 +48,10 @@ export function ReminderList({ onQuickLog }: ReminderListProps) {
               </span>
               {isDue && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
-                  <button type="button" className="metric-pill-choice" onClick={() => completeOccurrence(occurrence)}><Check size={13} /> Đã xong</button>
-                  <button type="button" className="metric-pill-choice" onClick={() => snoozeOccurrence(occurrence, 10)}><Clock3 size={13} /> +10 phút</button>
+                  <button type="button" className="metric-pill-choice" onClick={() => completeOccurrence(occurrence)}><Check size={13} strokeWidth={2} /> <span>Đã xong</span></button>
+                  <button type="button" className="metric-pill-choice" onClick={() => snoozeOccurrence(occurrence, 10)}><Clock3 size={13} strokeWidth={2} /> <span>+10 phút</span></button>
                   {quickLogAction && (
-                    <button type="button" className="metric-pill-choice" onClick={() => onQuickLog?.(quickLogAction)}><Edit3 size={13} /> Ghi nhanh</button>
+                    <button type="button" className="metric-pill-choice" onClick={() => onQuickLog?.(quickLogAction)}><Edit3 size={13} strokeWidth={2} /> <span>Ghi nhanh</span></button>
                   )}
                 </div>
               )}
