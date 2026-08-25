@@ -46,20 +46,22 @@ const server = createServer((request, response) => {
 
   const ext = extname(file);
   const contentType = contentTypes.get(ext) ?? 'application/octet-stream';
+  const isImmutableAsset = file.includes('/assets/') || file.includes('/fonts/');
+  const cacheControl = isImmutableAsset ? 'public, max-age=31536000, immutable' : 'no-cache';
+  const headers = {
+    'Cache-Control': cacheControl,
+    'Content-Type': contentType,
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+  };
   const acceptEncoding = request.headers['accept-encoding'] || '';
 
   if (compressibleExtensions.has(ext) && acceptEncoding.includes('gzip')) {
-    response.writeHead(200, {
-      'Cache-Control': 'no-store',
-      'Content-Type': contentType,
-      'Content-Encoding': 'gzip',
-    });
+    headers['Content-Encoding'] = 'gzip';
+    response.writeHead(200, headers);
     createReadStream(file).pipe(createGzip()).pipe(response);
   } else {
-    response.writeHead(200, {
-      'Cache-Control': 'no-store',
-      'Content-Type': contentType,
-    });
+    response.writeHead(200, headers);
     createReadStream(file).pipe(response);
   }
 });
