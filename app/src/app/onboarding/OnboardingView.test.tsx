@@ -163,7 +163,7 @@ describe('OnboardingView', () => {
     fireEvent.change(screen.getByLabelText(/Tên gọi ở nhà của Bé/i), { target: { value: 'Bé Bơ' } });
     fireEvent.click(screen.getByRole('button', { name: /Bắt đầu hành trình cùng Bé/i }));
 
-    expect(onComplete).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
 
     const profile = useProfileStore.getState();
     expect(profile.familyData.isInitialized).toBe(true);

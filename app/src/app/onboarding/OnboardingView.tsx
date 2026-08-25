@@ -14,7 +14,6 @@ import {
   User,
   UserPlus,
 } from 'lucide-react';
-import { initializeChildProfile } from '@/features/profile';
 import {
   checkDriveBackup,
   isGoogleConfigured,
@@ -90,6 +89,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
 
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(() => isGoogleConnected());
   const [profileSetupMode, setProfileSetupMode] = useState<ProfileSetupMode>('create');
   const [backupInfo, setBackupInfo] = useState<DriveBackupSummary | null>(null);
@@ -166,8 +166,9 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     setStep('profile');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingProfile) return;
     if (!childName.trim()) {
       setFormError('Vui lòng nhập tên gọi ở nhà của Bé.');
       return;
@@ -181,39 +182,48 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     const h = parseFloat(birthHeight) || 0;
     const hc = parseFloat(headCircAtBirth) || 0;
 
-    initializeChildProfile(
-      {
-        childName: childName.trim(),
-        childFullName: childFullName.trim(),
-        birthDate,
-        birthTime,
-        gender,
-        bloodType,
-        childAvatar,
-        momName: momName.trim() || 'Mẹ',
-        momAvatar,
-        birthWeight: w > 0 ? `${w} kg` : undefined,
-        birthHeight: h > 0 ? `${h} cm` : undefined,
-        headCircAtBirth: hc > 0 ? `${hc} cm` : undefined,
-        hospital: hospital.trim() || undefined,
-        isInitialized: true,
-      },
-      { weight: w, height: h, headCirc: hc },
-    );
+    setIsSubmittingProfile(true);
+    setFormError(null);
+    try {
+      const { initializeChildProfile } = await import('@/features/profile');
+      initializeChildProfile(
+        {
+          childName: childName.trim(),
+          childFullName: childFullName.trim(),
+          birthDate,
+          birthTime,
+          gender,
+          bloodType,
+          childAvatar,
+          momName: momName.trim() || 'Mẹ',
+          momAvatar,
+          birthWeight: w > 0 ? `${w} kg` : undefined,
+          birthHeight: h > 0 ? `${h} cm` : undefined,
+          headCircAtBirth: hc > 0 ? `${hc} cm` : undefined,
+          hospital: hospital.trim() || undefined,
+          isInitialized: true,
+        },
+        { weight: w, height: h, headCirc: hc },
+      );
 
-    if (googleConnected) {
-      const finishDriveSetup = async () => {
-        if (profileSetupMode === 'replace-drive') {
-          await overwriteDriveBackupWithLocalData({ interactive: false });
-        } else {
-          await syncWithGoogleDrive({ interactive: false });
-        }
-        await setAutoSyncEnabled(true);
-      };
-      void finishDriveSetup().catch(() => {});
+      if (googleConnected) {
+        const finishDriveSetup = async () => {
+          if (profileSetupMode === 'replace-drive') {
+            await overwriteDriveBackupWithLocalData({ interactive: false });
+          } else {
+            await syncWithGoogleDrive({ interactive: false });
+          }
+          await setAutoSyncEnabled(true);
+        };
+        void finishDriveSetup().catch(() => {});
+      }
+
+      onComplete?.();
+    } catch {
+      setFormError('Không thể khởi tạo hồ sơ. Vui lòng thử lại.');
+    } finally {
+      setIsSubmittingProfile(false);
     }
-
-    onComplete?.();
   };
 
   return (
@@ -648,9 +658,23 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
                 </div>
               )}
 
-              <button type="submit" id="btnCompleteOnboarding" className="haven-onboarding-submit-btn">
-                <Check size={18} />
-                <span>Bắt đầu hành trình cùng Bé</span>
+              <button
+                type="submit"
+                id="btnCompleteOnboarding"
+                className="haven-onboarding-submit-btn"
+                disabled={isSubmittingProfile}
+              >
+                {isSubmittingProfile ? (
+                  <>
+                    <Loader2 size={18} className="spin-animate" />
+                    <span>Đang khởi tạo hồ sơ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={18} />
+                    <span>Bắt đầu hành trình cùng Bé</span>
+                  </>
+                )}
               </button>
             </form>
           </div>
