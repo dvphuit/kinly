@@ -9,6 +9,8 @@ document.documentElement.classList.toggle(
   typeof document.startViewTransition === 'function',
 );
 
+const SNAPSHOT_RUNTIME_FALLBACK_MS = 8_000;
+
 function markStartup(name: string): void {
   if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return;
   performance.mark(`kinly:startup:${name}`);
@@ -59,6 +61,26 @@ async function reportSnapshotRuntimeFailure(error: unknown): Promise<void> {
   }
 }
 
+function scheduleSnapshotRuntimeConfiguration(): void {
+  let started = false;
+  let fallbackId = 0;
+
+  const start = () => {
+    if (started) return;
+    started = true;
+    window.clearTimeout(fallbackId);
+    window.removeEventListener('pointerdown', start);
+    window.removeEventListener('keydown', start);
+    void configureSnapshotRuntime().catch(reportSnapshotRuntimeFailure);
+  };
+
+  // Snapshot composition touches every domain store. Keep it off the initial
+  // render path, but start it immediately before real user interaction and keep
+  // an idle-session fallback so auto-sync can still become ready without input.
+  window.addEventListener('pointerdown', start, { once: true, passive: true });
+  window.addEventListener('keydown', start, { once: true });
+  fallbackId = window.setTimeout(start, SNAPSHOT_RUNTIME_FALLBACK_MS);
+}
 
 async function startApp(): Promise<void> {
   if (hasResetRequest()) {
@@ -72,9 +94,7 @@ async function startApp(): Promise<void> {
   }
 
   renderApp();
-
-  const snapshotRuntimeReady = configureSnapshotRuntime();
-  void snapshotRuntimeReady.catch(reportSnapshotRuntimeFailure);
+  scheduleSnapshotRuntimeConfiguration();
 }
 
 void startApp();
