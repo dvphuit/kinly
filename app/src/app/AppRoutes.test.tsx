@@ -38,10 +38,14 @@ vi.mock('@/features/expenses', () => ({
   loadExpensesStyles: async () => undefined,
 }));
 vi.mock('@/features/profile', () => ({
-  ProfileView: ({ onOpenEditProfile, onOpenNotifications }: { onOpenEditProfile: () => void; onOpenNotifications: () => void }) => (
-    <div><span>Profile marker</span><button onClick={onOpenEditProfile}>edit profile</button><button onClick={onOpenNotifications}>profile reminders</button></div>
-  ),
-  GoogleDriveDataView: () => <div>Drive data marker</div>,
+  loadProfileFeature: async () => ({
+    ProfileView: ({ onOpenEditProfile, onOpenNotifications }: { onOpenEditProfile: () => void; onOpenNotifications: () => void }) => (
+      <div><span>Profile marker</span><button onClick={onOpenEditProfile}>edit profile</button><button onClick={onOpenNotifications}>profile reminders</button></div>
+    ),
+    GoogleDriveDataView: () => <div>Drive data marker</div>,
+    EditProfileModal: () => null,
+    loadProfileStyles: async () => undefined,
+  }),
   loadProfileStyles: async () => undefined,
 }));
 
