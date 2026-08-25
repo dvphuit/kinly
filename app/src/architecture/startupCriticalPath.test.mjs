@@ -31,6 +31,15 @@ describe('startup critical path', () => {
     expect(main).toContain("markStartup('snapshot-runtime-failed');");
   });
 
+  it('keeps service-worker registration off the startup critical path', () => {
+    const app = source('app/App.tsx');
+
+    expect(app).not.toContain("import PWABadge from '@/PWABadge'");
+    expect(app).toContain("const PWABadge = lazy(() => import('@/PWABadge'));");
+    expect(app).toContain('const PWA_REGISTRATION_DELAY_MS = 10_000;');
+    expect(app).toContain('window.setTimeout(() => setShouldRegister(true), PWA_REGISTRATION_DELAY_MS)');
+  });
+
   it('keeps development store hydration out of the production entry module', () => {
     const main = source('main.tsx');
     const bootstrap = source('data/bootstrapMockData.ts');
