@@ -2,9 +2,10 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createGzip } from 'node:zlib';
 
 const host = '127.0.0.1';
-const port = 4173;
+const port = Number(process.env.PORT) || 4173;
 const distDir = resolve(fileURLToPath(new URL('../dist/', import.meta.url)));
 const indexFile = resolve(distDir, 'index.html');
 
@@ -17,9 +18,12 @@ const contentTypes = new Map([
   ['.mjs', 'text/javascript; charset=utf-8'],
   ['.png', 'image/png'],
   ['.svg', 'image/svg+xml'],
+  ['.txt', 'text/plain; charset=utf-8'],
   ['.webmanifest', 'application/manifest+json; charset=utf-8'],
   ['.woff2', 'font/woff2'],
 ]);
+
+const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.mjs', '.svg', '.txt', '.webmanifest']);
 
 function resolveRequestFile(requestUrl = '/') {
   const pathname = decodeURIComponent(new URL(requestUrl, `http://${host}:${port}`).pathname);
@@ -40,11 +44,24 @@ const server = createServer((request, response) => {
     return;
   }
 
-  response.writeHead(200, {
-    'Cache-Control': 'no-store',
-    'Content-Type': contentTypes.get(extname(file)) ?? 'application/octet-stream',
-  });
-  createReadStream(file).pipe(response);
+  const ext = extname(file);
+  const contentType = contentTypes.get(ext) ?? 'application/octet-stream';
+  const acceptEncoding = request.headers['accept-encoding'] || '';
+
+  if (compressibleExtensions.has(ext) && acceptEncoding.includes('gzip')) {
+    response.writeHead(200, {
+      'Cache-Control': 'no-store',
+      'Content-Type': contentType,
+      'Content-Encoding': 'gzip',
+    });
+    createReadStream(file).pipe(createGzip()).pipe(response);
+  } else {
+    response.writeHead(200, {
+      'Cache-Control': 'no-store',
+      'Content-Type': contentType,
+    });
+    createReadStream(file).pipe(response);
+  }
 });
 
 server.listen(port, host, () => {
