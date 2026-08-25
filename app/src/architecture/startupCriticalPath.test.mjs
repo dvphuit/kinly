@@ -6,27 +6,29 @@ const ROOT = process.cwd();
 const source = (path) => readFileSync(join(ROOT, 'src', path), 'utf8');
 
 describe('startup critical path', () => {
-  it('renders production UI before loading the cross-domain snapshot runtime', () => {
+  it('renders production UI before scheduling the cross-domain snapshot runtime', () => {
     const main = source('main.tsx');
     const renderIndex = main.indexOf('renderApp();');
-    const snapshotIndex = main.indexOf('const snapshotRuntimeReady = configureSnapshotRuntime();');
+    const scheduleIndex = main.indexOf('scheduleSnapshotRuntimeConfiguration();');
 
     expect(renderIndex).toBeGreaterThan(-1);
-    expect(snapshotIndex).toBeGreaterThan(renderIndex);
-    expect(main).not.toContain('await configureSnapshotRuntime()');
-    expect(main).toContain('void snapshotRuntimeReady.catch(reportSnapshotRuntimeFailure);');
+    expect(scheduleIndex).toBeGreaterThan(renderIndex);
+    expect(main).not.toContain('const snapshotRuntimeReady = configureSnapshotRuntime();');
+    expect(main).toContain("window.addEventListener('pointerdown', start");
+    expect(main).toContain("window.addEventListener('keydown', start");
+    expect(main).toContain('window.setTimeout(start, SNAPSHOT_RUNTIME_FALLBACK_MS)');
+    expect(main).toContain('void configureSnapshotRuntime().catch(reportSnapshotRuntimeFailure);');
   });
 
-  it('emits durable startup marks without changing the render-before-sync invariant', () => {
+  it('keeps cross-domain store loading behind interaction or delayed fallback', () => {
     const main = source('main.tsx');
-    const renderMarkIndex = main.indexOf("markStartup('render-requested');");
-    const snapshotStartIndex = main.indexOf("markStartup('snapshot-runtime-start');");
 
+    expect(main).toContain('const SNAPSHOT_RUNTIME_FALLBACK_MS = 8_000;');
     expect(main).toContain("markStartup('entry-evaluated');");
+    expect(main).toContain("markStartup('render-requested');");
+    expect(main).toContain("markStartup('snapshot-runtime-start');");
     expect(main).toContain("markStartup('snapshot-runtime-ready');");
     expect(main).toContain("markStartup('snapshot-runtime-failed');");
-    expect(renderMarkIndex).toBeGreaterThan(-1);
-    expect(snapshotStartIndex).toBeGreaterThan(-1);
   });
 
   it('keeps development store hydration out of the production entry module', () => {
