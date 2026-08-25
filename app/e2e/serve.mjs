@@ -2,7 +2,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createGzip } from 'node:zlib';
+import { createBrotliCompress, createGzip } from 'node:zlib';
 
 const host = '127.0.0.1';
 const port = Number(process.env.PORT) || 4173;
@@ -56,7 +56,11 @@ const server = createServer((request, response) => {
   };
   const acceptEncoding = request.headers['accept-encoding'] || '';
 
-  if (compressibleExtensions.has(ext) && acceptEncoding.includes('gzip')) {
+  if (compressibleExtensions.has(ext) && acceptEncoding.includes('br')) {
+    headers['Content-Encoding'] = 'br';
+    response.writeHead(200, headers);
+    createReadStream(file).pipe(createBrotliCompress()).pipe(response);
+  } else if (compressibleExtensions.has(ext) && acceptEncoding.includes('gzip')) {
     headers['Content-Encoding'] = 'gzip';
     response.writeHead(200, headers);
     createReadStream(file).pipe(createGzip()).pipe(response);
