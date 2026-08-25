@@ -177,7 +177,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       setFormError('Vui lòng chọn ngày sinh của Bé.');
       return;
     }
-
     const w = parseFloat(birthWeight) || 0;
     const h = parseFloat(birthHeight) || 0;
     const hc = parseFloat(headCircAtBirth) || 0;
@@ -185,7 +184,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     setIsSubmittingProfile(true);
     setFormError(null);
     try {
-      const { initializeChildProfile } = await import('@/features/profile');
+      const { initializeChildProfile } = await import('@/features/profile/profileLifecycle');
       initializeChildProfile(
         {
           childName: childName.trim(),

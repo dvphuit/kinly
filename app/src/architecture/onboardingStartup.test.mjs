@@ -10,6 +10,7 @@ describe('onboarding startup boundary', () => {
     const onboarding = source('app/onboarding/OnboardingView.tsx');
 
     expect(onboarding).not.toContain("import { initializeChildProfile } from '@/features/profile'");
-    expect(onboarding).toContain("await import('@/features/profile')");
+    expect(onboarding).not.toContain("await import('@/features/profile')");
+    expect(onboarding).toContain("await import('@/features/profile/profileLifecycle')");
   });
 });
