@@ -20,12 +20,18 @@ import { AppModals } from './AppModals';
 import { AppRoutes } from './AppRoutes';
 import { preloadAppRoute } from './routePreload';
 
-const OnboardingView = lazy(async () => {
+const loadOnboarding = () => (async () => {
   const stylesReady = import('@/app/onboarding/onboarding.css');
   const module = await import('@/app/onboarding/OnboardingView');
   await stylesReady;
   return { default: module.OnboardingView };
-});
+})();
+
+const OnboardingView = lazy(loadOnboarding);
+
+if (typeof window !== 'undefined' && !useProfileStore.getState().familyData?.isInitialized) {
+  void loadOnboarding();
+}
 
 function reloadApp(): void {
   window.location.reload();

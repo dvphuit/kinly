@@ -59,6 +59,17 @@ async function reportSnapshotRuntimeFailure(error: unknown): Promise<void> {
   }
 }
 
+function hasInitializedProfile(): boolean {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem('babygrowth_v4_profile') : null;
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return Boolean(parsed?.state?.familyData?.isInitialized);
+  } catch {
+    return false;
+  }
+}
+
 async function startApp(): Promise<void> {
   if (hasResetRequest()) {
     const didReset = await handleResetRequest();
@@ -68,6 +79,13 @@ async function startApp(): Promise<void> {
   if (import.meta.env.DEV) {
     const { bootstrapMockData } = await import('./data/bootstrapMockData');
     await bootstrapMockData();
+  }
+
+  if (!hasInitializedProfile()) {
+    await Promise.all([
+      import('@/app/onboarding/OnboardingView'),
+      import('@/app/onboarding/onboarding.css'),
+    ]).catch(() => {});
   }
 
   renderApp();
