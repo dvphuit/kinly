@@ -41,21 +41,12 @@ function sanitize(value: unknown, depth = 0): unknown {
 export function getDiagnosticLogs(): DiagnosticLogEntry[] {
   if (typeof window === 'undefined') return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '[]');
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.slice(-MAX_ENTRIES) : [];
   } catch {
     return [];
   }
-}
-
-function saveLogs(entries: DiagnosticLogEntry[]): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES)));
-  } catch {
-    // Diagnostics must never interrupt the app when storage is unavailable.
-  }
-  listeners.forEach((listener) => listener(entries));
 }
 
 export function logDiagnostic(
@@ -72,11 +63,28 @@ export function logDiagnostic(
     message: redactText(message),
     details: details === undefined ? undefined : sanitize(details),
   };
-  saveLogs([...getDiagnosticLogs(), entry].slice(-MAX_ENTRIES));
+  const logs = getDiagnosticLogs();
+  logs.push(entry);
+  const trimmed = logs.length > MAX_ENTRIES ? logs.slice(-MAX_ENTRIES) : logs;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+    } catch {
+      // Diagnostics must never interrupt the app when storage is unavailable.
+    }
+  }
+  listeners.forEach((listener) => listener(trimmed));
 }
 
 export function clearDiagnosticLogs(): void {
-  saveLogs([]);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Storage might be unavailable
+    }
+  }
+  listeners.forEach((listener) => listener([]));
 }
 
 export function subscribeDiagnosticLogs(listener: (entries: DiagnosticLogEntry[]) => void): () => void {

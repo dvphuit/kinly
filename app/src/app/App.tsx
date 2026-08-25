@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppVersionBadge } from '@/shared/ui/AppVersionBadge';
 import { BottomNav } from '@/shared/ui/BottomNav';
@@ -14,6 +14,7 @@ import { useThemeColor } from '@/app/hooks/useThemeColor';
 import { useToast } from '@/shared/hooks/useToast';
 import PWABadge from '@/PWABadge';
 import { installGlobalDiagnosticLogging, logDiagnostic } from '@/app/diagnostics/diagnosticLog';
+import { hasInitializedProfile, markProfileInitialized } from '@/app/lifecycle/profileInitMarker';
 import { useProfileStore } from '@/features/profile/store/useProfileStore';
 import { useUIStore } from '@/store/useUIStore';
 import { AppModals } from './AppModals';
@@ -29,7 +30,8 @@ const loadOnboarding = () => (async () => {
 
 const OnboardingView = lazy(loadOnboarding);
 
-if (typeof window !== 'undefined' && !useProfileStore.getState().familyData?.isInitialized) {
+// Pre-warm onboarding for first-time visitors using lightweight marker (not Zustand — hasn't hydrated yet)
+if (typeof window !== 'undefined' && !hasInitializedProfile()) {
   void loadOnboarding();
 }
 
@@ -84,7 +86,6 @@ export const AppContent: React.FC = () => {
   }, []);
 
   useThemeColor({ pathname: location.pathname, isModalOpen: isFullScreenOverlayOpen, profileMode });
-  useReminderLifecycle({ onQuickLog: handleQuickAction, onOpenNotifications: modals.openNotifications });
 
   if (!profileHydrated) {
     return (
@@ -101,7 +102,7 @@ export const AppContent: React.FC = () => {
       <div className="app-container" id="appContainer">
         <ToastContainer toasts={toasts} />
         <Suspense fallback={<div className="route-loading-state" role="status">Đang chuẩn bị hồ sơ…</div>}>
-          <OnboardingView onComplete={() => addToast('Chào mừng Ba Mẹ đến với Kinly! Hồ sơ của Bé đã sẵn sàng.')} />
+          <OnboardingView onComplete={() => { markProfileInitialized(); addToast('Chào mừng Ba Mẹ đến với Kinly! Hồ sơ của Bé đã sẵn sàng.'); }} />
         </Suspense>
         <PWABadge />
       </div>
@@ -139,9 +140,22 @@ export const AppContent: React.FC = () => {
       <BottomNav onOpenQuickLog={modals.openQuickLog} onRouteIntent={preloadAppRoute} />
       <Lightbox mediaSrc={modals.lightboxSrc} isVideo={modals.lightboxIsVideo} onClose={modals.closeLightbox} />
       <AppModals modals={modals} onSuccessToast={addToast} />
+      <ReminderLifecycleManager onQuickLog={handleQuickAction} onOpenNotifications={modals.openNotifications} />
       <PWABadge />
     </div>
   );
 };
+
+/** Isolated component — re-renders only when reminders/activities change, not the entire tree. */
+const ReminderLifecycleManager = memo(function ReminderLifecycleManager({
+  onQuickLog,
+  onOpenNotifications,
+}: {
+  onQuickLog: (actionType: string) => void;
+  onOpenNotifications: () => void;
+}) {
+  useReminderLifecycle({ onQuickLog, onOpenNotifications });
+  return null;
+});
 
 export default AppContent;

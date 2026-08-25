@@ -19,12 +19,17 @@ interface PullToRefreshProps {
   children: React.ReactNode;
 }
 
+const scrollableCache = new WeakMap<HTMLElement, HTMLElement | null>();
+
 function getNearestScrollable(node: EventTarget | null, root: HTMLElement): HTMLElement | null {
   let el = node instanceof HTMLElement ? node : null;
   while (el && el !== root && el !== document.body) {
+    const cached = scrollableCache.get(el);
+    if (cached !== undefined) return cached;
     const style = getComputedStyle(el);
     const overflowY = style.overflowY;
     if ((overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') && el.scrollHeight > el.clientHeight) {
+      scrollableCache.set(el, el);
       return el;
     }
     el = el.parentElement;

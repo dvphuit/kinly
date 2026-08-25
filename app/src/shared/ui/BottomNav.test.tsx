@@ -38,7 +38,7 @@ describe('BottomNav', () => {
     expect(screen.getByText('Timeline route')).toBeInTheDocument();
   });
 
-  it('waits for an async route preload before starting navigation', async () => {
+  it('navigates immediately even when an async route preload is pending', async () => {
     let finishPreload: (() => void) | undefined;
     const onRouteIntent = vi.fn(() => new Promise<void>((resolve) => {
       finishPreload = resolve;
@@ -47,14 +47,16 @@ describe('BottomNav', () => {
 
     fireEvent.pointerEnter(screen.getByRole('link', { name: 'Nhật ký' }));
     fireEvent.click(screen.getByRole('link', { name: 'Nhật ký' }));
-    expect(screen.getByText('Home route')).toBeInTheDocument();
+    // Navigation happens immediately — no blocking on preload
+    expect(screen.getByText('Timeline route')).toBeInTheDocument();
     expect(onRouteIntent).toHaveBeenCalledTimes(1);
 
+    // Preload resolves in background — no effect on already-navigated route
     finishPreload?.();
-    expect(await screen.findByText('Timeline route')).toBeInTheDocument();
+    expect(screen.getByText('Timeline route')).toBeInTheDocument();
   });
 
-  it('only completes the most recent navigation when preloads resolve out of order', async () => {
+  it('navigates to the last clicked tab regardless of preload resolution order', async () => {
     const finishPreload = new Map<string, () => void>();
     const onRouteIntent = vi.fn((pathname: string) => new Promise<void>((resolve) => {
       finishPreload.set(pathname, resolve);
@@ -64,12 +66,13 @@ describe('BottomNav', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Nhật ký' }));
     fireEvent.click(screen.getByRole('link', { name: 'Tăng trưởng' }));
 
-    await act(async () => finishPreload.get('/growth')?.());
-    expect(await screen.findByText('Growth route')).toBeInTheDocument();
-
-    await act(async () => finishPreload.get('/timeline')?.());
+    // Navigation is immediate — last click wins
     expect(screen.getByText('Growth route')).toBeInTheDocument();
     expect(screen.queryByText('Timeline route')).not.toBeInTheDocument();
+
+    await act(async () => finishPreload.get('/growth')?.());
+    await act(async () => finishPreload.get('/timeline')?.());
+    expect(screen.getByText('Growth route')).toBeInTheDocument();
   });
 
   it('keeps the center Quick Log action functional', () => {

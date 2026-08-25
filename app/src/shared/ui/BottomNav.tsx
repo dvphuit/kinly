@@ -98,26 +98,17 @@ export const BottomNav = memo(function BottomNav({ onOpenQuickLog, onRouteIntent
 
   const handleTabClick = (event: MouseEvent<HTMLAnchorElement>, targetPath: TabPath) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const intent = ++navigationIntent.current;
+    ++navigationIntent.current;
     if (targetPath === location.pathname) {
       event.preventDefault();
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    const preload = preloadRoute(targetPath);
-    if (!preload) {
-      markTabDirection(targetPath);
-      return;
-    }
-
     event.preventDefault();
-    const navigateToReadyTab = () => {
-      if (intent !== navigationIntent.current) return;
-      markTabDirection(targetPath);
-      void navigate(targetPath, { viewTransition: true });
-    };
-    void preload.then(navigateToReadyTab, navigateToReadyTab);
+    markTabDirection(targetPath);
+    void preloadRoute(targetPath)?.catch(() => undefined);
+    void navigate(targetPath, { viewTransition: true });
   };
 
   const renderNavItem = ({ to, label, Icon, id, theme }: NavItem) => (

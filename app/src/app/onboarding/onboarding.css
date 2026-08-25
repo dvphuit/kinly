@@ -176,7 +176,7 @@
   gap: 12px;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(51, 37, 31, 0.06);
-  transition: all 0.2s ease;
+  transition: background .2s, border-color .2s, box-shadow .2s, transform .2s;
 }
 
 .haven-google-signin-btn:hover:not(:disabled) {
@@ -308,7 +308,7 @@
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background .2s, color .2s, transform .2s;
 }
 
 .haven-secondary-btn:hover:not(:disabled) {
@@ -447,7 +447,7 @@
   background: transparent;
   color: var(--color-text-secondary, #82776E);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background .2s, color .2s, box-shadow .2s;
 }
 
 .haven-gender-btn.active {

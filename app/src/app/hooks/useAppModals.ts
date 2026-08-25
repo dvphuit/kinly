@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { ActivityLogMode } from '@/features/activities/ActivityLogModal';
 
 export type AddToast = (message: string, icon?: string) => void;
@@ -113,7 +113,7 @@ export function useAppModals(): AppModalController {
     lightboxSrc
   );
 
-  return {
+  return useMemo(() => ({
     isAnyModalOpen,
     isNotificationOpen,
     isQuickLogOpen,
@@ -142,5 +142,14 @@ export function useAppModals(): AppModalController {
     openLightbox,
     closeLightbox,
     handleQuickAction,
-  };
+  }), [
+    isAnyModalOpen, isNotificationOpen, isQuickLogOpen, isAddGrowthOpen,
+    isAddPumpingOpen, isAddExpenseOpen, isAddPostOpen, isEditProfileOpen,
+    activityLogMode, lightboxSrc, lightboxIsVideo,
+    openNotifications, closeNotifications, openQuickLog, closeQuickLog,
+    openAddGrowth, closeAddGrowth, openAddPumping, closeAddPumping,
+    openAddExpense, closeAddExpense, closeAddPost,
+    openEditProfile, closeEditProfile, closeActivityLog,
+    openLightbox, closeLightbox, handleQuickAction,
+  ]);
 }
