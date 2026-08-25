@@ -26,7 +26,7 @@ export async function bootstrapMockData(): Promise<void> {
     const family = useProfileStore.getState().familyData;
     if (family?.isInitialized && family?.childName) return;
 
-    await seedMockData();
+    seedMockData();
   } catch (error) {
     console.error('[mock] Không thể nạp dữ liệu mẫu:', error);
   }

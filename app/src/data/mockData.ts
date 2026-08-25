@@ -1,5 +1,5 @@
 
-import { loadProfileLifecycle, type FamilyData } from '@/features/profile';
+import type { FamilyData } from '@/features/profile';
 import type { GrowthHistoryRecord } from '@/features/growth';
 import type { TimelineItem } from '@/features/timeline';
 import type { ExpenseRecord } from '@/types/expense';
@@ -7,6 +7,7 @@ import type { Reminder } from '@/types/reminder';
 import { isGoogleConfigured } from '@/features/sync';
 import { setLocalRecord } from '@/data/localDb';
 import { useActivityStore, type NewBabyActivity, type NewMomActivity } from '@/features/activities/store/useActivityStore';
+import { initializeChildProfile } from '@/features/profile';
 import { useGrowthStore } from '@/features/growth/store/useGrowthStore';
 import { useExpenseStore } from '@/features/expenses/store/useExpenseStore';
 import { useReminderStore } from '@/features/reminders/store/useReminderStore';
@@ -191,8 +192,7 @@ const MOM_ACTIVITIES: NewMomActivity[] = [
 ];
 
 /** Pushes demo records into the current domain stores. Development only. */
-export async function seedMockData(): Promise<void> {
-  const { initializeChildProfile } = await loadProfileLifecycle();
+export function seedMockData(): void {
   initializeChildProfile(MOCK_FAMILY, BIRTH_VITALS);
 
   const growth = useGrowthStore.getState();

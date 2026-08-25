@@ -36,10 +36,7 @@ const expensesFeature = createFeatureLoader(
   (feature) => feature.loadExpensesStyles(),
 );
 const profileFeature = createFeatureLoader(
-  async () => {
-    const feature = await import('@/features/profile');
-    return feature.loadProfileFeature();
-  },
+  () => import('@/features/profile'),
   (feature) => feature.loadProfileStyles(),
 );
 
