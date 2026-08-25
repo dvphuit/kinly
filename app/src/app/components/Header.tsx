@@ -76,10 +76,12 @@ export const Header = memo(function Header({ onOpenNotifications, onProfileInten
         <div className="header-right-actions">
           <div className="dual-mode-toggle" aria-label="Chọn hồ sơ theo dõi">
             <button type="button" className={`dual-mode-btn ${!isMom ? 'active' : ''}`} id="btnModeBaby" aria-pressed={!isMom} onClick={() => setProfileMode('baby')}>
-              <Baby size={13} strokeWidth={2.2} /> Bé
+              <Baby size={13} strokeWidth={2.2} />
+              <span>Bé</span>
             </button>
             <button type="button" className={`dual-mode-btn ${isMom ? 'active' : ''}`} id="btnModeMom" aria-pressed={isMom} onClick={() => setProfileMode('mom')}>
-              <Heart size={12} strokeWidth={2.2} /> Mẹ
+              <Heart size={12} strokeWidth={2.2} />
+              <span>Mẹ</span>
             </button>
           </div>
           <button

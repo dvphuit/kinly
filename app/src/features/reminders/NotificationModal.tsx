@@ -17,7 +17,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
     <BottomSheet isOpen={isOpen} onClose={onClose} title={showSettings ? 'Cài đặt nhắc nhở' : 'Thông báo & Nhắc nhở'}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
         <button type="button" className="metric-pill-choice" onClick={() => setShowSettings((value) => !value)}>
-          <Settings2 size={14} /> {showSettings ? 'Xem reminder' : 'Cài đặt'}
+          <Settings2 size={13} strokeWidth={2} />
+          <span>{showSettings ? 'Xem nhắc nhở' : 'Cài đặt'}</span>
         </button>
       </div>
       {showSettings ? <ReminderSettings /> : <ReminderList onQuickLog={onQuickLog} />}

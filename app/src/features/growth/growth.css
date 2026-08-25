@@ -12,17 +12,14 @@
 }
 
 .growth-bottom-sheet .tracker-sheet-section-header > span,
-.growth-bottom-sheet .log-form-label {
+.growth-bottom-sheet .log-form-label,
+.growth-bottom-sheet .haven-date-picker-trigger,
+.growth-bottom-sheet .haven-dropdown-trigger {
   color: #285860;
 }
 
 .growth-bottom-sheet .sheet-title {
   color: #21474d;
-}
-
-.growth-bottom-sheet .haven-date-picker-trigger,
-.growth-bottom-sheet .haven-dropdown-trigger {
-  color: #285860;
 }
 
 .growth-bottom-sheet .log-input-control:focus {

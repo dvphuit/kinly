@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .stepper-btn:hover,
@@ -261,7 +261,7 @@
   text-align: left;
   cursor: pointer;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--quick-action-accent) 8%, transparent);
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
 .quick-action-item::after {
@@ -351,7 +351,7 @@
   color: var(--color-text-primary);
   outline: none;
   background: var(--color-canvas);
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .log-input-control:focus {
@@ -378,7 +378,7 @@
   margin-top: 12px;
   box-shadow: 0 3px 12px rgba(51, 37, 31, 0.22);
   white-space: nowrap;
-  transition: background-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
 .log-btn-primary:hover:not(:disabled),
@@ -395,7 +395,7 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   padding: 12px;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
 .notification-card-item:hover {
