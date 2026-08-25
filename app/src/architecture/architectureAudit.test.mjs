@@ -39,8 +39,8 @@ const FORBIDDEN_PRODUCTION_TOKENS = [
 // behind the target feature's public API.
 const LEGACY_FEATURE_BOUNDARY_VIOLATIONS = [
   'app/App.tsx -> @/features/profile/store/useProfileStore',
-  'app/App.tsx -> @/features/reminders/hooks/useReminderLifecycle',
-  'app/App.tsx -> @/features/sync/hooks/useAutoSyncLifecycle',
+  'app/InitializedApp.tsx -> @/features/reminders/hooks/useReminderLifecycle',
+  'app/InitializedApp.tsx -> @/features/sync/hooks/useAutoSyncLifecycle',
   'app/hooks/useAppModals.ts -> @/features/activities/ActivityLogModal',
   'app/lifecycle/resetRequest.ts -> @/features/sync/googleDriveSync',
   'app/lifecycle/trackingDataReset.ts -> @/features/activities/store/useActivityStore',

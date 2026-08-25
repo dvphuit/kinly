@@ -20,10 +20,10 @@ describe('interaction performance audit', () => {
   });
 
   it('keeps BottomSheet overlays on the appbar status-bar surface', () => {
-    const app = source('app/App.tsx');
-    expect(app).toContain('const isFullScreenOverlayOpen = Boolean');
-    expect(app).toContain('isModalOpen: isFullScreenOverlayOpen');
-    expect(app).not.toContain('isModalOpen: modals.isAnyModalOpen');
+    const initializedApp = source('app/InitializedApp.tsx');
+    expect(initializedApp).toContain('const isFullScreenOverlayOpen = Boolean');
+    expect(initializedApp).toContain('isModalOpen: isFullScreenOverlayOpen');
+    expect(initializedApp).not.toContain('isModalOpen: modals.isAnyModalOpen');
   });
 
   it('keeps timeline pointer drag off the React state render path', () => {
@@ -203,7 +203,7 @@ describe('interaction performance audit', () => {
   });
 
   it('keeps mobile interaction feedback and scrolling on lightweight paths', () => {
-    const app = source('app/App.tsx');
+    const initializedApp = source('app/InitializedApp.tsx');
     const routes = source('app/AppRoutes.tsx');
     const routePreload = source('app/routePreload.ts');
     const modals = source('app/hooks/useAppModals.ts');
@@ -247,7 +247,7 @@ describe('interaction performance audit', () => {
     expect(routePreload).toContain('export async function preloadAppRoute');
     expect(routes).not.toContain('export function preloadAppRoute');
     expect(routes).toContain('memo(function AppRoutes');
-    expect(app).toContain('onRouteIntent={preloadAppRoute}');
+    expect(initializedApp).toContain('onRouteIntent={preloadAppRoute}');
     expect(modals).toContain('useCallback');
     expect(header).toContain('useUIStore((state) => state.profileMode)');
 
