@@ -89,7 +89,7 @@ export function ResetTrackingDataSection({ onShowToast }: ResetTrackingDataSecti
               <small>Hồ sơ vẫn được giữ</small>
             </div>
             <p className="profile-sync-description">Cữ bú, giấc ngủ, tã, số đo, hoạt động, nhật ký, chi phí và nhắc nhở của Bé và Mẹ sẽ bị xóa.</p>
-            <p className="profile-sync-description">Hồ sơ gia đình, thông tin lúc sinh và cấu hình tài khoản không bị xóa.</p>
+            <p className="profile-sync-description">Hồ sơ của Bé và Mẹ cùng thông tin lúc sinh vẫn được giữ lại.</p>
             <p className="profile-sync-description">Bản sao lưu hiện có trên Google Drive sẽ được thay thế sau lần đồng bộ tiếp theo.</p>
             {error && <p className="profile-sync-error" role="alert">{error}</p>}
           </section>
