@@ -45,6 +45,7 @@ export function ResetTrackingDataSection({ onShowToast }: ResetTrackingDataSecti
       <button
         type="button"
         className="profile-quick-action"
+        aria-label="Đặt lại dữ liệu theo dõi"
         onClick={() => {
           setError(null);
           setIsOpen(true);
