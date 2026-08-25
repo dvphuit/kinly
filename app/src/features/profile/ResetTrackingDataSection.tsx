@@ -41,48 +41,57 @@ export function ResetTrackingDataSection({ onShowToast }: ResetTrackingDataSecti
   };
 
   return (
-    <section className="profile-section-block profile-reset-section" aria-labelledby="profile-reset-title">
-      <div className="section-title-row">
-        <span className="section-main-title" id="profile-reset-title"><AlertTriangle size={16} /> Quản lý dữ liệu</span>
-      </div>
-      <div className="profile-reset-card">
-        <div>
-          <p className="profile-reset-heading">Đặt lại dữ liệu theo dõi</p>
-          <p className="profile-reset-description">Xóa dữ liệu theo dõi của Bé và Mẹ nhưng vẫn giữ hồ sơ và thông tin lúc sinh.</p>
-        </div>
-        <button
-          type="button"
-          className="profile-reset-trigger"
-          onClick={() => {
-            setError(null);
-            setIsOpen(true);
-          }}
-        >
-          <RotateCcw size={16} />
-          Đặt lại dữ liệu theo dõi
-        </button>
-      </div>
+    <section className="profile-reset-section" aria-labelledby="profile-reset-title">
+      <button
+        type="button"
+        className="profile-quick-action"
+        onClick={() => {
+          setError(null);
+          setIsOpen(true);
+        }}
+      >
+        <span className="profile-quick-action-icon"><AlertTriangle size={18} /></span>
+        <span className="profile-quick-action-copy">
+          <strong id="profile-reset-title">Đặt lại dữ liệu theo dõi</strong>
+          <small>Xóa dữ liệu Bé & Mẹ, vẫn giữ hồ sơ và thông tin lúc sinh</small>
+        </span>
+        <RotateCcw size={17} />
+      </button>
 
       <BottomSheet
         isOpen={isOpen}
         onClose={closeConfirmation}
         title="Xác nhận đặt lại dữ liệu"
+        className="kinly-themed-sheet"
         dismissible={!isResetting}
         footer={
-          <div className="profile-reset-actions">
-            <button type="button" className="profile-reset-cancel" onClick={closeConfirmation} disabled={isResetting}>Hủy</button>
-            <button type="button" className="profile-reset-confirm" onClick={handleConfirm} disabled={isResetting}>
+          <div className="profile-sync-conflict-actions">
+            <button type="button" onClick={closeConfirmation} disabled={isResetting}>Hủy</button>
+            <button type="button" className="log-btn-primary sheet-primary-action" onClick={handleConfirm} disabled={isResetting}>
               {isResetting ? 'Đang đặt lại dữ liệu…' : 'Xác nhận đặt lại'}
             </button>
           </div>
         }
       >
-        <div className="profile-reset-confirmation" aria-busy={isResetting}>
-          <p className="profile-reset-confirmation-intro">Thao tác này không thể hoàn tác.</p>
-          <p className="profile-reset-confirmation-copy">Dữ liệu theo dõi của Bé và Mẹ sẽ bị xóa, bao gồm cữ bú, giấc ngủ, tã, số đo, hoạt động, nhật ký, chi phí và nhắc nhở.</p>
-          <p className="profile-reset-confirmation-copy">Hồ sơ của Bé và Mẹ cùng thông tin lúc sinh vẫn được giữ lại.</p>
-          <p className="profile-reset-confirmation-copy">Sau khi đặt lại, bản sao lưu hiện có trên Google Drive sẽ được thay thế bằng dữ liệu mới.</p>
-          {error && <p className="profile-reset-error" role="alert">{error}</p>}
+        <div className="tracker-sheet-form" aria-busy={isResetting}>
+          <div className="tracker-sheet-intro">
+            <span className="tracker-sheet-intro-icon"><AlertTriangle size={20} /></span>
+            <div className="tracker-sheet-intro-copy">
+              <span className="tracker-sheet-kicker">KHÔNG THỂ HOÀN TÁC</span>
+              <p>Dữ liệu theo dõi sẽ được làm sạch trước khi Kinly tạo trạng thái đồng bộ mới.</p>
+            </div>
+          </div>
+
+          <section className="tracker-sheet-section">
+            <div className="tracker-sheet-section-header">
+              <span>Dữ liệu sẽ bị xóa</span>
+              <small>Hồ sơ vẫn được giữ</small>
+            </div>
+            <p className="profile-sync-description">Cữ bú, giấc ngủ, tã, số đo, hoạt động, nhật ký, chi phí và nhắc nhở của Bé và Mẹ sẽ bị xóa.</p>
+            <p className="profile-sync-description">Hồ sơ gia đình, thông tin lúc sinh và cấu hình tài khoản không bị xóa.</p>
+            <p className="profile-sync-description">Bản sao lưu hiện có trên Google Drive sẽ được thay thế sau lần đồng bộ tiếp theo.</p>
+            {error && <p className="profile-sync-error" role="alert">{error}</p>}
+          </section>
         </div>
       </BottomSheet>
     </section>
