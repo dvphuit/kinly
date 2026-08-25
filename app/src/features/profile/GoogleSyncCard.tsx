@@ -167,22 +167,17 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
 
   if (!isGoogleConfigured()) {
     return (
-      <div className="profile-section-block">
-        <div className="section-title-row">
-          <span className="section-main-title"><Cloud size={16} /> Đồng bộ dữ liệu</span>
-        </div>
-        <div className="profile-medical-card">
-          <div className="medical-info-row single">
-            <div className="medical-info-item full">
-              <div className="medical-item-icon"><ShieldCheck size={15} /></div>
-              <div>
-              <span className="medical-item-lbl">Sao lưu Google Drive</span>
-              <span className="medical-item-val">Tính năng sao lưu chưa sẵn sàng trên phiên bản ứng dụng này.</span>
-              </div>
-            </div>
+      <section className="profile-sync-card profile-sync-card-muted" aria-labelledby="profile-sync-title">
+        <div className="profile-sync-header">
+          <span className="profile-sync-icon"><Cloud size={20} /></span>
+          <div className="profile-sync-title">
+            <span>Sao lưu</span>
+            <h2 id="profile-sync-title">Google Drive</h2>
           </div>
+          <span className="profile-sync-status muted">Chưa sẵn sàng</span>
         </div>
-      </div>
+        <p className="profile-sync-description">Tính năng sao lưu chưa sẵn sàng trên phiên bản ứng dụng này.</p>
+      </section>
     );
   }
 
@@ -193,97 +188,106 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
   const connectionLabel = sessionActive ? 'Đã xác thực' : linked ? 'Đã liên kết' : 'Chưa kết nối';
   const accountLabel = formatGoogleAccount(account);
   const visibleError = syncState.status === 'auth-required' && linked ? null : error;
+  const syncButtonLabel = busy
+    ? 'Đang đồng bộ...'
+    : sessionActive
+      ? 'Đồng bộ ngay với Google Drive'
+      : linked
+        ? 'Xác thực lại & đồng bộ'
+        : 'Kết nối Google & đồng bộ';
 
   return (
-    <div className="profile-section-block">
-      <div className="section-title-row">
-        <span className="section-main-title"><Cloud size={16} /> Đồng bộ dữ liệu</span>
-        <span className="section-score-pill">{connectionLabel}</span>
+    <section className="profile-sync-card" aria-labelledby="profile-sync-title">
+      <div className="profile-sync-header">
+        <span className="profile-sync-icon"><Cloud size={20} /></span>
+        <div className="profile-sync-title">
+          <span>Sao lưu</span>
+          <h2 id="profile-sync-title">Google Drive</h2>
+        </div>
+        <span className={`profile-sync-status ${sessionActive ? 'active' : linked ? 'linked' : 'muted'}`}>{connectionLabel}</span>
       </div>
 
-      <div className="profile-medical-card">
-        <div className="medical-info-row single">
-          <div className="medical-info-item full">
-            <div className="medical-item-icon"><ShieldCheck size={15} /></div>
-            <div>
-              <span className="medical-item-lbl">Thiết bị này + Google Drive</span>
-              <span className="medical-item-val">Dữ liệu luôn được lưu trên thiết bị trước, sau đó sao lưu riêng lên Drive.</span>
-            </div>
-          </div>
-        </div>
-        {accountLabel && (
-          <>
-            <div className="medical-divider"></div>
-            <div className="medical-info-row single">
-              <div className="medical-info-item full">
-                <div className="medical-item-icon"><UserRound size={15} /></div>
-                <div>
-                  <span className="medical-item-lbl">Tài khoản Google</span>
-                  <span className="medical-item-val">{accountLabel}</span>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-        <div className="medical-divider"></div>
-        <div className="medical-info-row single">
-          <div className="medical-info-item full">
-            <div className="medical-item-icon"><RefreshCw size={15} /></div>
-            <div>
-              <span className="medical-item-lbl" aria-live="polite">Trạng thái: {statusLabel}</span>
-              <span className="medical-item-val">Lần cuối: {formatSyncTime(lastSyncedAt)}</span>
-            </div>
-          </div>
-        </div>
+      <p className="profile-sync-description">
+        Dữ liệu luôn được lưu trên thiết bị trước, sau đó sao lưu riêng lên Drive.
+      </p>
 
-        <div className="medical-allergy-box" style={{ marginTop: 16 }}>
-          <div className="allergy-header"><RefreshCw size={14} color="var(--color-sage-dark)" /> Tự động đồng bộ</div>
-          <p className="summary-desc">Khi bật, thay đổi mới sẽ được sao lưu khi ứng dụng có mạng. Google có thể yêu cầu xác thực lại sau một thời gian.</p>
-          <button
-            type="button"
-            className={`profile-action-btn ${syncState.autoSyncEnabled ? 'primary' : 'secondary'}`}
-            style={{ marginTop: 12 }}
-            onClick={handleToggleAutoSync}
-            disabled={busy || syncState.status === 'syncing'}
-          >
-            <RefreshCw size={16} className={syncState.status === 'syncing' ? 'spin' : ''} />
-            <span>{syncState.autoSyncEnabled ? 'Tắt tự động đồng bộ' : 'Bật tự động đồng bộ'}</span>
+      {accountLabel && (
+        <div className="profile-sync-account">
+          <span className="profile-sync-row-icon"><UserRound size={16} /></span>
+          <div>
+            <span>Tài khoản Google</span>
+            <strong>{accountLabel}</strong>
+          </div>
+          <button type="button" onClick={handleSwitchGoogleAccount} disabled={busy} aria-label="Đổi tài khoản Google">
+            Đổi
           </button>
         </div>
+      )}
 
-        {conflict && (
-          <div className="medical-allergy-box" style={{ marginTop: 16 }}>
-            <div className="allergy-header"><RefreshCw size={14} color="#E97332" /> Dữ liệu đã thay đổi ở cả hai nơi</div>
-            <p className="summary-desc">Chọn một bản để tiếp tục. Bản còn lại sẽ bị thay thế trên hệ thống tương ứng.</p>
-            <div className="profile-action-buttons-group" style={{ marginTop: 12 }}>
-              <button type="button" className="profile-action-btn primary" onClick={() => handleResolve('local')} disabled={busy}>
-                <CloudUpload size={16} /> Giữ dữ liệu trên thiết bị
-              </button>
-              <button type="button" className="profile-action-btn secondary" onClick={() => handleResolve('remote')} disabled={busy}>
-                <CloudDownload size={16} /> Dùng dữ liệu trên Drive
-              </button>
-            </div>
-          </div>
-        )}
+      <div className="profile-sync-summary">
+        <div>
+          <span>Trạng thái</span>
+          <strong aria-live="polite">{statusLabel}</strong>
+        </div>
+        <div>
+          <span>Lần cuối</span>
+          <strong>{formatSyncTime(lastSyncedAt)}</strong>
+        </div>
+      </div>
 
-        {visibleError && <p className="summary-desc" style={{ color: '#B45309', marginTop: 12 }}>{visibleError}</p>}
-
-        <button type="button" className="profile-action-btn secondary" style={{ marginTop: 16 }} onClick={handleSync} disabled={busy}>
-          <RefreshCw size={16} className={busy ? 'spin' : ''} />
-          <span>{busy ? 'Đang đồng bộ...' : sessionActive ? 'Đồng bộ ngay với Google Drive' : linked ? 'Xác thực lại & đồng bộ' : 'Kết nối Google & đồng bộ'}</span>
-        </button>
-        {linked && (
-          <button type="button" className="profile-action-btn secondary" style={{ marginTop: 10 }} onClick={handleSwitchGoogleAccount} disabled={busy}>
-            <UserRound size={16} />
-            <span>Đổi tài khoản Google</span>
-          </button>
-        )}
-        <button type="button" className="profile-drive-manage-link" onClick={() => navigate('/profile/google-drive')}>
-          <span className="profile-drive-manage-icon"><Database size={17} /></span>
-          <span><strong>Quản lý dữ liệu</strong><small>Xem dữ liệu trên máy và Google Drive</small></span>
-          <ChevronRight size={17} />
+      <div className="profile-sync-auto">
+        <div>
+          <span>Tự động đồng bộ</span>
+          <small>Sao lưu thay đổi mới khi có mạng.</small>
+        </div>
+        <button
+          type="button"
+          className={syncState.autoSyncEnabled ? 'is-on' : 'is-off'}
+          aria-pressed={syncState.autoSyncEnabled}
+          aria-label={syncState.autoSyncEnabled ? 'Tắt tự động đồng bộ' : 'Bật tự động đồng bộ'}
+          onClick={handleToggleAutoSync}
+          disabled={busy || syncState.status === 'syncing'}
+        >
+          <span aria-hidden="true" />
+          {syncState.autoSyncEnabled ? 'Bật' : 'Tắt'}
         </button>
       </div>
-    </div>
+
+      {conflict && (
+        <div className="profile-sync-alert" role="alert">
+          <div className="profile-sync-alert-title"><RefreshCw size={15} /> Dữ liệu đã thay đổi ở cả hai nơi</div>
+          <p>Chọn một bản để tiếp tục. Bản còn lại sẽ bị thay thế trên hệ thống tương ứng.</p>
+          <div className="profile-sync-conflict-actions">
+            <button type="button" onClick={() => handleResolve('local')} disabled={busy}>
+              <CloudUpload size={15} /> Giữ dữ liệu trên thiết bị
+            </button>
+            <button type="button" onClick={() => handleResolve('remote')} disabled={busy}>
+              <CloudDownload size={15} /> Dùng dữ liệu trên Drive
+            </button>
+          </div>
+        </div>
+      )}
+
+      {visibleError && <p className="profile-sync-error" role="alert">{visibleError}</p>}
+
+      <button type="button" className="profile-sync-primary" onClick={handleSync} disabled={busy}>
+        <RefreshCw size={16} className={busy || syncState.status === 'syncing' ? 'spin' : ''} />
+        <span>{syncButtonLabel}</span>
+      </button>
+
+      <button type="button" className="profile-sync-manage" onClick={() => navigate('/profile/google-drive')}>
+        <span className="profile-sync-row-icon"><Database size={16} /></span>
+        <span>
+          <strong>Quản lý dữ liệu</strong>
+          <small>Xem dữ liệu trên máy và Google Drive</small>
+        </span>
+        <ChevronRight size={17} />
+      </button>
+
+      <div className="profile-sync-footnote">
+        <ShieldCheck size={14} />
+        <span>Kinly không ghi đè dữ liệu Drive nếu phát hiện xung đột.</span>
+      </div>
+    </section>
   );
 };

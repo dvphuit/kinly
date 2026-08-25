@@ -57,17 +57,18 @@ describe('ProfileView', () => {
     });
   });
 
-  it('shows the child identity and the most useful profile details', () => {
+  it('keeps identity, birth details, and notes in one compact profile summary', () => {
     renderProfile();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Thông tin của Bơ' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Bơ' })).toBeInTheDocument();
     expect(screen.getByText('Nguyễn Minh An')).toBeInTheDocument();
-    expect(screen.getByText('Bé gái')).toBeInTheDocument();
+    expect(screen.getByText(/Bé gái/)).toBeInTheDocument();
     expect(screen.getByText('15/01/2026 · 08:30')).toBeInTheDocument();
     expect(screen.getByText('3.2 kg · 50 cm · 34 cm')).toBeInTheDocument();
     expect(screen.getByText('Chưa ghi nhận dị ứng')).toBeInTheDocument();
     expect(screen.getByText('Bé thích nghe nhạc trước khi ngủ.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Hồ sơ cơ bản' })).not.toBeInTheDocument();
   });
 
   it('opens edit and reminder actions', () => {
@@ -80,7 +81,7 @@ describe('ProfileView', () => {
     expect(onNotifications).toHaveBeenCalledTimes(1);
   });
 
-  it('links the growth summary to the full growth page', () => {
+  it('links the compact growth summary to the full growth page', () => {
     renderProfile();
 
     fireEvent.click(screen.getByRole('button', { name: 'Xem chi tiết tăng trưởng' }));

@@ -37,18 +37,20 @@ vi.mock('@/features/sync', () => {
 });
 
 describe('GoogleSyncCard', () => {
-  it('shows the linked account and re-authentication state without a contradictory reconnect error', () => {
+  it('shows a compact linked-account summary without a contradictory reconnect error', () => {
     render(
       <MemoryRouter>
         <GoogleSyncCard />
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole('heading', { name: 'Google Drive' })).toBeInTheDocument();
     expect(screen.getByText('Đã liên kết')).toBeInTheDocument();
     expect(screen.getByText('parent@example.com')).toBeInTheDocument();
-    expect(screen.getByText('Trạng thái: Cần xác thực lại Google')).toBeInTheDocument();
+    expect(screen.getByText('Cần xác thực lại Google')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xác thực lại & đồng bộ' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đổi tài khoản Google' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tắt tự động đồng bộ' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByText('Cần xác thực lại Google để tiếp tục tự động đồng bộ.')).not.toBeInTheDocument();
   });
 
