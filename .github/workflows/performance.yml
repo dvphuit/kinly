@@ -53,14 +53,72 @@ jobs:
         env:
           VITE_PERFORMANCE_CHECK: true
 
-      - name: Run Lighthouse CI audit
-        run: npm run test:lighthouse
+  lighthouse-run:
+    name: lighthouse-run-${{ matrix.run }}
+    needs: performance
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3, 4, 5]
+    defaults:
+      run:
+        working-directory: app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production app
+        run: npm run build
+        env:
+          VITE_PERFORMANCE_CHECK: true
+
+      - name: Collect Lighthouse report
+        run: npx lhci collect --config=./lighthouserc.cjs --numberOfRuns=1
+
+      - name: Upload runner report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-report-${{ matrix.run }}
+          path: app/.lighthouseci/*.json
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: error
+
+  lighthouse-gate:
+    name: lighthouse
+    needs: lighthouse-run
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download independent runner reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lighthouse-report-*
+          path: app/.lighthouseci-aggregate
+          merge-multiple: true
+
+      - name: Assert median Lighthouse scores
+        working-directory: app
+        run: node scripts/assert-lighthouse-median.mjs .lighthouseci-aggregate
 
       - name: Upload Lighthouse reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: lighthouse-reports
-          path: app/.lighthouseci/
+          path: app/.lighthouseci-aggregate/
           include-hidden-files: true
           retention-days: 7
