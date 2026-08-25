@@ -185,7 +185,8 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     setIsSubmittingProfile(true);
     setFormError(null);
     try {
-      const { initializeChildProfile } = await import('@/features/profile');
+      const { loadProfileLifecycle } = await import('@/features/profile');
+      const { initializeChildProfile } = await loadProfileLifecycle();
       initializeChildProfile(
         {
           childName: childName.trim(),

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseAppSnapshot } from '@/features/sync/appSnapshot';
-import { resetChildStoresToDefaults, useProfileStore } from '@/features/profile';
+import { loadProfileLifecycle, useProfileStore } from '@/features/profile';
 import * as googleDriveSync from '@/features/sync';
 import { OnboardingView } from './OnboardingView';
 
@@ -59,8 +59,9 @@ function createBackupSummary() {
 }
 
 describe('OnboardingView', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const { resetChildStoresToDefaults } = await loadProfileLifecycle();
     resetChildStoresToDefaults();
     vi.mocked(googleDriveSync.isGoogleConfigured).mockReturnValue(true);
     vi.mocked(googleDriveSync.isGoogleConnected).mockReturnValue(false);
