@@ -202,51 +202,119 @@
 .drive-media-section { display: flex; flex-direction: column; gap: 9px; }
 .drive-media-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 0 2px; }
 .drive-media-section-heading h3 { margin: 0; color: var(--color-primary-dark); font-family: var(--font-family-display); font-size: 15px; }
-.drive-media-section-heading span { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: 9px; }
+.drive-media-section-heading span { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: 10px; }
 .drive-media-section-heading button {
-  min-height: 34px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 10px;
-  border: 1px solid #dfc4b5;
+  gap: 4px;
+  padding: 5px 10px;
   border-radius: var(--radius-pill);
-  color: #914d37;
-  background: #fff4ee;
-  font-size: 8.5px;
+  color: #a34f36;
+  background: #fff2ec;
+  font-size: 9.5px;
   font-weight: 800;
 }
 .drive-media-section-heading button:disabled { opacity: 0.55; }
-.drive-data-page .drive-media-list { grid-template-columns: 1fr; gap: 8px; }
-.drive-data-page .drive-media-card {
+
+.drive-media-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.drive-media-card {
+  position: relative;
+  min-width: 0;
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) 38px;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 66px;
-  border-radius: 17px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 6px 18px -15px rgba(51, 37, 31, 0.42);
+  gap: 11px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-card-bg);
+  box-shadow: 0 6px 18px -15px rgba(57, 38, 29, 0.4);
 }
-.drive-data-page .drive-media-preview { width: 52px; height: 52px; aspect-ratio: auto; margin: 6px; border-radius: 12px; }
-.drive-media-play { position: absolute; inset: 50% auto auto 50%; z-index: 2; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 50%; color: #fff; background: rgba(40, 30, 25, 0.58); box-shadow: 0 4px 12px rgba(31, 24, 20, 0.2); transform: translate(-50%, -50%); backdrop-filter: blur(5px); }
+.drive-media-preview {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: block;
+  overflow: hidden;
+  border-radius: 14px;
+  color: #6d7d59;
+  background: linear-gradient(145deg, #edf3e7, #f7f1e7);
+  transition: transform var(--transition-fast);
+}
+.drive-media-preview img,
+.drive-media-preview video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.drive-media-preview:disabled { opacity: 1; }
+.drive-media-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.drive-media-preview:active { transform: scale(0.95); }
+.drive-media-play {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(40, 30, 25, 0.58);
+  box-shadow: 0 4px 12px rgba(31, 24, 20, 0.2);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(5px);
+}
 .drive-media-play svg { margin-left: 1px; }
-.drive-data-page .drive-media-info { grid-column: 2; gap: 2px; padding: 7px 4px 7px 7px; }
-.drive-data-page .drive-media-info strong { font-size: 11px; }
-.drive-data-page .drive-media-info small { color: var(--color-text-secondary); font-size: 8.5px; }
-.drive-media-size { color: var(--color-text-muted) !important; font-size: 8px !important; }
-.drive-media-meta-row { display: flex; align-items: center; gap: 6px; }
-.drive-media-meta-row > span { display: inline-flex; align-items: center; gap: 3px; font-size: 8.5px; }
-.drive-media-state { padding: 3px 6px; border-radius: var(--radius-pill); font-weight: 800; }
-.drive-media-state.is-backed-up { color: #587048 !important; background: #e6eedf; }
-.drive-media-state.is-local-only { color: #92543d !important; background: #fae9df; }
-.drive-data-page .drive-media-delete {
-  position: static;
-  grid-column: 3;
-  justify-self: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 11px;
+.drive-media-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.drive-media-info strong {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 12.5px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.drive-media-info small {
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drive-media-meta-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.drive-media-meta-row > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drive-media-state {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  color: var(--color-sage-dark);
+  background: var(--color-sage-light);
+  font-size: 10px;
+  font-weight: 700;
+}
+.drive-media-state.is-local-only { color: var(--color-neutral); background: var(--color-neutral-bg); }
+.drive-media-delete {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: #a34f36;
+  background: #fff2ec;
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+.drive-media-delete:hover { background: #ffe6dc; }
+.drive-media-delete:active { transform: scale(0.9); }
 
 .drive-connect-card {
   min-height: 270px;
@@ -287,4 +355,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .drive-data-segment-panel { animation: none; }
+  .drive-media-preview,
+  .drive-media-delete { transition: none; }
+  .drive-media-preview:active,
+  .drive-media-delete:active { transform: none; }
 }

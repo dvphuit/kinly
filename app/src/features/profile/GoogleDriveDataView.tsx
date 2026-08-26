@@ -227,8 +227,10 @@ function DriveMediaTile({
       </button>
       <div className="drive-media-info">
         <strong title={file.name}>{file.name}</strong>
+        <div className="drive-media-meta-row">
+          <span className="drive-media-size">{formatBytes(file.size)}</span>
+        </div>
         <small>{linkedTitle ? `Đang dùng trong “${linkedTitle}”` : formatDate(file.modifiedTime || file.createdTime)}</small>
-        <span className="drive-media-size">{formatBytes(file.size)}</span>
       </div>
       <button type="button" className="drive-media-delete" onClick={onDelete} aria-label={`Xóa ${file.name} khỏi Google Drive`}>
         <Trash2 size={15} />
