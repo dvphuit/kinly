@@ -1,7 +1,7 @@
-/* Data management: protection status first, files second. Readable mobile type. */
+/* Data management route: protection status first, files second. */
 .drive-data-page {
-  gap: 0;
-  padding-bottom: 0;
+  gap: 14px;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
   background:
     radial-gradient(circle at 100% 4%, rgba(154, 183, 110, 0.12), transparent 24%),
     var(--color-canvas);
@@ -12,58 +12,44 @@
   backdrop-filter: blur(18px);
 }
 
-.drive-data-main {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 4px 0 calc(28px + env(safe-area-inset-bottom, 0px));
-}
-
-.drive-data-lede {
-  margin: 0 2px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.drive-data-app-actions { display: flex; gap: 6px; }
+.drive-data-app-actions { display: flex; gap: 4px; }
 .drive-log-action { position: relative; }
 .drive-log-count {
   position: absolute;
   top: -2px;
   right: -3px;
-  min-width: 18px;
-  padding: 2px 5px;
+  min-width: 16px;
+  padding: 2px 4px;
   border: 2px solid var(--color-canvas);
   border-radius: var(--radius-pill);
   color: #fff;
   background: var(--color-sage-dark);
-  font-size: 10px;
+  font-size: 7px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1;
 }
 
 .drive-data-controls { position: relative; z-index: 2; }
 .drive-data-segments {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 18px;
-  background: var(--color-card-warm);
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgba(232, 221, 213, 0.78);
+  border-radius: 20px;
+  background: rgba(238, 234, 228, 0.78);
 }
 
 .drive-data-segment {
   position: relative;
   min-width: 0;
-  min-height: 48px;
+  min-height: 52px;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  border-radius: 14px;
+  padding: 6px 9px;
+  border-radius: 15px;
   color: var(--color-text-secondary);
   text-align: left;
   transition: color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
@@ -72,18 +58,18 @@
 .drive-data-segment.is-active {
   color: var(--color-primary-dark);
   background: #fff;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 5px 15px rgba(66, 46, 36, 0.07);
 }
 
 .drive-data-segment-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 11px;
   color: #7a685d;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .drive-data-segment.is-active .drive-data-segment-icon {
@@ -99,11 +85,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.drive-data-segment-copy strong { font-size: 13px; line-height: 1.25; font-weight: 800; }
-.drive-data-segment-copy small { margin-top: 2px; color: var(--color-text-muted); font-size: 11px; line-height: 1.3; }
-.drive-data-segment-dot { width: 8px; height: 8px; border-radius: 50%; background: #c6bdb4; }
-.drive-data-segment-dot.is-linked { background: #d39a55; box-shadow: 0 0 0 4px rgba(211, 154, 85, 0.14); }
-.drive-data-segment-dot.is-ready { background: var(--color-sage-dark); box-shadow: 0 0 0 4px rgba(88, 117, 53, 0.14); }
+.drive-data-segment-copy strong { font-size: 10.5px; line-height: 1.2; }
+.drive-data-segment-copy small { margin-top: 2px; color: var(--color-text-muted); font-size: 7.5px; }
+.drive-data-segment-dot { width: 7px; height: 7px; border-radius: 50%; background: #c6bdb4; }
+.drive-data-segment-dot.is-linked { background: #d39a55; box-shadow: 0 0 0 3px rgba(211, 154, 85, 0.12); }
+.drive-data-segment-dot.is-ready { background: #789563; box-shadow: 0 0 0 3px rgba(120, 149, 99, 0.12); }
 
 .drive-data-segment-panel {
   display: flex;
@@ -113,436 +99,190 @@
 }
 
 @keyframes drive-panel-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .drive-overview-card {
+  position: relative;
   overflow: hidden;
   padding: 16px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 22px;
+  border: 1px solid #ead9cb;
+  border-radius: 25px;
   color: var(--color-primary-dark);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-card);
+  background: linear-gradient(145deg, #fffdf9 0%, #f8eee7 100%);
+  box-shadow: 0 16px 32px -24px rgba(110, 75, 55, 0.52);
+  isolation: isolate;
 }
 
-.drive-overview-card.needs-attention {
-  border-color: #ecd7b6;
-  background: linear-gradient(180deg, #fffdf8 0%, #fff 72%);
+.drive-overview-card.is-device.needs-attention { border-color: #dfbda8; background: linear-gradient(145deg, #fffaf6, #f7e5da); }
+.drive-overview-card.is-drive {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(145deg, #405735 0%, #607b49 58%, #86a56a 100%);
+  box-shadow: 0 18px 34px -22px rgba(56, 77, 40, 0.8);
+}
+.drive-overview-card.is-drive.needs-attention {
+  background: linear-gradient(145deg, #665733 0%, #847446 58%, #a4935c 100%);
 }
 
-.drive-overview-card.is-complete {
-  border-color: #dce7d1;
+.drive-overview-orb {
+  position: absolute;
+  z-index: -1;
+  border: 1px solid rgba(137, 94, 69, 0.11);
+  border-radius: 50%;
 }
-
-.drive-overview-header {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-
+.drive-overview-orb-one { width: 158px; height: 158px; top: -104px; right: -26px; }
+.drive-overview-orb-two { width: 96px; height: 96px; right: 36px; bottom: -66px; }
+.drive-overview-header { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .drive-overview-icon {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  color: var(--color-sage-dark);
-  background: var(--color-card-sage);
+  border: 1px solid #ead9cb;
+  border-radius: 13px;
+  color: #8c604a;
+  background: rgba(255, 255, 255, 0.72);
 }
-
-.drive-overview-card.needs-attention .drive-overview-icon {
-  color: #8a6220;
-  background: #f8edcf;
-}
-
 .drive-overview-heading { min-width: 0; }
 .drive-overview-heading > span,
 .drive-overview-primary span {
   display: block;
-  color: var(--color-text-muted);
-  font-size: 11px;
+  color: #9f8170;
+  font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.65px;
 }
-
-.drive-overview-heading h2 {
-  margin: 2px 0 0;
-  color: var(--color-primary-dark);
-  font-family: var(--font-family-display);
-  font-size: 18px;
-  line-height: 1.2;
-}
-
+.drive-overview-heading h2 { margin: 2px 0 0; color: var(--color-primary-dark); font-family: var(--font-family-display); font-size: 15px; }
 .drive-overview-status {
-  max-width: 118px;
-  padding: 6px 10px;
+  max-width: 112px;
+  overflow: hidden;
+  padding: 5px 8px;
+  border: 1px solid #ead9cb;
   border-radius: var(--radius-pill);
-  color: var(--color-text-secondary);
-  background: var(--color-card-warm);
-  font-size: 11px;
+  color: #7f5a47;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 8px;
   font-weight: 800;
-  line-height: 1.2;
-  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.drive-overview-card.is-complete .drive-overview-status {
-  color: #557043;
-  background: #e5efdc;
-}
-
-.drive-overview-card.needs-attention .drive-overview-status {
-  color: #8a6220;
-  background: #f8edcf;
-}
-
-.drive-overview-primary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 12px;
-  margin-top: 16px;
-}
-
+.drive-overview-primary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; margin-top: 17px; }
 .drive-overview-primary > div { min-width: 0; }
-.drive-overview-primary > div > strong {
-  display: block;
-  overflow: hidden;
-  margin-top: 4px;
-  font-size: 14px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.drive-overview-primary > div > strong { display: block; overflow: hidden; margin-top: 3px; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.drive-overview-percent { font-family: var(--font-family-display); font-size: 26px; line-height: 0.9; }
+.drive-overview-percent span { display: inline; margin-left: 1px; color: #9f8170; font-size: 12px; letter-spacing: 0; }
+.drive-overview-track { height: 7px; overflow: hidden; margin-top: 9px; border-radius: var(--radius-pill); background: #eaded5; }
+.drive-overview-track i { min-width: 3px; height: 100%; display: block; border-radius: inherit; background: #99715c; transition: width var(--transition-normal); }
+.drive-overview-card.is-device.is-complete .drive-overview-track i { background: #789563; }
+.drive-overview-detail { display: flex; align-items: center; gap: 5px; margin: 8px 0 0; color: var(--color-text-secondary); font-size: 8.5px; }
+.drive-overview-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 14px -16px -16px; border-top: 1px solid #ead9cb; background: rgba(255, 255, 255, 0.55); }
+.drive-overview-metrics > div { min-width: 0; padding: 10px 7px 11px; text-align: center; }
+.drive-overview-metrics > div + div { border-left: 1px solid #ead9cb; }
+.drive-overview-metrics span { display: block; color: var(--color-text-muted); font-size: 7.5px; }
+.drive-overview-metrics strong { display: block; overflow: hidden; margin-top: 2px; color: var(--color-primary-dark); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 
-.drive-overview-percent {
-  font-family: var(--font-family-display);
-  font-size: 32px;
-  line-height: 0.9;
-}
+.drive-overview-card.is-drive .drive-overview-orb { border-color: rgba(255, 255, 255, 0.13); }
+.drive-overview-card.is-drive .drive-overview-icon { border-color: rgba(255, 255, 255, 0.2); color: #fff; background: rgba(255, 255, 255, 0.13); }
+.drive-overview-card.is-drive .drive-overview-heading > span,
+.drive-overview-card.is-drive .drive-overview-primary span { color: rgba(255, 255, 255, 0.7); }
+.drive-overview-card.is-drive .drive-overview-heading h2,
+.drive-overview-card.is-drive .drive-overview-metrics strong { color: #fff; }
+.drive-overview-card.is-drive .drive-overview-status { border-color: rgba(255, 255, 255, 0.18); color: #fff; background: rgba(255, 255, 255, 0.12); }
+.drive-overview-card.is-drive .drive-overview-percent span,
+.drive-overview-card.is-drive .drive-overview-detail { color: rgba(255, 255, 255, 0.78); }
+.drive-overview-card.is-drive .drive-overview-track { background: rgba(255, 255, 255, 0.18); }
+.drive-overview-card.is-drive .drive-overview-track i { background: rgba(255, 255, 255, 0.95); }
+.drive-overview-card.is-drive .drive-overview-metrics { border-color: rgba(255, 255, 255, 0.13); background: rgba(255, 255, 255, 0.08); }
+.drive-overview-card.is-drive .drive-overview-metrics > div + div { border-color: rgba(255, 255, 255, 0.12); }
+.drive-overview-card.is-drive .drive-overview-metrics span { color: rgba(255, 255, 255, 0.65); }
 
-.drive-overview-percent span {
-  display: inline;
-  margin-left: 1px;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  letter-spacing: 0;
-  font-weight: 800;
-}
-
-.drive-overview-track {
-  height: 8px;
-  overflow: hidden;
-  margin-top: 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-card-warm);
-}
-
-.drive-overview-track i {
-  min-width: 4px;
-  height: 100%;
-  display: block;
-  border-radius: inherit;
-  background: #c08a4a;
-  transition: width var(--transition-normal);
-}
-
-.drive-overview-card.is-complete .drive-overview-track i {
-  background: var(--color-sage-dark);
-}
-
-.drive-overview-detail {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 10px 0 0;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.drive-overview-detail svg { flex: 0 0 auto; margin-top: 1px; color: var(--color-sage-dark); }
-
-.drive-overview-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.drive-overview-metrics > div {
-  min-width: 0;
-  padding: 10px 8px;
-  border-radius: 14px;
-  background: var(--color-card-warm);
-  text-align: center;
-}
-
-.drive-overview-metrics span {
-  display: block;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.drive-overview-metrics strong {
-  display: block;
-  overflow: hidden;
-  margin-top: 4px;
-  color: var(--color-primary-dark);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.drive-media-section { display: flex; flex-direction: column; gap: 12px; }
-.drive-media-section-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 2px;
-}
-.drive-media-section-heading h3 {
-  margin: 0;
-  color: var(--color-primary-dark);
-  font-family: var(--font-family-display);
-  font-size: 18px;
-  line-height: 1.2;
-}
-.drive-media-section-heading span {
-  display: block;
-  margin-top: 3px;
-  color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 1.35;
-}
+.drive-media-section { display: flex; flex-direction: column; gap: 9px; }
+.drive-media-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 0 2px; }
+.drive-media-section-heading h3 { margin: 0; color: var(--color-primary-dark); font-family: var(--font-family-display); font-size: 15px; }
+.drive-media-section-heading span { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: 9px; }
 .drive-media-section-heading button {
-  min-height: 44px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 14px;
+  gap: 5px;
+  padding: 0 10px;
   border: 1px solid #dfc4b5;
   border-radius: var(--radius-pill);
   color: #914d37;
   background: #fff4ee;
-  font-size: 12px;
+  font-size: 8.5px;
   font-weight: 800;
-  white-space: nowrap;
 }
 .drive-media-section-heading button:disabled { opacity: 0.55; }
-
-.drive-data-page .drive-media-list {
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
+.drive-data-page .drive-media-list { grid-template-columns: 1fr; gap: 8px; }
 .drive-data-page .drive-media-card {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) 44px;
+  grid-template-columns: 60px minmax(0, 1fr) 38px;
   align-items: center;
-  min-height: 88px;
-  border-radius: 18px;
+  min-height: 66px;
+  border-radius: 17px;
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 6px 18px -15px rgba(51, 37, 31, 0.42);
 }
-
-.drive-data-page .drive-media-preview {
-  width: 64px;
-  height: 64px;
-  aspect-ratio: auto;
-  margin: 8px;
-  border-radius: 14px;
-}
-
-.drive-media-play {
-  position: absolute;
-  inset: 50% auto auto 50%;
-  z-index: 2;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  color: #fff;
-  background: rgba(40, 30, 25, 0.58);
-  box-shadow: 0 4px 12px rgba(31, 24, 20, 0.2);
-  transform: translate(-50%, -50%);
-}
-
+.drive-data-page .drive-media-preview { width: 52px; height: 52px; aspect-ratio: auto; margin: 6px; border-radius: 12px; }
+.drive-media-play { position: absolute; inset: 50% auto auto 50%; z-index: 2; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 50%; color: #fff; background: rgba(40, 30, 25, 0.58); box-shadow: 0 4px 12px rgba(31, 24, 20, 0.2); transform: translate(-50%, -50%); backdrop-filter: blur(5px); }
 .drive-media-play svg { margin-left: 1px; }
-
-.drive-data-page .drive-media-info {
-  grid-column: 2;
-  gap: 4px;
-  padding: 10px 8px 10px 4px;
-}
-
-.drive-data-page .drive-media-info strong {
-  font-size: 14px;
-  line-height: 1.3;
-}
-
-.drive-data-page .drive-media-info small {
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  line-height: 1.35;
-  white-space: normal;
-}
-
-.drive-media-size {
-  color: var(--color-text-muted) !important;
-  font-size: 12px !important;
-}
-
-.drive-media-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.drive-media-meta-row > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-}
-
-.drive-media-state {
-  padding: 3px 8px;
-  border-radius: var(--radius-pill);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.drive-media-state.is-backed-up { color: #557043 !important; background: #e5efdc; }
+.drive-data-page .drive-media-info { grid-column: 2; gap: 2px; padding: 7px 4px 7px 7px; }
+.drive-data-page .drive-media-info strong { font-size: 11px; }
+.drive-data-page .drive-media-info small { color: var(--color-text-secondary); font-size: 8.5px; }
+.drive-media-size { color: var(--color-text-muted) !important; font-size: 8px !important; }
+.drive-media-meta-row { display: flex; align-items: center; gap: 6px; }
+.drive-media-meta-row > span { display: inline-flex; align-items: center; gap: 3px; font-size: 8.5px; }
+.drive-media-state { padding: 3px 6px; border-radius: var(--radius-pill); font-weight: 800; }
+.drive-media-state.is-backed-up { color: #587048 !important; background: #e6eedf; }
 .drive-media-state.is-local-only { color: #92543d !important; background: #fae9df; }
-
 .drive-data-page .drive-media-delete {
   position: static;
   grid-column: 3;
   justify-self: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
 }
 
-.drive-data-page .drive-connect-card {
-  min-height: 280px;
+.drive-connect-card {
+  min-height: 270px;
   padding: 28px 22px;
-  border-radius: 22px;
+  border-radius: 25px;
   background:
-    radial-gradient(circle at 88% 8%, rgba(154, 183, 110, 0.22), transparent 34%),
-    rgba(255, 255, 255, 0.96);
+    radial-gradient(circle at 88% 8%, rgba(154, 183, 110, 0.24), transparent 34%),
+    rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow-card);
 }
-
-.drive-data-page .drive-connect-card h2 { font-size: 22px; }
-.drive-data-page .drive-connect-card p { font-size: 13px; line-height: 1.55; }
-.drive-connect-card .profile-action-btn { width: min(100%, 280px); min-height: 44px; }
-
-.drive-data-page .drive-data-state,
-.drive-data-page .local-data-state {
-  min-height: 180px;
-  gap: 8px;
-  padding: 28px 20px;
+.drive-connect-card .profile-action-btn { width: min(100%, 270px); }
+.drive-data-state,
+.local-data-state {
+  min-height: 172px;
+  gap: 7px;
+  padding: 24px 18px;
   border-style: dashed;
-  border-radius: 22px;
+  border-radius: 21px;
   background:
     radial-gradient(circle at 85% 8%, rgba(154, 183, 110, 0.11), transparent 36%),
-    rgba(255, 255, 255, 0.78);
+    rgba(255, 255, 255, 0.72);
 }
+.drive-data-state > svg { width: 38px; height: 38px; padding: 9px; border-radius: 13px; color: var(--color-sage-dark); background: var(--color-card-sage); }
+.drive-data-state > strong { margin-top: 3px; font-family: var(--font-family-display); font-size: 13px; }
+.drive-data-state > span { max-width: 270px; color: var(--color-text-muted); font-size: 9.5px; line-height: 1.5; }
+.drive-data-error { box-shadow: 0 8px 18px -16px rgba(159, 72, 42, 0.7); }
 
-.drive-data-page .drive-data-state > svg {
-  width: 44px;
-  height: 44px;
-  padding: 10px;
-  border-radius: 14px;
-  color: var(--color-sage-dark);
-  background: var(--color-card-sage);
-}
+.drive-debug-sheet-actions { width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.drive-debug-sheet-actions button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border-radius: var(--radius-pill); background: #fff; font-size: 9px; font-weight: 800; }
 
-.drive-data-page .drive-data-state > strong {
-  margin-top: 4px;
-  font-family: var(--font-family-display);
-  font-size: 16px;
-}
-
-.drive-data-page .drive-data-state > span {
-  max-width: 280px;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.drive-data-page .drive-data-error {
-  margin: 0;
-  font-size: 13px;
-  box-shadow: 0 8px 18px -16px rgba(159, 72, 42, 0.7);
-}
-
-.drive-debug-sheet-intro {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 12px;
-  padding: 12px;
-  border-radius: 16px;
-  background: var(--color-card-sage);
-}
-
-.drive-debug-sheet-intro strong {
-  display: block;
-  color: var(--color-primary-dark);
-  font-size: 14px;
-}
-
-.drive-debug-sheet-intro small {
-  display: block;
-  margin-top: 3px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.drive-debug-sheet-actions {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.drive-debug-sheet-actions button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: var(--radius-pill);
-  background: #fff;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.drive-data-page .drive-log-entry header { font-size: 11px; }
-.drive-data-page .drive-log-entry p { font-size: 13px; }
-.drive-data-page .drive-log-empty { font-size: 13px; }
-
-@media (max-width: 360px) {
-  .drive-data-segment {
-    grid-template-columns: 32px minmax(0, 1fr);
-    min-height: 52px;
-  }
-  .drive-data-segment-dot { display: none; }
-  .drive-overview-metrics { gap: 6px; }
-  .drive-overview-percent { font-size: 28px; }
+@media (min-width: 460px) {
+  .drive-data-page { gap: 17px; }
+  .drive-overview-card { padding: 19px; }
+  .drive-overview-metrics { margin: 16px -19px -19px; }
+  .drive-overview-primary > div > strong { font-size: 14px; }
+  .drive-overview-percent { font-size: 29px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
