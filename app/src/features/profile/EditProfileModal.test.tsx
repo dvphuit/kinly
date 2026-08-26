@@ -59,4 +59,31 @@ describe('EditProfileModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onSuccessToast).toHaveBeenCalledWith('Đã cập nhật thông tin cho Bơ Nhỏ thành công!');
   });
+
+  it('does not invent optional birth or medical data when the stored profile is empty', () => {
+    useProfileStore.getState().updateFamilyData({
+      birthTime: '',
+      birthWeight: '',
+      birthHeight: '',
+      hospital: '',
+      insuranceCode: '',
+    });
+
+    render(<EditProfileModal isOpen onClose={() => {}} />);
+
+    expect(screen.getByPlaceholderText('VD: 3.3 kg')).toHaveValue('');
+    expect(screen.getByPlaceholderText('VD: 50.0 cm')).toHaveValue('');
+    expect(screen.getByPlaceholderText('VD: BV Phụ sản...')).toHaveValue('');
+    expect(screen.getByPlaceholderText('VD: DN4012984920')).toHaveValue('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+
+    expect(useProfileStore.getState().familyData).toMatchObject({
+      birthTime: '',
+      birthWeight: '',
+      birthHeight: '',
+      hospital: '',
+      insuranceCode: '',
+    });
+  });
 });
