@@ -2,7 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './app/App';
+import { initializeNativeExperience } from '@/app/lifecycle/nativeExperience';
 import './index.css';
+
+initializeNativeExperience();
 
 document.documentElement.classList.toggle(
   'has-vt',

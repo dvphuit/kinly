@@ -1,7 +1,7 @@
 /* ==========================================================================
    BASE STYLES & UNIFIED NATIVE MOBILE APP EXPERIENCE
-   Globally disable text selection across the entire app for native feel,
-   while preserving text selection exclusively for inputs and editable fields.
+   Standalone mode removes browser-only gestures while preserving useful
+   selection and context actions for editable or explicitly selectable content.
    ========================================================================== */
 
 *, *::before, *::after {
@@ -11,8 +11,12 @@
   /* Use squircle corners everywhere the component declares a radius. */
   corner-shape: squircle;
   -webkit-tap-highlight-color: transparent;
+}
+
+html.is-standalone *,
+html.is-standalone *::before,
+html.is-standalone *::after {
   -webkit-touch-callout: none;
-  /* Disable text selection globally across the whole app */
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -47,8 +51,6 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  -webkit-user-select: none;
-  user-select: none;
   overscroll-behavior-y: contain;
 }
 
@@ -74,8 +76,6 @@ body {
   display: flex;
   flex-direction: column;
   overflow-x: clip;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
 /* Main Content Area with unified 16px horizontal margins */
@@ -115,10 +115,26 @@ button {
   -webkit-user-drag: none;
 }
 
-/* Allow text selection ONLY in form input controls */
-input, textarea, select, [contenteditable="true"], [contenteditable=""] {
+/* Keep copy, edit, and media actions available where users expect them. */
+input,
+textarea,
+select,
+[contenteditable="true"],
+[contenteditable=""] {
   font-family: inherit;
   outline: none;
+}
+
+:is(
+  input,
+  textarea,
+  select,
+  [contenteditable="true"],
+  [contenteditable=""],
+  pre,
+  code,
+  [data-native-selectable]
+) {
   user-select: text !important;
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
@@ -126,7 +142,24 @@ input, textarea, select, [contenteditable="true"], [contenteditable=""] {
   -webkit-touch-callout: default !important;
 }
 
-img, svg, a {
+html.is-standalone :is(a[href], img, video, audio, input, textarea, select, pre, code, [contenteditable], [data-native-selectable], [data-native-context-menu="allow"]) {
+  -webkit-touch-callout: default;
+}
+
+/* Installed apps do not expose browser scrollbars. Scroll gestures still work. */
+html.is-standalone,
+html.is-standalone * {
+  scrollbar-width: none;
+}
+
+html.is-standalone::-webkit-scrollbar,
+html.is-standalone *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+img, svg, video, a {
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
@@ -135,4 +168,11 @@ img, svg, a {
 img {
   max-width: 100%;
   display: block;
+}
+
+/* Prevent iOS focus zoom without disabling user-controlled pinch zoom. */
+@media (max-width: 500px) {
+  html.is-standalone :is(input, textarea, select) {
+    font-size: max(16px, 1em) !important;
+  }
 }
