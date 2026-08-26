@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCopy, Cloud, Image as ImageIcon,
-  RefreshCw, ShieldCheck, Smartphone, Terminal, Trash2, Video,
+  Play, RefreshCw, ShieldCheck, Smartphone, Terminal, Trash2, Video,
 } from 'lucide-react';
 import { AppBar } from '@/shared/ui/AppBar';
 import { BottomSheet } from '@/shared/ui/BottomSheet';
@@ -223,14 +223,12 @@ function DriveMediaTile({
       >
         <span className="drive-media-placeholder" aria-hidden="true">{isVideo ? <Video size={22} /> : <ImageIcon size={22} />}</span>
         {file.thumbnailLink && <img src={file.thumbnailLink} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />}
+        {isVideo && <span className="drive-media-play" aria-hidden="true"><Play size={15} fill="currentColor" /></span>}
       </button>
       <div className="drive-media-info">
         <strong title={file.name}>{file.name}</strong>
-        <div className="drive-media-meta-row">
-          <span className="drive-media-type">{isVideo ? <><Video size={10} /> Video</> : <><ImageIcon size={10} /> Ảnh</>}</span>
-          <span>{formatBytes(file.size)}</span>
-        </div>
         <small>{linkedTitle ? `Đang dùng trong “${linkedTitle}”` : formatDate(file.modifiedTime || file.createdTime)}</small>
+        <span className="drive-media-size">{formatBytes(file.size)}</span>
       </div>
       <button type="button" className="drive-media-delete" onClick={onDelete} aria-label={`Xóa ${file.name} khỏi Google Drive`}>
         <Trash2 size={15} />
@@ -276,6 +274,7 @@ function LocalMediaTile({
         {objectUrl && (isVideo
           ? <video src={objectUrl} muted preload="metadata" />
           : <img src={objectUrl} alt="" loading="lazy" />)}
+        {isVideo && <span className="drive-media-play" aria-hidden="true"><Play size={15} fill="currentColor" /></span>}
       </button>
       <div className="drive-media-info">
         <strong title={name}>{name}</strong>

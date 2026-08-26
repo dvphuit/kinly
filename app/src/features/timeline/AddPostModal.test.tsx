@@ -44,7 +44,7 @@ describe('AddPostModal', () => {
       mediaUrl: 'https://example.com/moment.mp4', mediaType: 'video',
     });
     await waitFor(() => {
-      expect(onSuccessToast).toHaveBeenCalledWith('Đã lưu khoảnh khắc “Mẹ và một phút bình yên”.');
+      expect(onSuccessToast).toHaveBeenCalledWith('Đã lưu khoảnh khắc “Mẹ và một phút bình yên”.', '✓');
       expect(onClose).toHaveBeenCalledTimes(1);
     });
   });

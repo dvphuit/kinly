@@ -1012,3 +1012,52 @@
   margin-top: 8px;
   padding: 9px 14px;
 }
+
+/* Floating confirmations sit below the sticky app bar and never shift the page. */
+.toast-container {
+  position: fixed;
+  top: calc(76px + var(--safe-area-inset-top));
+  left: 50%;
+  z-index: 140;
+  width: min(calc(100vw - 24px), 476px);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.toast-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 8px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  color: #fff;
+  background: rgba(57, 38, 29, 0.94);
+  box-shadow: 0 12px 28px rgba(48, 32, 25, 0.2);
+  backdrop-filter: blur(16px);
+}
+
+.toast-item-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #496137;
+  background: #e4efd9;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.toast-item-copy {
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+}

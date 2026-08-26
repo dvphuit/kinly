@@ -11,7 +11,7 @@ type PostTagType = TimelineItem['tagType'];
 interface AddPostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccessToast: (msg: string) => void;
+  onSuccessToast: (msg: string, icon?: string) => void;
   presetTagType?: PostTagType;
 }
 
@@ -89,7 +89,7 @@ export function AddPostModal({
       onSaved={(savedTitle) => {
         onSuccessToast(savedTitle
           ? `Đã lưu khoảnh khắc “${savedTitle}”.`
-          : 'Đã lưu khoảnh khắc.');
+          : 'Đã lưu khoảnh khắc.', '✓');
       }}
     />
   );

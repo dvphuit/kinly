@@ -130,6 +130,22 @@ describe('GoogleDriveDataView', () => {
     expect(useTimelineStore.getState().timelineItems[0].mediaItems).toEqual([]);
   });
 
+  it('uses a play affordance for video cards without a media-type label', async () => {
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
+      createdTime: '2026-08-18T08:00:00.000Z', modifiedTime: '2026-08-18T09:00:00.000Z',
+    }]);
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+
+    const preview = await screen.findByRole('button', { name: 'Xem video first-steps.mp4' });
+    expect(preview.querySelector('.drive-media-play')).toBeInTheDocument();
+    const card = preview.closest('article');
+    expect(card).not.toHaveTextContent('Video');
+    expect(card).toHaveTextContent('4.0 KB');
+  });
+
   it('opens diagnostic logs in a bottom sheet and copies production logs', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
