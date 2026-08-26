@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Cloud, CloudDownload, CloudUpload, Database, RefreshCw, ShieldCheck, UserRound } from 'lucide-react';
+import { ChevronRight, Cloud, CloudDownload, CloudUpload, Database, RefreshCw, UserRound } from 'lucide-react';
 import {
   getGoogleLinkedAccount,
   getLastSyncedAt,
@@ -201,21 +201,17 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
       <div className="profile-sync-header">
         <span className="profile-sync-icon"><Cloud size={20} /></span>
         <div className="profile-sync-title">
-          <span>Sao lưu</span>
+          <span aria-live="polite">{statusLabel}</span>
           <h2 id="profile-sync-title">Google Drive</h2>
         </div>
         <span className={`profile-sync-status ${sessionActive ? 'active' : linked ? 'linked' : 'muted'}`}>{connectionLabel}</span>
       </div>
 
-      <p className="profile-sync-description">
-        Dữ liệu luôn được lưu trên thiết bị trước, sau đó sao lưu riêng lên Drive.
-      </p>
-
       {accountLabel && (
         <div className="profile-sync-account">
           <span className="profile-sync-row-icon"><UserRound size={16} /></span>
           <div>
-            <span>Tài khoản Google</span>
+            <span>{`Lần cuối · ${formatSyncTime(lastSyncedAt)}`}</span>
             <strong>{accountLabel}</strong>
           </div>
           <button type="button" onClick={handleSwitchGoogleAccount} disabled={busy} aria-label="Đổi tài khoản Google">
@@ -224,21 +220,10 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
         </div>
       )}
 
-      <div className="profile-sync-summary">
-        <div>
-          <span>Trạng thái</span>
-          <strong aria-live="polite">{statusLabel}</strong>
-        </div>
-        <div>
-          <span>Lần cuối</span>
-          <strong>{formatSyncTime(lastSyncedAt)}</strong>
-        </div>
-      </div>
-
       <div className="profile-sync-auto">
         <div>
-          <span>Tự động đồng bộ</span>
-          <small>Sao lưu thay đổi mới khi có mạng.</small>
+          <span>Tự động sao lưu</span>
+          <small>Lưu thay đổi mới lên Drive khi có mạng.</small>
         </div>
         <button
           type="button"
@@ -279,15 +264,10 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
         <span className="profile-sync-row-icon"><Database size={16} /></span>
         <span>
           <strong>Quản lý dữ liệu</strong>
-          <small>Xem dữ liệu trên máy và Google Drive</small>
+          <small>Local & Google Drive</small>
         </span>
         <ChevronRight size={17} />
       </button>
-
-      <div className="profile-sync-footnote">
-        <ShieldCheck size={14} />
-        <span>Kinly không ghi đè dữ liệu Drive nếu phát hiện xung đột.</span>
-      </div>
     </section>
   );
 };

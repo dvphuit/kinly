@@ -403,7 +403,7 @@
   border-color: var(--color-sage);
 }
 
-@media (max-width: 380px) {
+@media (max-width: 440px) {
   .tracker-sheet-two-column {
     grid-template-columns: 1fr;
   }

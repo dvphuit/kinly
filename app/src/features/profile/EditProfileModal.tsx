@@ -55,14 +55,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [childName, setChildName] = useState(family.childName);
   const [childFullName, setChildFullName] = useState(family.childFullName);
   const [birthDate, setBirthDate] = useState(family.birthDate);
-  const [birthTime, setBirthTime] = useState(family.birthTime || '08:30');
+  const [birthTime, setBirthTime] = useState(family.birthTime ?? '');
   const [gender, setGender] = useState<'boy' | 'girl'>(family.gender);
   const [bloodType, setBloodType] = useState(family.bloodType);
   const [childAvatar, setChildAvatar] = useState(family.childAvatar);
-  const [birthWeight, setBirthWeight] = useState(family.birthWeight || '3.3 kg');
-  const [birthHeight, setBirthHeight] = useState(family.birthHeight || '50.0 cm');
-  const [hospital, setHospital] = useState(family.hospital || 'BV Phụ sản Quốc tế Hạnh Phúc');
-  const [insuranceCode, setInsuranceCode] = useState(family.insuranceCode || 'DN4012984920');
+  const [birthWeight, setBirthWeight] = useState(family.birthWeight ?? '');
+  const [birthHeight, setBirthHeight] = useState(family.birthHeight ?? '');
+  const [hospital, setHospital] = useState(family.hospital ?? '');
+  const [insuranceCode, setInsuranceCode] = useState(family.insuranceCode ?? '');
   const [notes, setNotes] = useState(family.notes || '');
   const formId = useId();
 
@@ -71,14 +71,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setChildName(family.childName);
     setChildFullName(family.childFullName);
     setBirthDate(family.birthDate);
-    setBirthTime(family.birthTime || '08:30');
+    setBirthTime(family.birthTime ?? '');
     setGender(family.gender);
     setBloodType(family.bloodType);
     setChildAvatar(family.childAvatar);
-    setBirthWeight(family.birthWeight || '3.3 kg');
-    setBirthHeight(family.birthHeight || '50.0 cm');
-    setHospital(family.hospital || 'BV Phụ sản Quốc tế Hạnh Phúc');
-    setInsuranceCode(family.insuranceCode || 'DN4012984920');
+    setBirthWeight(family.birthWeight ?? '');
+    setBirthHeight(family.birthHeight ?? '');
+    setHospital(family.hospital ?? '');
+    setInsuranceCode(family.insuranceCode ?? '');
     setNotes(family.notes || '');
   }, [isOpen, family]);
 
