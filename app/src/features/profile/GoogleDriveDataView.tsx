@@ -133,8 +133,6 @@ function DataOverviewCard({
       className={`drive-overview-card is-${tone} ${safeProgress === 100 ? 'is-complete' : 'needs-attention'}`}
       aria-labelledby={`${tone}-overview-title`}
     >
-      <span className="drive-overview-orb drive-overview-orb-one" aria-hidden="true" />
-      <span className="drive-overview-orb drive-overview-orb-two" aria-hidden="true" />
       <div className="drive-overview-header">
         <span className="drive-overview-icon" aria-hidden="true">{icon}</span>
         <div className="drive-overview-heading">
@@ -161,7 +159,7 @@ function DataOverviewCard({
       >
         <i style={{ width: `${safeProgress}%` }} />
       </div>
-      <p className="drive-overview-detail"><ShieldCheck size={13} /> {detail}</p>
+      <p className="drive-overview-detail"><ShieldCheck size={14} /> {detail}</p>
 
       <div className="drive-overview-metrics">
         {metrics.map((metric) => (
@@ -594,7 +592,9 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
         )}
       />
 
-      <div className="drive-data-controls">
+      <main className="drive-data-main">
+        <p className="drive-data-lede">Xem ảnh & video trên máy và trên Drive riêng tư. Dọn bản đã sao lưu để giải phóng dung lượng.</p>
+        <div className="drive-data-controls">
         <div className="drive-data-segments" role="tablist" aria-label="Nguồn dữ liệu">
           <button
             id="device-data-tab"
@@ -759,6 +759,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
       )}
 
       {error && <p className="drive-data-error" role="alert">{error}</p>}
+      </main>
 
       <BottomSheet
         isOpen={debugSheetOpen}
