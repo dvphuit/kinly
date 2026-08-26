@@ -80,7 +80,8 @@ function getTextSize(value: string): number {
 }
 
 function isMediaBackedUp(mediaItems?: TimelineMediaItem[]): boolean {
-  return Boolean(mediaItems?.length) && mediaItems!.every((media) => Boolean(media.driveFileId));
+  if (!mediaItems || mediaItems.length === 0) return false;
+  return mediaItems.every((media) => Boolean(media.driveFileId));
 }
 
 function formatDate(value?: string): string {
@@ -128,7 +129,12 @@ function DataOverviewCard({
   const safeProgress = Math.max(0, Math.min(100, Math.round(progress)));
 
   return (
-    <section className={`drive-overview-card is-${tone}`} aria-labelledby={`${tone}-overview-title`}>
+    <section
+      className={`drive-overview-card is-${tone} ${safeProgress === 100 ? 'is-complete' : 'needs-attention'}`}
+      aria-labelledby={`${tone}-overview-title`}
+    >
+      <span className="drive-overview-orb drive-overview-orb-one" aria-hidden="true" />
+      <span className="drive-overview-orb drive-overview-orb-two" aria-hidden="true" />
       <div className="drive-overview-header">
         <span className="drive-overview-icon" aria-hidden="true">{icon}</span>
         <div className="drive-overview-heading">
@@ -138,9 +144,12 @@ function DataOverviewCard({
         <span className="drive-overview-status">{status}</span>
       </div>
 
-      <div className="drive-overview-progress-copy">
-        <span>{progressLabel}</span>
-        <strong>{safeProgress}%</strong>
+      <div className="drive-overview-primary">
+        <div>
+          <span>TRẠNG THÁI SAO LƯU</span>
+          <strong>{progressLabel}</strong>
+        </div>
+        <strong className="drive-overview-percent">{safeProgress}<span>%</span></strong>
       </div>
       <div
         className="drive-overview-track"
@@ -152,7 +161,7 @@ function DataOverviewCard({
       >
         <i style={{ width: `${safeProgress}%` }} />
       </div>
-      <p className="drive-overview-detail">{detail}</p>
+      <p className="drive-overview-detail"><ShieldCheck size={13} /> {detail}</p>
 
       <div className="drive-overview-metrics">
         {metrics.map((metric) => (
@@ -598,8 +607,11 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
             className={`drive-data-segment ${activeSegment === 'device' ? 'is-active' : ''}`}
             onClick={() => setActiveSegment('device')}
           >
-            <Smartphone size={15} />
-            <strong>Local</strong>
+            <span className="drive-data-segment-icon" aria-hidden="true"><Smartphone size={17} /></span>
+            <span className="drive-data-segment-copy">
+              <strong>Thiết bị</strong>
+              <small>{localLoading ? 'Đang đọc dữ liệu' : `${localFiles.length} media`}</small>
+            </span>
           </button>
           <button
             id="drive-data-tab"
@@ -611,8 +623,11 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
             className={`drive-data-segment ${activeSegment === 'drive' ? 'is-active' : ''}`}
             onClick={() => setActiveSegment('drive')}
           >
-            <Cloud size={15} />
-            <strong>Cloud</strong>
+            <span className="drive-data-segment-icon" aria-hidden="true"><Cloud size={17} /></span>
+            <span className="drive-data-segment-copy">
+              <strong>Google Drive</strong>
+              <small>{driveStatus}</small>
+            </span>
             <span className={`drive-data-segment-dot ${sessionActive ? 'is-ready' : linked ? 'is-linked' : ''}`} aria-hidden="true" />
           </button>
         </div>
