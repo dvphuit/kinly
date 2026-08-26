@@ -39,10 +39,12 @@ let pressMoved = false;
 function setupPressHandling(): () => void {
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
-    const target = (event.target as Element).closest(
+    const rawTarget = event.target as HTMLElement | null;
+    if (!rawTarget || !(rawTarget instanceof Element)) return;
+    if (rawTarget === document.documentElement || rawTarget === document.body) return;
+    let target: HTMLElement | null = (rawTarget.closest(
       'button, a[href], [role="button"], [data-pressable]',
-    ) as HTMLElement | null;
-    if (!target) return;
+    ) as HTMLElement | null) ?? rawTarget;
     if (target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]')) return;
     if ((target as HTMLButtonElement).disabled || target.hasAttribute('disabled') || target.getAttribute('aria-disabled') === 'true') return;
     pressTarget = target;
