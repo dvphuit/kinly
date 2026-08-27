@@ -61,7 +61,11 @@ describe('GoogleDriveDataView', () => {
         'Content-Type': 'video/mp4',
       },
     })));
-    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:drive-preview'), revokeObjectURL: vi.fn() });
+    class TestURL extends URL {
+      static createObjectURL = vi.fn(() => 'blob:drive-preview');
+      static revokeObjectURL = vi.fn();
+    }
+    vi.stubGlobal('URL', TestURL);
     Object.defineProperty(navigator, 'storage', {
       configurable: true,
       value: { estimate: vi.fn().mockResolvedValue({ usage: 8192, quota: 1024 * 1024 }) },
@@ -259,9 +263,8 @@ describe('GoogleDriveDataView', () => {
       id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
       thumbnailLink: 'https://lh3.googleusercontent.com/video-thumbnail',
     }]);
-    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(
-      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
-    );
+    const streamUrl = `${window.location.origin}/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab`;
+    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(streamUrl);
 
     render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
@@ -272,16 +275,13 @@ describe('GoogleDriveDataView', () => {
 
     const video = await waitFor(() => {
       const element = document.querySelector('video[controls]');
-      expect(element).toHaveAttribute(
-        'src',
-        'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
-      );
+      expect(element).toHaveAttribute('src', streamUrl);
       return element;
     });
     expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toBeInTheDocument();
     expect(drive.downloadTimelineMediaFromDrive).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledWith(
-      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+      streamUrl,
       expect.objectContaining({
         cache: 'no-store',
         headers: { Range: 'bytes=0-0' },
@@ -292,9 +292,7 @@ describe('GoogleDriveDataView', () => {
     fireEvent.loadedMetadata(video!);
     await waitFor(() => expect(document.querySelector('.moment-media-preview-loading')).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Đóng preview' }));
-    await waitFor(() => expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(
-      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
-    ));
+    await waitFor(() => expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(streamUrl));
   });
 
   it('falls back to an authenticated download when the stream URL returns the app shell', async () => {
@@ -302,7 +300,7 @@ describe('GoogleDriveDataView', () => {
       id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
       thumbnailLink: 'https://lh3.googleusercontent.com/video-thumbnail',
     }]);
-    const streamUrl = 'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab';
+    const streamUrl = `${window.location.origin}/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab`;
     drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(streamUrl);
     vi.mocked(fetch).mockResolvedValueOnce(new Response('<!doctype html><title>Kinly</title>', {
       status: 200,
@@ -367,9 +365,8 @@ describe('GoogleDriveDataView', () => {
       id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
       thumbnailLink: 'https://lh3.googleusercontent.com/video-thumbnail',
     }]);
-    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(
-      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
-    );
+    const streamUrl = `${window.location.origin}/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab`;
+    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(streamUrl);
 
     render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
@@ -384,9 +381,7 @@ describe('GoogleDriveDataView', () => {
 
     expect(screen.getByRole('dialog', { name: 'Xem media first-steps.mp4' })).toBeInTheDocument();
     expect(screen.getByText('Không thể phát video từ Google Drive. Hãy thử lại.')).toBeInTheDocument();
-    expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(
-      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
-    );
+    expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(streamUrl);
   });
 
   it('uses a play affordance for video cards without a media-type label', async () => {
