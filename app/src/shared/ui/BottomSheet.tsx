@@ -12,7 +12,6 @@ interface BottomSheetProps {
   className?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  touchOptimized?: boolean;
 }
 
 interface DragState {
@@ -32,28 +31,9 @@ const FOCUSABLE_SELECTOR = [
   'textarea:not([disabled])',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
-const TOUCH_TARGETS = 'button, input:not([type="hidden"]):not([type="range"]):not([type="file"]), select, textarea, [role="radio"], [role="checkbox"], [role="combobox"]';
 
 const DRAG_DISMISS_DISTANCE = 80;
 const DRAG_DISMISS_VELOCITY = 450;
-const MIN_TOUCH_TARGET = 44;
-const KEYBOARD_THRESHOLD = 80;
-
-function ensureTouchTarget(element: HTMLElement) {
-  const computed = window.getComputedStyle(element);
-  const minHeight = Number.parseFloat(computed.minHeight);
-  const height = Number.parseFloat(computed.height);
-  const hasEnoughHeight = (Number.isFinite(minHeight) && minHeight >= MIN_TOUCH_TARGET)
-    || (Number.isFinite(height) && height >= MIN_TOUCH_TARGET);
-  if (!hasEnoughHeight) element.style.minHeight = `${MIN_TOUCH_TARGET}px`;
-}
-
-function optimizeNumericKeypads(root: HTMLElement) {
-  root.querySelectorAll<HTMLInputElement>('input[type="number"]:not([inputmode])').forEach((input) => {
-    const step = input.getAttribute('step') ?? '';
-    input.inputMode = step === 'any' || step.includes('.') ? 'decimal' : 'numeric';
-  });
-}
 
 export const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen,
@@ -63,7 +43,6 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   className = '',
   children,
   footer,
-  touchOptimized = false,
 }) => {
   const sheetRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -97,77 +76,11 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const frameId = requestAnimationFrame(() => {
-      const preferred = touchOptimized
-        ? contentRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-        : null;
-      const fallback = sheetRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-      (preferred ?? fallback ?? sheetRef.current)?.focus();
+      const focusable = sheetRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (focusable ?? sheetRef.current)?.focus();
     });
     return () => cancelAnimationFrame(frameId);
-  }, [isOpen, touchOptimized]);
-
-  useEffect(() => {
-    if (!isOpen || !touchOptimized || !sheetRef.current) return;
-    const sheet = sheetRef.current;
-    optimizeNumericKeypads(sheet);
-    sheet.querySelectorAll<HTMLElement>(TOUCH_TARGETS).forEach(ensureTouchTarget);
-    const closeButton = sheet.querySelector<HTMLElement>('.sheet-close-btn');
-    if (closeButton) {
-      closeButton.style.minWidth = `${MIN_TOUCH_TARGET}px`;
-      closeButton.style.minHeight = `${MIN_TOUCH_TARGET}px`;
-    }
-  }, [isOpen, touchOptimized]);
-
-  useEffect(() => {
-    if (!isOpen || !touchOptimized) return;
-    const viewport = window.visualViewport;
-    const backdrop = backdropRef.current;
-    const sheet = sheetRef.current;
-    if (!viewport || !backdrop || !sheet) return;
-
-    let scrollFrame: number | null = null;
-    const clearViewportFit = () => {
-      backdrop.style.removeProperty('top');
-      backdrop.style.removeProperty('bottom');
-      backdrop.style.removeProperty('left');
-      backdrop.style.removeProperty('right');
-      backdrop.style.removeProperty('width');
-      backdrop.style.removeProperty('height');
-      sheet.style.removeProperty('max-height');
-    };
-    const syncViewport = () => {
-      const keyboardInset = Math.max(0, window.innerHeight - viewport.height);
-      if (keyboardInset < KEYBOARD_THRESHOLD) {
-        clearViewportFit();
-        return;
-      }
-      backdrop.style.top = `${viewport.offsetTop}px`;
-      backdrop.style.bottom = 'auto';
-      backdrop.style.left = `${viewport.offsetLeft}px`;
-      backdrop.style.right = 'auto';
-      backdrop.style.width = `${viewport.width}px`;
-      backdrop.style.height = `${viewport.height}px`;
-      sheet.style.maxHeight = `${Math.max(280, viewport.height - 8)}px`;
-
-      if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
-      scrollFrame = requestAnimationFrame(() => {
-        const active = document.activeElement;
-        if (active instanceof HTMLElement && sheet.contains(active)) {
-          active.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-        }
-      });
-    };
-
-    syncViewport();
-    viewport.addEventListener('resize', syncViewport);
-    viewport.addEventListener('scroll', syncViewport);
-    return () => {
-      if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
-      viewport.removeEventListener('resize', syncViewport);
-      viewport.removeEventListener('scroll', syncViewport);
-      clearViewportFit();
-    };
-  }, [isOpen, touchOptimized]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -218,12 +131,11 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   const settleDrag = () => {
     const current = dragRef.current?.offsetY ?? 0;
     dragRef.current = null;
-    const easing = touchOptimized ? 'cubic-bezier(0.16, 1, 0.3, 1)' : 'cubic-bezier(0.2, 0.75, 0.3, 1)';
     void Promise.all([
       animateElement(
         sheetRef.current,
         [{ transform: `translate3d(0, ${current}px, 0)` }, { transform: 'translate3d(0, 0, 0)' }],
-        { duration: 220, easing, fill: 'both' },
+        { duration: 220, easing: 'cubic-bezier(0.2, 0.75, 0.3, 1)', fill: 'both' },
       ),
       animateElement(
         backdropRef.current,
@@ -302,12 +214,6 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   const phaseClass = presence.phase === 'open' ? 'native-open' : 'native-closing';
   const dragDismissedClass = dragDismissedRef.current && !isOpen ? 'native-drag-dismissed' : '';
   const sheetPhaseClass = `${phaseClass} ${dragDismissedClass}`.trim();
-  const touchAnimationStyle = touchOptimized
-    ? {
-        animationDuration: presence.phase === 'open' ? '220ms' : '180ms',
-        animationTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
-      }
-    : undefined;
 
   return createPortal(
     <div
@@ -327,7 +233,6 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
         tabIndex={-1}
         className={`bottom-sheet ${sheetPhaseClass} ${className}`.trim()}
         onClick={(event) => event.stopPropagation()}
-        style={touchAnimationStyle}
       >
         <div
           className="sheet-drag-handle-area"
@@ -368,13 +273,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           )}
         </div>
 
-        <div
-          ref={contentRef}
-          className="sheet-content-body"
-          style={touchOptimized ? { scrollPaddingBottom: 96 } : undefined}
-        >
-          {children}
-        </div>
+        <div ref={contentRef} className="sheet-content-body">{children}</div>
         {footer && <div className="sheet-footer">{footer}</div>}
       </div>
     </div>,
