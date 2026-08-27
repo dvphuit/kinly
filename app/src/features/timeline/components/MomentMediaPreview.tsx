@@ -62,6 +62,11 @@ interface PointerGesture {
 const MEDIA_WINDOW_RADIUS = 1;
 const TRACK_SETTLE_MS = 240;
 const DISMISS_MS = 220;
+const MEDIA_CONTROL_SELECTOR = 'button, input, video, [data-media-controls]';
+
+function closestMediaControl(target: EventTarget | null) {
+  return target instanceof Element ? target.closest(MEDIA_CONTROL_SELECTOR) : null;
+}
 
 function MomentMediaSlideAsset({
   media,
@@ -324,10 +329,11 @@ function MomentMediaPreviewContent({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const interactiveControl = target?.closest('button, input, video, [data-media-controls]');
-      if (event.key === 'Escape') requestClose();
-      if (interactiveControl) return;
+      if (event.key === 'Escape') {
+        requestClose();
+        return;
+      }
+      if (closestMediaControl(event.target)) return;
       if (event.key === 'ArrowRight' && activeIndexRef.current < items.length - 1) goTo(activeIndexRef.current + 1);
       if (event.key === 'ArrowLeft' && activeIndexRef.current > 0) goTo(activeIndexRef.current - 1);
     };
@@ -339,9 +345,7 @@ function MomentMediaPreviewContent({
   }, [goTo, items.length, requestClose]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (closingRef.current) return;
-    const target = event.target as HTMLElement;
-    if (target.closest('button, input, video, [data-media-controls]')) return;
+    if (closingRef.current || closestMediaControl(event.target)) return;
     cancelElementAnimations(activeContentRef.current);
     cancelElementAnimations(backdropRef.current);
     if (trackRef.current) trackRef.current.style.transition = 'none';
