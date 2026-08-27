@@ -151,6 +151,59 @@ describe('Drive media stream client', () => {
     }), expect.any(Array));
   });
 
+  it('updates and retries when the current controller does not support Drive streaming', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('MessageChannel', FakeMessageChannel);
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
+    const staleController = { postMessage: vi.fn() };
+    const freshController = streamController();
+    const controllerChangeListeners = new Set<EventListener>();
+    const registration = { update: vi.fn(async () => undefined) };
+    const serviceWorker = {
+      controller: staleController as typeof staleController | ReturnType<typeof streamController> | null,
+      register: vi.fn(async () => registration),
+      ready: Promise.resolve(registration),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'controllerchange') controllerChangeListeners.add(listener);
+      }),
+      removeEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'controllerchange') controllerChangeListeners.delete(listener);
+      }),
+    };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: serviceWorker,
+    });
+
+    const streamPromise = registerDriveMediaStream({
+      fileId: 'drive-video',
+      accessToken: 'google-access-token',
+      expiresAt: Date.now() + 60_000,
+    });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(staleController.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'drive-media-stream/register',
+      fileId: 'drive-video',
+    }), expect.any(Array));
+    expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
+    expect(registration.update).toHaveBeenCalledOnce();
+    expect(controllerChangeListeners.size).toBe(1);
+
+    serviceWorker.controller = freshController;
+    controllerChangeListeners.forEach((listener) => listener(new Event('controllerchange')));
+
+    await expect(streamPromise).resolves.toBe(
+      'http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+    );
+    expect(freshController.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'drive-media-stream/register',
+      fileId: 'drive-video',
+    }), expect.any(Array));
+  });
+
   it('fails closed when service-worker streaming is unavailable', async () => {
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
