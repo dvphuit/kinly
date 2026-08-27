@@ -14,6 +14,11 @@ interface BrokerStartResponse {
   attemptToken: string;
 }
 
+interface BrokerDriveStreamResponse {
+  streamUrl: string;
+  expiresAt: number;
+}
+
 interface BrokerCompleteResponse extends GoogleOAuthBrokerToken {
   status: 'complete';
   attemptToken: string;
@@ -68,6 +73,31 @@ function parseStartPayload(value: unknown): BrokerStartResponse {
     throw new Error('OAuth broker không trả về yêu cầu xác thực hợp lệ.');
   }
   return { authorizationUrl: value.authorizationUrl, attemptToken: value.attemptToken };
+}
+
+function parseDriveStreamPayload(value: unknown, brokerBase: URL): BrokerDriveStreamResponse {
+  if (
+    typeof value !== 'object' || value === null
+    || !('streamUrl' in value) || typeof value.streamUrl !== 'string'
+    || !('expiresAt' in value) || typeof value.expiresAt !== 'number' || !Number.isFinite(value.expiresAt)
+  ) {
+    throw new Error('OAuth broker không trả về URL stream hợp lệ.');
+  }
+
+  let streamUrl: URL;
+  try {
+    streamUrl = new URL(value.streamUrl);
+  } catch {
+    throw new Error('OAuth broker không trả về URL stream hợp lệ.');
+  }
+  if (
+    streamUrl.origin !== brokerBase.origin
+    || !streamUrl.pathname.startsWith('/drive/streams/')
+    || value.expiresAt <= Date.now()
+  ) {
+    throw new Error('OAuth broker không trả về URL stream hợp lệ.');
+  }
+  return { streamUrl: streamUrl.toString(), expiresAt: value.expiresAt };
 }
 
 function parseResultPayload(value: unknown): BrokerResultResponse {
@@ -159,6 +189,28 @@ function waitForAuthorizationResult(attemptToken: string): Promise<BrokerComplet
 
 export function isGoogleOAuthBrokerConfigured(): boolean {
   return getBrokerBaseUrl() !== null;
+}
+
+export async function createGoogleDriveStreamUrlFromBroker(fileId: string): Promise<string | null> {
+  const base = getBrokerBaseUrl();
+  if (!base) return null;
+  const sessionToken = await getLocalRecord(BROKER_SESSION_KEY);
+  if (!sessionToken) return null;
+
+  const response = await fetch(new URL('/drive/streams', base), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  });
+  if (response.status === 401) {
+    await removeLocalRecord(BROKER_SESSION_KEY);
+    return null;
+  }
+  if (!response.ok) throw new Error(await readResponseError(response));
+  return parseDriveStreamPayload(await response.json(), base).streamUrl;
 }
 
 export async function restoreGoogleAccessTokenFromBroker(): Promise<GoogleOAuthBrokerToken | null> {

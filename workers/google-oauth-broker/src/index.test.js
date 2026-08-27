@@ -223,3 +223,122 @@ test('invalid Google refresh grants revoke the KV broker session', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('issues an encrypted short-lived Drive stream URL and forwards byte ranges without buffering', async () => {
+  const namespace = createKv();
+  const env = createEnv(namespace);
+  const startPayload = await startAuthorization(env);
+  const state = new URL(startPayload.authorizationUrl).searchParams.get('state');
+  assert.ok(state);
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () => Response.json({
+      access_token: 'initial-access-token',
+      refresh_token: 'server-refresh-token',
+      expires_in: 3600,
+    });
+    const callbackResponse = await worker.fetch(new Request(
+      `${BROKER_ORIGIN}/oauth/callback?state=${encodeURIComponent(state)}&code=authorization-code`,
+    ), env);
+    const session = decodeCompletionPayload(callbackResponse);
+
+    globalThis.fetch = async (input, init) => {
+      assert.equal(String(input), 'https://oauth2.googleapis.com/token');
+      assert.match(String(init?.body || ''), /grant_type=refresh_token/);
+      return Response.json({ access_token: 'drive-stream-access-token', expires_in: 3600 });
+    };
+    const createResponse = await worker.fetch(new Request(`${BROKER_ORIGIN}/drive/streams`, {
+      method: 'POST',
+      headers: {
+        Origin: TRUSTED_ORIGIN,
+        Authorization: `Bearer ${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fileId: 'private-drive-video' }),
+    }), env);
+
+    assert.equal(createResponse.status, 201);
+    const created = await createResponse.json();
+    assert.equal(typeof created.streamUrl, 'string');
+    assert.ok(created.expiresAt > Date.now());
+    assert.equal(created.streamUrl.includes('drive-stream-access-token'), false);
+    assert.equal(created.streamUrl.includes(session.sessionToken), false);
+    assert.equal(created.streamUrl.includes('private-drive-video'), false);
+
+    globalThis.fetch = async (input, init) => {
+      assert.equal(
+        String(input),
+        'https://www.googleapis.com/drive/v3/files/private-drive-video?alt=media',
+      );
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('Authorization'), 'Bearer drive-stream-access-token');
+      assert.equal(headers.get('Range'), 'bytes=0-2');
+      assert.ok(init?.signal instanceof AbortSignal);
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 206,
+        headers: {
+          'Accept-Ranges': 'bytes',
+          'Content-Length': '3',
+          'Content-Range': 'bytes 0-2/4096',
+          'Content-Type': 'video/mp4',
+        },
+      });
+    };
+    const streamResponse = await worker.fetch(new Request(created.streamUrl, {
+      headers: { Origin: TRUSTED_ORIGIN, Range: 'bytes=0-2' },
+    }), env);
+
+    assert.equal(streamResponse.status, 206);
+    assert.equal(streamResponse.headers.get('Content-Range'), 'bytes 0-2/4096');
+    assert.equal(streamResponse.headers.get('Content-Type'), 'video/mp4');
+    assert.equal(streamResponse.headers.get('Access-Control-Allow-Origin'), TRUSTED_ORIGIN);
+    assert.deepEqual(new Uint8Array(await streamResponse.arrayBuffer()), new Uint8Array([1, 2, 3]));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('rejects tampered Drive stream tickets before contacting Google Drive', async () => {
+  const namespace = createKv();
+  const env = createEnv(namespace);
+  const startPayload = await startAuthorization(env);
+  const state = new URL(startPayload.authorizationUrl).searchParams.get('state');
+  assert.ok(state);
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async () => Response.json({
+      access_token: 'initial-access-token',
+      refresh_token: 'server-refresh-token',
+      expires_in: 3600,
+    });
+    const callbackResponse = await worker.fetch(new Request(
+      `${BROKER_ORIGIN}/oauth/callback?state=${encodeURIComponent(state)}&code=authorization-code`,
+    ), env);
+    const session = decodeCompletionPayload(callbackResponse);
+    globalThis.fetch = async () => Response.json({ access_token: 'drive-stream-access-token', expires_in: 3600 });
+    const createResponse = await worker.fetch(new Request(`${BROKER_ORIGIN}/drive/streams`, {
+      method: 'POST',
+      headers: {
+        Origin: TRUSTED_ORIGIN,
+        Authorization: `Bearer ${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fileId: 'private-drive-video' }),
+    }), env);
+    const created = await createResponse.json();
+    const tamperedUrl = `${created.streamUrl.slice(0, -1)}${created.streamUrl.endsWith('a') ? 'b' : 'a'}`;
+    globalThis.fetch = async () => {
+      throw new Error('Google Drive must not be called for a tampered ticket.');
+    };
+
+    const response = await worker.fetch(new Request(tamperedUrl, {
+      headers: { Origin: TRUSTED_ORIGIN, Range: 'bytes=0-0' },
+    }), env);
+
+    assert.equal(response.status, 404);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

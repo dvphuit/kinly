@@ -32,6 +32,9 @@ describe('Google Drive authentication architecture', () => {
     expect(worker).toContain('TOKEN_ENCRYPTION_KEY');
     expect(worker).toContain('refresh_token');
     expect(worker).toContain('OAUTH_SESSIONS');
+    expect(worker).toContain("DRIVE_STREAM_AAD = 'kinly-google-drive-stream-v1'");
+    expect(worker).toContain("headers.set('Range', range)");
+    expect(worker).toContain('new Response(upstream.body');
     expect(worker).not.toContain('OAUTH_DB');
     expect(worker).not.toContain('oauth_transients');
     expect(workerConfig).toContain('"kv_namespaces"');

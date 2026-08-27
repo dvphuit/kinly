@@ -211,6 +211,35 @@ describe('generation-2 Google Drive sync', () => {
     );
   });
 
+  it('prefers the authenticated Cloudflare Worker stream URL for private Drive video', async () => {
+    vi.stubEnv('VITE_GOOGLE_AUTH_WORKER_URL', 'https://oauth.example.workers.dev');
+    localDb.getLocalRecord.mockImplementation(async (key: string) => (
+      key === 'babygrowth_v4_google_oauth_broker_session' ? 'opaque-session' : null
+    ));
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({
+      streamUrl: 'https://oauth.example.workers.dev/drive/streams/v1.iv.ciphertext',
+      expiresAt,
+    }, { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const sync = await import('@/features/sync/googleDriveSync');
+
+    await expect(sync.createTimelineVideoStreamUrlFromDrive('drive-video-1')).resolves.toBe(
+      'https://oauth.example.workers.dev/drive/streams/v1.iv.ciphertext',
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL('https://oauth.example.workers.dev/drive/streams'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer opaque-session',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileId: 'drive-video-1' }),
+      }),
+    );
+  });
+
   it('reports authenticated Drive download progress before returning the media blob', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(accountResponse());
     vi.stubGlobal('fetch', fetchMock);

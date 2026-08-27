@@ -2,6 +2,8 @@
 
 This Cloudflare Worker keeps the Google refresh token outside the browser so Kinly can request a new short-lived Drive access token when the app opens again.
 
+It also issues encrypted, file-scoped stream URLs for private Drive video. The browser authenticates once with its opaque broker session, then the Worker forwards video byte ranges to Google without exposing the Google access token or buffering the video body.
+
 ## Storage model
 
 Workers KV stores only durable broker sessions. OAuth state is encrypted into the Google `state` parameter, and the first authorization result returns through Kinly's same-origin completion page. KV is therefore not used for read-after-write OAuth handoff state.
@@ -26,6 +28,8 @@ Kinly stores only the opaque broker session token in IndexedDB. Google access to
 - The callback redirects only to an origin listed in `ALLOWED_ORIGINS`.
 - The completion page uses a same-origin `BroadcastChannel`, so the Worker does not depend on `window.opener` surviving Google's popup flow.
 - If Google returns `invalid_grant`, the Worker deletes the broker session and Kinly requires explicit Google authorization again.
+- Drive stream URLs contain an AES-GCM encrypted ticket, expire after at most 10 minutes, and never contain a plaintext Google or broker token.
+- Drive media responses preserve `Range` semantics and stream the Google response body directly.
 
 The opaque broker session is a sensitive capability. JavaScript running on the Kinly origin can use it while it exists, so keep the app's XSS protections strong and delete the session when disconnecting the account.
 
@@ -88,6 +92,8 @@ POST /oauth/start
 GET /oauth/callback
 POST /oauth/token
 DELETE /oauth/session
+POST /drive/streams
+GET /drive/streams/:encrypted-ticket
 ```
 
 ## Google Cloud Console

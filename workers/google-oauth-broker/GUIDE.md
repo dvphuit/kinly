@@ -33,6 +33,10 @@ POST /oauth/start (Kinly → Worker, Origin-checked) → authorizationUrl + atte
   → completion page strips fragment, BroadcastChannel(attemptToken) → Kinly tab stores sessionToken, uses accessToken
 
 Reopen:  POST /oauth/token  Authorization: Bearer <opaque session>  → Worker decrypts KV, refreshes at Google, returns {accessToken,expiresIn}
+Stream:  POST /drive/streams  Authorization: Bearer <opaque session> + {fileId}
+  → Worker refreshes once, returns a 10-minute AES-GCM stream ticket
+  → GET /drive/streams/<ticket> with Range
+  → Worker decrypts the ticket and streams the Google Drive response body without buffering
 Disconnect: DELETE /oauth/session + local IndexedDB delete
 Revoked refresh:  POST /oauth/token → 401 reauth_required, Worker deletes KV entry
 ```
@@ -50,7 +54,7 @@ Revoked refresh:  POST /oauth/token → 401 reauth_required, Worker deletes KV e
 ```bash
 cd workers/google-oauth-broker
 npm install
-npm test        # 6 tests: origin, body limit, state tamper, KV encryption, invalid_grant revocation
+npm test        # OAuth, encrypted stream-ticket, tamper, and byte-range proxy tests
 npm run check   # wrangler deploy --dry-run bundle validation
 ```
 
@@ -158,6 +162,19 @@ curl -s -i -X DELETE https://<worker-host>/oauth/session \
   -H "Origin: https://baby-growth-dvphu.web.app" \
   -H "Authorization: Bearer invalidtokeninvalidtokeninvalidtokeninvalidtoken12345678"
 ```
+
+Creating a real stream URL requires a valid opaque broker session:
+
+```text
+POST /drive/streams
+Origin: https://baby-growth-dvphu.web.app
+Authorization: Bearer <opaque-broker-session>
+Content-Type: application/json
+
+{"fileId":"<private-appDataFolder-file-id>"}
+```
+
+The returned URL contains only an encrypted, file-scoped ticket. A video request may send no `Range` header or one valid single byte range. The Worker forwards the Google response stream and preserves `Content-Type`, `Content-Length`, `Content-Range`, and `Accept-Ranges`.
 
 The `/oauth/start` response must contain `authorizationUrl` with `redirect_uri=https://<worker-host>/oauth/callback`, `scope=https://www.googleapis.com/auth/drive.appdata`, `access_type=offline`, `state=v1.<iv>.<ciphertext>`.
 

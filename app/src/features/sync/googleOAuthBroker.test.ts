@@ -58,6 +58,43 @@ describe('Google OAuth broker client', () => {
     );
   });
 
+  it('creates a short-lived Worker stream URL without putting the broker session in the URL', async () => {
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({
+      streamUrl: 'https://oauth.example.workers.dev/drive/streams/v1.iv.ciphertext',
+      expiresAt,
+    }, { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const broker = await import('./googleOAuthBroker');
+
+    await expect(broker.createGoogleDriveStreamUrlFromBroker('private-drive-video')).resolves.toBe(
+      'https://oauth.example.workers.dev/drive/streams/v1.iv.ciphertext',
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL('https://oauth.example.workers.dev/drive/streams'),
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer opaque-session',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fileId: 'private-drive-video' }),
+      },
+    );
+  });
+
+  it('rejects a stream URL returned from a different origin', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
+      streamUrl: 'https://attacker.example/drive/streams/stolen',
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    }, { status: 201 })));
+    const broker = await import('./googleOAuthBroker');
+
+    await expect(broker.createGoogleDriveStreamUrlFromBroker('private-drive-video')).rejects.toThrow(
+      'OAuth broker không trả về URL stream hợp lệ.',
+    );
+  });
+
   it('receives the first access token through the same-origin completion channel', async () => {
     localDb.getLocalRecord.mockResolvedValue(null);
     vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel);

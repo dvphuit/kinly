@@ -1,12 +1,25 @@
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const DRIVE_MEDIA_URL = 'https://www.googleapis.com/drive/v3/files';
 const COMPLETION_PATH = '/google-oauth-complete.html';
 const STATE_TTL_MS = 10 * 60 * 1000;
+const DRIVE_STREAM_TTL_MS = 10 * 60 * 1000;
+const GOOGLE_TOKEN_EXPIRY_SKEW_MS = 60 * 1000;
 const MAX_BODY = 4096;
 const KV_CACHE_TTL_SECONDS = 30;
 const STATE_AAD = 'kinly-google-oauth-state-v1';
 const REFRESH_TOKEN_AAD = 'kinly-google-oauth-refresh-v1';
+const DRIVE_STREAM_AAD = 'kinly-google-drive-stream-v1';
+const DRIVE_STREAM_PATH = '/drive/streams/';
+const FORWARDED_MEDIA_HEADERS = [
+  'Accept-Ranges',
+  'Content-Length',
+  'Content-Range',
+  'Content-Type',
+  'ETag',
+  'Last-Modified',
+];
 
 class HttpError extends Error {
   constructor(status, code, message) {
@@ -148,6 +161,38 @@ async function decodeState(value, env) {
   }
 }
 
+async function encodeDriveStreamTicket(payload, env) {
+  const encrypted = await encryptText(JSON.stringify(payload), env, DRIVE_STREAM_AAD);
+  return `v1.${encrypted.iv}.${encrypted.ciphertext}`;
+}
+
+async function decodeDriveStreamTicket(value, env) {
+  try {
+    const [version, iv, ciphertext, extra] = String(value).split('.');
+    if (version !== 'v1' || !iv || !ciphertext || extra) throw new Error('invalid stream envelope');
+    const raw = JSON.parse(await decryptText(ciphertext, iv, env, DRIVE_STREAM_AAD));
+    if (
+      typeof raw !== 'object' || raw === null
+      || typeof raw.fileId !== 'string' || !raw.fileId || raw.fileId.length > 256
+      || typeof raw.accessToken !== 'string' || !raw.accessToken
+      || typeof raw.expiresAt !== 'number' || !Number.isFinite(raw.expiresAt)
+    ) {
+      throw new Error('invalid stream payload');
+    }
+    if (raw.expiresAt <= Date.now()) {
+      throw new HttpError(410, 'stream_expired', 'Drive stream URL has expired.');
+    }
+    return raw;
+  } catch (error) {
+    if (error instanceof HttpError && (
+      error.code === 'worker_not_configured' || error.code === 'stream_expired'
+    )) {
+      throw error;
+    }
+    throw new HttpError(404, 'invalid_stream', 'Drive stream URL is invalid.');
+  }
+}
+
 function origins(env) {
   return String(env.ALLOWED_ORIGINS || '')
     .split(',')
@@ -169,8 +214,9 @@ function requireOrigin(request, env) {
 function cors(origin) {
   return {
     'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Range',
+    'Access-Control-Expose-Headers': 'Accept-Ranges, Content-Length, Content-Range, Content-Type',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -310,6 +356,28 @@ async function refreshToken(refreshTokenValue, env) {
   };
 }
 
+async function refreshBrokerSession(request, env) {
+  const namespace = sessions(env);
+  const key = await sessionKeyForToken(bearer(request));
+  const stored = await readSession(namespace, key, env);
+  if (!stored) {
+    throw new HttpError(401, 'reauth_required', 'OAuth broker session does not exist.');
+  }
+
+  try {
+    const tokens = await refreshToken(stored, env);
+    if (tokens.refreshToken && tokens.refreshToken !== stored) {
+      await storeSession(namespace, key, tokens.refreshToken, env);
+    }
+    return tokens;
+  } catch (error) {
+    if (error instanceof HttpError && error.code === 'reauth_required') {
+      await namespace.delete(key);
+    }
+    throw error;
+  }
+}
+
 function completionRedirect(origin, payload) {
   const url = new URL(COMPLETION_PATH, origin);
   url.hash = b64url(enc.encode(JSON.stringify(payload)));
@@ -412,25 +480,77 @@ async function callback(request, env) {
 
 async function token(request, env) {
   const origin = requireOrigin(request, env);
-  const namespace = sessions(env);
-  const key = await sessionKeyForToken(bearer(request));
-  const stored = await readSession(namespace, key, env);
-  if (!stored) {
-    throw new HttpError(401, 'reauth_required', 'OAuth broker session does not exist.');
+  const tokens = await refreshBrokerSession(request, env);
+  return json({ accessToken: tokens.accessToken, expiresIn: tokens.expiresIn }, 200, origin);
+}
+
+async function createDriveStream(request, env) {
+  const origin = requireOrigin(request, env);
+  const body = await bodyJson(request);
+  if (typeof body.fileId !== 'string' || !body.fileId || body.fileId.length > 256) {
+    throw new HttpError(400, 'invalid_file_id', 'Google Drive file ID is missing or invalid.');
   }
 
-  try {
-    const tokens = await refreshToken(stored, env);
-    if (tokens.refreshToken && tokens.refreshToken !== stored) {
-      await storeSession(namespace, key, tokens.refreshToken, env);
-    }
-    return json({ accessToken: tokens.accessToken, expiresIn: tokens.expiresIn }, 200, origin);
-  } catch (error) {
-    if (error instanceof HttpError && error.code === 'reauth_required') {
-      await namespace.delete(key);
-    }
-    throw error;
+  const tokens = await refreshBrokerSession(request, env);
+  const usableTokenLifetimeMs = (tokens.expiresIn * 1000) - GOOGLE_TOKEN_EXPIRY_SKEW_MS;
+  if (usableTokenLifetimeMs <= 0) {
+    throw new HttpError(502, 'google_token_too_short', 'Google access token expires too soon.');
   }
+  const expiresAt = Date.now() + Math.min(DRIVE_STREAM_TTL_MS, usableTokenLifetimeMs);
+  const ticket = await encodeDriveStreamTicket({
+    fileId: body.fileId,
+    accessToken: tokens.accessToken,
+    expiresAt,
+  }, env);
+  const streamUrl = new URL(`${DRIVE_STREAM_PATH}${ticket}`, request.url).toString();
+  return json({ streamUrl, expiresAt }, 201, origin);
+}
+
+function validSingleRange(value) {
+  return /^bytes=(?:\d+-\d*|\d*-\d+)$/.test(value);
+}
+
+async function streamDriveMedia(request, env, ticketValue) {
+  const requestOrigin = request.headers.get('Origin');
+  const origin = requestOrigin ? requireOrigin(request, env) : null;
+  const ticket = await decodeDriveStreamTicket(ticketValue, env);
+  const range = request.headers.get('Range');
+  if (range && !validSingleRange(range)) {
+    throw new HttpError(416, 'invalid_range', 'Requested byte range is invalid.');
+  }
+
+  const headers = new Headers({ Authorization: `Bearer ${ticket.accessToken}` });
+  if (range) headers.set('Range', range);
+
+  let upstream;
+  try {
+    upstream = await fetch(`${DRIVE_MEDIA_URL}/${encodeURIComponent(ticket.fileId)}?alt=media`, {
+      headers,
+      signal: request.signal,
+    });
+  } catch {
+    throw new HttpError(502, 'drive_unavailable', 'Google Drive media is unavailable.');
+  }
+
+  const responseHeaders = new Headers({
+    'Cache-Control': 'private, no-store',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+  });
+  for (const name of FORWARDED_MEDIA_HEADERS) {
+    const value = upstream.headers.get(name);
+    if (value) responseHeaders.set(name, value);
+  }
+  if (origin) {
+    for (const [name, value] of Object.entries(cors(origin))) responseHeaders.set(name, value);
+  }
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers: responseHeaders,
+  });
 }
 
 async function removeSession(request, env) {
@@ -444,6 +564,9 @@ async function removeSession(request, env) {
 
 async function route(request, env) {
   const path = new URL(request.url).pathname;
+  const streamTicket = path.startsWith(DRIVE_STREAM_PATH)
+    ? path.slice(DRIVE_STREAM_PATH.length)
+    : null;
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors(requireOrigin(request, env)) });
   }
@@ -454,6 +577,8 @@ async function route(request, env) {
   if (request.method === 'GET' && path === '/oauth/callback') return callback(request, env);
   if (request.method === 'POST' && path === '/oauth/token') return token(request, env);
   if (request.method === 'DELETE' && path === '/oauth/session') return removeSession(request, env);
+  if (request.method === 'POST' && path === '/drive/streams') return createDriveStream(request, env);
+  if (request.method === 'GET' && streamTicket) return streamDriveMedia(request, env, streamTicket);
   throw new HttpError(404, 'not_found', 'Route not found.');
 }
 

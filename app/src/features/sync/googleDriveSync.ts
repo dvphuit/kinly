@@ -6,6 +6,7 @@ import { getLocalRecord, setLocalRecord } from '@/data/localDb';
 import { logDiagnostic } from '@/app/diagnostics/diagnosticLog';
 import { scheduleIdleTask } from '@/shared/lib/idleTask';
 import { registerDriveMediaStream, unregisterDriveMediaStream } from './driveMediaStreamClient';
+import { createGoogleDriveStreamUrlFromBroker } from './googleOAuthBroker';
 
 export { SyncSnapshotIntegrityError };
 export type { SyncSnapshot };
@@ -676,6 +677,8 @@ export async function createTimelineVideoStreamUrlFromDrive(
   fileId: string,
   options: { interactive?: boolean } = {},
 ): Promise<string | null> {
+  const brokerStreamUrl = await createGoogleDriveStreamUrlFromBroker(fileId);
+  if (brokerStreamUrl) return brokerStreamUrl;
   const token = await ensureAccessToken(options.interactive === true);
   return registerDriveMediaStream({
     fileId,
