@@ -3,7 +3,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
 } from 'react';
 import {
   FastForward,
@@ -167,8 +166,6 @@ export function MomentVideoPlayer({
 
   useEffect(() => clearHideTimer, [clearHideTimer]);
 
-  const progress = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
-  const scrubberStyle = { '--moment-video-progress': `${progress}%` } as CSSProperties;
   const playbackLabel = isPlaying ? 'Tạm dừng video' : 'Phát video';
 
   return (
@@ -238,7 +235,6 @@ export function MomentVideoPlayer({
               disabled={duration <= 0}
               aria-label="Vị trí phát video"
               aria-valuetext={`${formatMediaTime(currentTime)} trên ${formatMediaTime(duration)}`}
-              style={scrubberStyle}
               onChange={(event) => seekTo(Number(event.currentTarget.value))}
             />
 
@@ -249,11 +245,9 @@ export function MomentVideoPlayer({
                 </button>
                 <button type="button" aria-label="Lùi 10 giây" onClick={() => seekBy(-10)}>
                   <Rewind size={19} />
-                  <span className="moment-video-skip-label">10</span>
                 </button>
                 <button type="button" aria-label="Tới 10 giây" onClick={() => seekBy(10)}>
                   <FastForward size={19} />
-                  <span className="moment-video-skip-label">10</span>
                 </button>
                 <span className="moment-video-time" aria-live="off">
                   {formatMediaTime(currentTime)} <i>/</i> {formatMediaTime(duration)}
