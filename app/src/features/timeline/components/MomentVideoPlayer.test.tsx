@@ -50,9 +50,8 @@ describe('MomentVideoPlayer', () => {
     fireEvent.progress(video);
     fireEvent.timeUpdate(video);
 
-    const track = document.querySelector('.moment-video-scrubber-wrap') as HTMLElement;
-    expect(track.style.getPropertyValue('--moment-video-played')).toBe('25%');
-    expect(track.style.getPropertyValue('--moment-video-buffered')).toBe('60%');
+    expect(screen.getByRole('slider', { name: 'Vị trí phát video' })).toHaveValue('25');
+    expect(document.querySelector('.moment-video-buffered-range')).toHaveStyle({ width: '60%' });
   });
 
   it('uses touch zones for center play and double-tap 10-second seeking', () => {

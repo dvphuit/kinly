@@ -7,6 +7,7 @@ import {
 } from 'react';
 import {
   FastForward,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   Pause,
@@ -38,6 +39,24 @@ const DOUBLE_TAP_DELAY_MS = 280;
 const SEEK_FEEDBACK_DELAY_MS = 620;
 const TAP_CENTER_START = 0.34;
 const TAP_CENTER_END = 0.66;
+
+const BUFFERING_STYLE: CSSProperties = {
+  position: 'absolute', zIndex: 4, left: '50%', top: '50%', width: 44, height: 44,
+  transform: 'translate(-50%, -50%)', borderRadius: '50%', background: 'rgba(20,15,12,0.5)',
+  display: 'grid', placeItems: 'center', pointerEvents: 'none',
+};
+const GESTURE_STYLE: CSSProperties = {
+  position: 'absolute', zIndex: 4, top: '50%', minWidth: 72, height: 44, padding: '0 12px',
+  transform: 'translateY(-50%)', borderRadius: 999, background: 'rgba(20,15,12,0.58)', color: '#fff',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, pointerEvents: 'none',
+  font: '720 10px/1 var(--font-family-body)',
+};
+const BUFFER_TRACK_STYLE: CSSProperties = {
+  height: 2, overflow: 'hidden', borderRadius: 999, background: 'rgba(255,255,255,0.2)',
+};
+const CONTROL_ROW_STYLE: CSSProperties = { minHeight: 44 };
+const CONTROL_GROUP_STYLE: CSSProperties = { gap: 2 };
+const CONTROL_BUTTON_STYLE: CSSProperties = { width: 44, height: 44 };
 
 function formatMediaTime(value: number) {
   if (!Number.isFinite(value) || value < 0) return '0:00';
@@ -252,12 +271,9 @@ export function MomentVideoPlayer({
   }, [clearHideTimer, clearSeekFeedbackTimer]);
 
   const playbackLabel = isPlaying ? 'Tạm dừng video' : 'Phát video';
-  const playedPercent = duration > 0 ? Math.max(0, Math.min(100, (currentTime / duration) * 100)) : 0;
-  const bufferedPercent = duration > 0 ? Math.max(playedPercent, Math.min(100, (bufferedUntil / duration) * 100)) : 0;
-  const scrubberStyle = {
-    '--moment-video-played': `${playedPercent}%`,
-    '--moment-video-buffered': `${bufferedPercent}%`,
-  } as CSSProperties;
+  const bufferedPercent = duration > 0
+    ? Math.max(0, Math.min(100, (Math.max(currentTime, bufferedUntil) / duration) * 100))
+    : 0;
 
   return (
     <div
@@ -325,12 +341,15 @@ export function MomentVideoPlayer({
       {isActive && (
         <>
           {isBuffering && (
-            <div className="moment-video-buffering" role="status" aria-label="Đang tải video" />
+            <div style={BUFFERING_STYLE} role="status" aria-label="Đang tải video">
+              <LoaderCircle className="moment-video-buffering-icon" size={20} />
+            </div>
           )}
 
           {seekFeedback && (
             <div
               className={`moment-video-gesture-feedback ${seekFeedback}`}
+              style={{ ...GESTURE_STYLE, ...(seekFeedback === 'rewind' ? { left: '10%' } : { right: '10%' }) }}
               aria-hidden="true"
             >
               {seekFeedback === 'rewind' ? <Rewind size={20} /> : <FastForward size={20} />}
@@ -349,8 +368,12 @@ export function MomentVideoPlayer({
             </button>
           )}
 
-          <div className="moment-video-controls" data-media-controls="true">
-            <div className="moment-video-scrubber-wrap" style={scrubberStyle}>
+          <div
+            className="moment-video-controls"
+            data-media-controls="true"
+            style={isFullscreen ? { bottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' } : undefined}
+          >
+            <div className="moment-video-scrubber-wrap" style={{ display: 'grid', gap: 2 }}>
               <input
                 className="moment-video-scrubber"
                 type="range"
@@ -363,17 +386,23 @@ export function MomentVideoPlayer({
                 aria-valuetext={`${formatMediaTime(currentTime)} trên ${formatMediaTime(duration)}`}
                 onChange={(event) => seekTo(Number(event.currentTarget.value))}
               />
+              <div style={BUFFER_TRACK_STYLE} aria-hidden="true">
+                <span
+                  className="moment-video-buffered-range"
+                  style={{ display: 'block', width: `${bufferedPercent}%`, height: '100%', background: 'rgba(255,255,255,0.5)' }}
+                />
+              </div>
             </div>
 
-            <div className="moment-video-control-row">
-              <div className="moment-video-control-group">
-                <button type="button" aria-label={playbackLabel} onClick={togglePlayback}>
+            <div className="moment-video-control-row" style={CONTROL_ROW_STYLE}>
+              <div className="moment-video-control-group" style={CONTROL_GROUP_STYLE}>
+                <button type="button" style={CONTROL_BUTTON_STYLE} aria-label={playbackLabel} onClick={togglePlayback}>
                   {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
                 </button>
-                <button type="button" aria-label="Lùi 10 giây" onClick={() => seekBy(-10)}>
+                <button type="button" style={CONTROL_BUTTON_STYLE} aria-label="Lùi 10 giây" onClick={() => seekBy(-10)}>
                   <Rewind size={19} />
                 </button>
-                <button type="button" aria-label="Tới 10 giây" onClick={() => seekBy(10)}>
+                <button type="button" style={CONTROL_BUTTON_STYLE} aria-label="Tới 10 giây" onClick={() => seekBy(10)}>
                   <FastForward size={19} />
                 </button>
                 <span className="moment-video-time" aria-live="off">
@@ -381,12 +410,13 @@ export function MomentVideoPlayer({
                 </span>
               </div>
 
-              <div className="moment-video-control-group">
-                <button type="button" aria-label={isMuted ? 'Bật tiếng' : 'Tắt tiếng'} onClick={toggleMuted}>
+              <div className="moment-video-control-group" style={CONTROL_GROUP_STYLE}>
+                <button type="button" style={CONTROL_BUTTON_STYLE} aria-label={isMuted ? 'Bật tiếng' : 'Tắt tiếng'} onClick={toggleMuted}>
                   {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
                 </button>
                 <button
                   type="button"
+                  style={CONTROL_BUTTON_STYLE}
                   aria-label={isFullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình'}
                   onClick={() => void toggleFullscreen()}
                 >
