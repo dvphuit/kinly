@@ -23,22 +23,29 @@ function currentServiceWorker(): ServiceWorker | null {
 
 async function requestPwaServiceWorkerRegistration(
   container: ServiceWorkerContainer,
+  forceUpdate = false,
 ): Promise<ServiceWorkerRegistration | null> {
   try {
-    return await container.register(SERVICE_WORKER_URL, { scope: SERVICE_WORKER_SCOPE });
+    const registration = await container.register(SERVICE_WORKER_URL, { scope: SERVICE_WORKER_SCOPE });
+    if (forceUpdate) {
+      try {
+        await registration.update();
+      } catch {
+        // The existing registration can still activate a worker even if an explicit update check fails.
+      }
+    }
+    return registration;
   } catch {
     return null;
   }
 }
 
-async function waitForActiveServiceWorker(): Promise<ServiceWorker | null> {
-  const container = serviceWorkerContainer();
-  if (!container) return null;
-  if (container.controller) return container.controller;
-
-  const registration = await requestPwaServiceWorkerRegistration(container);
-  if (!registration) return null;
-  if (container.controller) return container.controller;
+function waitForController(
+  container: ServiceWorkerContainer,
+  accept: (controller: ServiceWorker) => boolean,
+): Promise<ServiceWorker | null> {
+  const current = container.controller;
+  if (current && accept(current)) return Promise.resolve(current);
 
   return new Promise<ServiceWorker | null>((resolve) => {
     let settled = false;
@@ -49,23 +56,71 @@ async function waitForActiveServiceWorker(): Promise<ServiceWorker | null> {
       container.removeEventListener('controllerchange', handleControllerChange);
       resolve(controller);
     };
-    const handleControllerChange = () => finish(container.controller);
-    const timeoutId = window.setTimeout(
-      () => finish(container.controller),
-      SERVICE_WORKER_ACTIVATION_TIMEOUT_MS,
-    );
+    const checkController = () => {
+      const controller = container.controller;
+      if (controller && accept(controller)) finish(controller);
+    };
+    const handleControllerChange = () => checkController();
+    const timeoutId = window.setTimeout(() => finish(null), SERVICE_WORKER_ACTIVATION_TIMEOUT_MS);
 
     container.addEventListener('controllerchange', handleControllerChange);
     void container.ready
-      .then(() => {
-        if (container.controller) finish(container.controller);
-      })
+      .then(() => checkController())
       .catch(() => undefined);
   });
 }
 
+async function waitForActiveServiceWorker(): Promise<ServiceWorker | null> {
+  const container = serviceWorkerContainer();
+  if (!container) return null;
+  if (container.controller) return container.controller;
+
+  const registration = await requestPwaServiceWorkerRegistration(container);
+  if (!registration) return null;
+  return waitForController(container, () => true);
+}
+
+async function refreshServiceWorkerController(
+  previousController: ServiceWorker,
+): Promise<ServiceWorker | null> {
+  const container = serviceWorkerContainer();
+  if (!container) return null;
+
+  const registration = await requestPwaServiceWorkerRegistration(container, true);
+  if (!registration) return null;
+  return waitForController(container, (controller) => controller !== previousController);
+}
+
 function streamUnavailableError(): Error {
   return new Error('Không thể khởi tạo streaming video từ Google Drive. Hãy tải lại ứng dụng rồi thử lại.');
+}
+
+async function requestStreamRegistration(
+  controller: ServiceWorker,
+  message: DriveMediaStreamMessage,
+): Promise<ReturnType<typeof parseDriveMediaStreamReply>> {
+  const channel = new MessageChannel();
+
+  return new Promise<ReturnType<typeof parseDriveMediaStreamReply>>((resolve) => {
+    const timeoutId = window.setTimeout(() => resolve(null), REGISTRATION_REPLY_TIMEOUT_MS);
+    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+      window.clearTimeout(timeoutId);
+      resolve(parseDriveMediaStreamReply(event.data));
+    };
+    try {
+      controller.postMessage(message, [channel.port2]);
+    } catch {
+      window.clearTimeout(timeoutId);
+      resolve(null);
+    }
+  }).finally(() => {
+    channel.port1.close();
+    channel.port2.close();
+  });
+}
+
+function streamUrl(streamId: string): string {
+  return new URL(driveMediaStreamPath(streamId), window.location.origin).toString();
 }
 
 export async function registerDriveMediaStream(
@@ -80,32 +135,27 @@ export async function registerDriveMediaStream(
     streamId,
     ...session,
   };
-  const channel = new MessageChannel();
 
-  const reply = await new Promise<ReturnType<typeof parseDriveMediaStreamReply>>((resolve) => {
-    const timeoutId = window.setTimeout(() => resolve(null), REGISTRATION_REPLY_TIMEOUT_MS);
-    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
-      window.clearTimeout(timeoutId);
-      resolve(parseDriveMediaStreamReply(event.data));
-    };
-    controller.postMessage(message, [channel.port2]);
-  }).finally(() => {
-    channel.port1.close();
-    channel.port2.close();
-  });
-
+  const reply = await requestStreamRegistration(controller, message);
   if (reply?.kind === 'drive-media-stream/error') throw new Error(reply.message);
-  if (reply?.kind !== 'drive-media-stream/registered') throw streamUnavailableError();
+  if (reply?.kind === 'drive-media-stream/registered') return streamUrl(streamId);
 
-  return new URL(driveMediaStreamPath(streamId), window.location.origin).toString();
+  const refreshedController = await refreshServiceWorkerController(controller);
+  if (!refreshedController) throw streamUnavailableError();
+
+  const retryReply = await requestStreamRegistration(refreshedController, message);
+  if (retryReply?.kind === 'drive-media-stream/error') throw new Error(retryReply.message);
+  if (retryReply?.kind !== 'drive-media-stream/registered') throw streamUnavailableError();
+
+  return streamUrl(streamId);
 }
 
-export function unregisterDriveMediaStream(streamUrl: string): void {
+export function unregisterDriveMediaStream(streamUrlValue: string): void {
   const controller = currentServiceWorker();
   if (!controller) return;
   let streamId: string | null = null;
   try {
-    const url = new URL(streamUrl, window.location.origin);
+    const url = new URL(streamUrlValue, window.location.origin);
     if (url.origin === window.location.origin) streamId = driveMediaStreamIdFromPath(url.pathname);
   } catch {
     return;
