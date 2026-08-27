@@ -245,6 +245,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
         >
           <div
             className="sheet-handle-bar"
+            data-native-pressable={dismissible ? '' : undefined}
             tabIndex={-1}
             title={dismissible ? 'Kéo xuống hoặc chạm để đóng' : undefined}
             onClick={() => {

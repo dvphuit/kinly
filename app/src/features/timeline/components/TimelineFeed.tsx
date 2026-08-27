@@ -139,6 +139,7 @@ const TimelinePostCard: React.FC<TimelinePostCardProps> = ({
       {media && mediaSrc && (
         <div
           className="timeline-photo-container"
+          data-native-pressable
           onClick={() => onOpenLightbox(mediaSrc, media.type === 'video')}
         >
           {media.type === 'video'
