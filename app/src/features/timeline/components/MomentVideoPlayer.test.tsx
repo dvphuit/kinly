@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MomentVideoPlayer } from '@/features/timeline/components/MomentVideoPlayer';
 
@@ -88,5 +88,69 @@ describe('MomentVideoPlayer', () => {
 
     fireEvent.pointerUp(video, { pointerType: 'touch', clientX: 150 });
     expect(video.play).toHaveBeenCalledTimes(1);
+  });
+
+  it('temporarily boosts playback to 2x while holding and restores the previous rate on release', () => {
+    vi.useFakeTimers();
+    try {
+      const video = renderPlayer();
+      const play = vi.fn().mockResolvedValue(undefined);
+      const pause = vi.fn();
+      Object.defineProperty(video, 'paused', { configurable: true, value: false });
+      Object.defineProperty(video, 'ended', { configurable: true, value: false });
+      Object.defineProperty(video, 'play', { configurable: true, value: play });
+      Object.defineProperty(video, 'pause', { configurable: true, value: pause });
+      video.playbackRate = 1.25;
+
+      fireEvent.pointerDown(video, {
+        pointerType: 'touch', pointerId: 7, button: 0, clientX: 150, clientY: 100,
+      });
+      act(() => vi.advanceTimersByTime(419));
+      expect(video.playbackRate).toBe(1.25);
+      expect(screen.queryByRole('status', { name: 'Đang phát nhanh 2 lần' })).not.toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(video.playbackRate).toBe(2);
+      expect(screen.getByRole('status', { name: 'Đang phát nhanh 2 lần' })).toHaveTextContent('2×');
+
+      fireEvent.pointerUp(video, {
+        pointerType: 'touch', pointerId: 7, button: 0, clientX: 150, clientY: 100,
+      });
+      expect(video.playbackRate).toBe(1.25);
+      expect(screen.queryByRole('status', { name: 'Đang phát nhanh 2 lần' })).not.toBeInTheDocument();
+      expect(play).not.toHaveBeenCalled();
+      expect(pause).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels hold-to-speed when the pointer moves before the hold threshold', () => {
+    vi.useFakeTimers();
+    try {
+      const video = renderPlayer();
+      const pause = vi.fn();
+      Object.defineProperty(video, 'paused', { configurable: true, value: false });
+      Object.defineProperty(video, 'ended', { configurable: true, value: false });
+      Object.defineProperty(video, 'pause', { configurable: true, value: pause });
+
+      fireEvent.pointerDown(video, {
+        pointerType: 'touch', pointerId: 8, button: 0, clientX: 150, clientY: 100,
+      });
+      fireEvent.pointerMove(video, {
+        pointerType: 'touch', pointerId: 8, button: 0, clientX: 170, clientY: 100,
+      });
+      act(() => vi.advanceTimersByTime(500));
+
+      expect(video.playbackRate).toBe(1);
+      expect(screen.queryByRole('status', { name: 'Đang phát nhanh 2 lần' })).not.toBeInTheDocument();
+
+      fireEvent.pointerUp(video, {
+        pointerType: 'touch', pointerId: 8, button: 0, clientX: 170, clientY: 100,
+      });
+      expect(pause).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

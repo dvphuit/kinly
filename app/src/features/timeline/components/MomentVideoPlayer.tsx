@@ -33,10 +33,19 @@ type WebkitFullscreenVideo = HTMLVideoElement & {
 
 type SideTapZone = 'left' | 'right';
 type SeekFeedback = 'rewind' | 'forward' | null;
+type HoldGesture = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  cancelled: boolean;
+};
 
 const CONTROL_HIDE_DELAY_MS = 2400;
 const DOUBLE_TAP_DELAY_MS = 280;
 const SEEK_FEEDBACK_DELAY_MS = 620;
+const HOLD_SPEED_DELAY_MS = 420;
+const HOLD_MOVE_TOLERANCE_PX = 14;
+const HOLD_PLAYBACK_RATE = 2;
 const TAP_CENTER_START = 0.34;
 const TAP_CENTER_END = 0.66;
 
@@ -50,6 +59,13 @@ const GESTURE_STYLE: CSSProperties = {
   transform: 'translateY(-50%)', borderRadius: 999, background: 'rgba(20,15,12,0.58)', color: '#fff',
   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, pointerEvents: 'none',
   font: '720 10px/1 var(--font-family-body)',
+};
+const SPEED_BOOST_STYLE: CSSProperties = {
+  position: 'absolute', zIndex: 7, top: 'calc(18px + env(safe-area-inset-top, 0px))', left: '50%',
+  minWidth: 68, height: 36, padding: '0 13px', transform: 'translateX(-50%)', borderRadius: 999,
+  background: 'rgba(20,15,12,0.7)', color: '#fff', display: 'flex', alignItems: 'center',
+  justifyContent: 'center', gap: 6, pointerEvents: 'none', font: '760 11px/1 var(--font-family-body)',
+  backdropFilter: 'blur(10px)',
 };
 const BUFFER_TRACK_STYLE: CSSProperties = {
   height: 2, overflow: 'hidden', borderRadius: 999, background: 'rgba(255,255,255,0.2)',
@@ -83,7 +99,11 @@ export function MomentVideoPlayer({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const seekFeedbackTimerRef = useRef<number | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
   const lastSideTapRef = useRef<{ zone: SideTapZone; at: number } | null>(null);
+  const holdGestureRef = useRef<HoldGesture | null>(null);
+  const playbackRateBeforeBoostRef = useRef(1);
+  const speedBoostedRef = useRef(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [bufferedUntil, setBufferedUntil] = useState(0);
@@ -91,6 +111,7 @@ export function MomentVideoPlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [isSpeedBoosted, setIsSpeedBoosted] = useState(false);
   const [seekFeedback, setSeekFeedback] = useState<SeekFeedback>(null);
   const [controlsVisible, setControlsVisible] = useState(true);
 
@@ -105,6 +126,24 @@ export function MomentVideoPlayer({
     window.clearTimeout(seekFeedbackTimerRef.current);
     seekFeedbackTimerRef.current = null;
   }, []);
+
+  const clearHoldTimer = useCallback(() => {
+    if (holdTimerRef.current === null) return;
+    window.clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = null;
+  }, []);
+
+  const restorePlaybackRate = useCallback(() => {
+    const video = videoRef.current;
+    if (speedBoostedRef.current && video) video.playbackRate = playbackRateBeforeBoostRef.current;
+    speedBoostedRef.current = false;
+  }, []);
+
+  const stopSpeedBoost = useCallback(() => {
+    clearHoldTimer();
+    restorePlaybackRate();
+    setIsSpeedBoosted(false);
+  }, [clearHoldTimer, restorePlaybackRate]);
 
   const revealControls = useCallback((scheduleHide = isPlaying) => {
     clearHideTimer();
@@ -173,8 +212,55 @@ export function MomentVideoPlayer({
     seekTo((Number.isFinite(video.currentTime) ? video.currentTime : 0) + seconds);
   }, [seekTo]);
 
+  const handleVideoPointerDown = useCallback((event: ReactPointerEvent<HTMLVideoElement>) => {
+    if (!isActive || event.button !== 0) return;
+    clearHoldTimer();
+    holdGestureRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      cancelled: false,
+    };
+    revealControls();
+
+    const video = videoRef.current;
+    if (!video || video.paused || video.ended) return;
+    const pointerId = event.pointerId;
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      const currentVideo = videoRef.current;
+      const gesture = holdGestureRef.current;
+      if (!currentVideo || !gesture || gesture.pointerId !== pointerId || gesture.cancelled || currentVideo.paused || currentVideo.ended) return;
+      playbackRateBeforeBoostRef.current = currentVideo.playbackRate;
+      currentVideo.playbackRate = HOLD_PLAYBACK_RATE;
+      speedBoostedRef.current = true;
+      lastSideTapRef.current = null;
+      setIsSpeedBoosted(true);
+    }, HOLD_SPEED_DELAY_MS);
+  }, [clearHoldTimer, isActive, revealControls]);
+
+  const handleVideoPointerMove = useCallback((event: ReactPointerEvent<HTMLVideoElement>) => {
+    const gesture = holdGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || gesture.cancelled || speedBoostedRef.current) return;
+    if (Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) <= HOLD_MOVE_TOLERANCE_PX) return;
+    gesture.cancelled = true;
+    clearHoldTimer();
+  }, [clearHoldTimer]);
+
   const handleVideoPointerUp = useCallback((event: ReactPointerEvent<HTMLVideoElement>) => {
     if (!isActive) return;
+    const gesture = holdGestureRef.current;
+    const gestureMatches = gesture?.pointerId === event.pointerId;
+    const wasCancelled = Boolean(gestureMatches && gesture.cancelled);
+    const wasSpeedBoosted = speedBoostedRef.current;
+    if (gestureMatches) holdGestureRef.current = null;
+    stopSpeedBoost();
+
+    if (wasCancelled || wasSpeedBoosted) {
+      lastSideTapRef.current = null;
+      return;
+    }
+
     if (event.pointerType === 'mouse') {
       lastSideTapRef.current = null;
       togglePlayback();
@@ -207,7 +293,14 @@ export function MomentVideoPlayer({
 
     lastSideTapRef.current = { zone, at: now };
     revealControls();
-  }, [isActive, revealControls, seekBy, showSeekFeedback, togglePlayback]);
+  }, [isActive, revealControls, seekBy, showSeekFeedback, stopSpeedBoost, togglePlayback]);
+
+  const handleVideoPointerCancel = useCallback((event: ReactPointerEvent<HTMLVideoElement>) => {
+    if (holdGestureRef.current?.pointerId !== event.pointerId) return;
+    holdGestureRef.current = null;
+    lastSideTapRef.current = null;
+    stopSpeedBoost();
+  }, [stopSpeedBoost]);
 
   const toggleMuted = useCallback(() => {
     const video = videoRef.current;
@@ -247,8 +340,10 @@ export function MomentVideoPlayer({
   }, [revealControls]);
 
   useEffect(() => {
+    stopSpeedBoost();
     clearHideTimer();
     clearSeekFeedbackTimer();
+    holdGestureRef.current = null;
     lastSideTapRef.current = null;
     setDuration(0);
     setCurrentTime(0);
@@ -258,17 +353,23 @@ export function MomentVideoPlayer({
     setIsBuffering(false);
     setSeekFeedback(null);
     setControlsVisible(true);
-  }, [clearHideTimer, clearSeekFeedbackTimer, src]);
+  }, [clearHideTimer, clearSeekFeedbackTimer, src, stopSpeedBoost]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!isActive && video && !video.paused) video.pause();
-  }, [isActive]);
+    if (!isActive && video) {
+      holdGestureRef.current = null;
+      stopSpeedBoost();
+      if (!video.paused) video.pause();
+    }
+  }, [isActive, stopSpeedBoost]);
 
   useEffect(() => () => {
     clearHideTimer();
     clearSeekFeedbackTimer();
-  }, [clearHideTimer, clearSeekFeedbackTimer]);
+    clearHoldTimer();
+    restorePlaybackRate();
+  }, [clearHideTimer, clearHoldTimer, clearSeekFeedbackTimer, restorePlaybackRate]);
 
   const playbackLabel = isPlaying ? 'Tạm dừng video' : 'Phát video';
   const bufferedPercent = duration > 0
@@ -293,8 +394,15 @@ export function MomentVideoPlayer({
         playsInline
         preload={preload}
         aria-label={ariaLabel}
-        style={{ borderRadius: 0 }}
+        style={{ borderRadius: 0, WebkitTouchCallout: 'none' }}
+        onContextMenu={(event) => event.preventDefault()}
+        onPointerDown={handleVideoPointerDown}
+        onPointerMove={handleVideoPointerMove}
         onPointerUp={handleVideoPointerUp}
+        onPointerCancel={handleVideoPointerCancel}
+        onPointerLeave={(event) => {
+          if (event.pointerType === 'mouse') handleVideoPointerCancel(event);
+        }}
         onLoadedMetadata={() => {
           syncTiming();
           syncBuffered();
@@ -321,11 +429,15 @@ export function MomentVideoPlayer({
           if (isPlaying) setIsBuffering(true);
         }}
         onPause={() => {
+          holdGestureRef.current = null;
+          stopSpeedBoost();
           setIsPlaying(false);
           setIsBuffering(false);
           revealControls(false);
         }}
         onEnded={() => {
+          holdGestureRef.current = null;
+          stopSpeedBoost();
           setIsPlaying(false);
           setIsBuffering(false);
           syncTiming();
@@ -333,6 +445,8 @@ export function MomentVideoPlayer({
         }}
         onVolumeChange={() => setIsMuted(Boolean(videoRef.current?.muted))}
         onError={() => {
+          holdGestureRef.current = null;
+          stopSpeedBoost();
           setIsBuffering(false);
           onError?.();
         }}
@@ -340,6 +454,13 @@ export function MomentVideoPlayer({
 
       {isActive && (
         <>
+          {isSpeedBoosted && (
+            <div style={SPEED_BOOST_STYLE} role="status" aria-label="Đang phát nhanh 2 lần">
+              <FastForward size={17} />
+              <span>2×</span>
+            </div>
+          )}
+
           {isBuffering && (
             <div style={BUFFERING_STYLE} role="status" aria-label="Đang tải video">
               <LoaderCircle className="moment-video-buffering-icon" size={20} />
