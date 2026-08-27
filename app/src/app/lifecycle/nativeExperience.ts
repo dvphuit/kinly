@@ -36,18 +36,13 @@ let pressStartX = 0;
 let pressStartY = 0;
 let pressMoved = false;
 
-function releasePressFocus(scope: Element): void {
-  const active = document.activeElement;
-  if (active instanceof HTMLElement && scope.contains(active)) active.blur();
-}
-
 function setupPressHandling(): () => void {
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return;
     const rawTarget = event.target as HTMLElement | null;
     if (!rawTarget || !(rawTarget instanceof Element)) return;
     if (rawTarget === document.documentElement || rawTarget === document.body) return;
-    const target: HTMLElement | null = (rawTarget.closest(
+    let target: HTMLElement | null = (rawTarget.closest(
       'button, a[href], [role="button"], [data-pressable]',
     ) as HTMLElement | null) ?? rawTarget;
     if (target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]')) return;
@@ -66,7 +61,9 @@ function setupPressHandling(): () => void {
     if (Math.hypot(dx, dy) > PRESS_MOVE_THRESHOLD) {
       pressMoved = true;
       pressTarget.removeAttribute('data-pressed');
-      releasePressFocus(pressTarget);
+      if (document.activeElement === pressTarget) {
+        (pressTarget as HTMLElement).blur();
+      }
     }
   };
 
@@ -88,10 +85,8 @@ function setupPressHandling(): () => void {
   };
 
   const onPointerUp = (): void => clearPress(true);
-  const onPointerCancel = (): void => {
-    if (pressTarget) releasePressFocus(pressTarget);
-    clearPress(false);
-  };
+  const onPointerCancel = (): void => clearPress(false);
+
   document.addEventListener('pointerdown', onPointerDown, { passive: true });
   document.addEventListener('pointermove', onPointerMove, { passive: true });
   document.addEventListener('pointerup', onPointerUp, { passive: true });
@@ -125,11 +120,6 @@ export function initializeNativeExperience(): () => void {
   }
 
   const handleContextMenu = (event: MouseEvent): void => {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest('[data-native-context-menu="deny"]')) {
-      event.preventDefault();
-      return;
-    }
     if (event.shiftKey || allowsNativeContextMenu(event.target) || hasSelectedText()) return;
     event.preventDefault();
   };

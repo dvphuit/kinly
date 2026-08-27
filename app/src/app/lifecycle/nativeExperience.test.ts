@@ -152,36 +152,4 @@ describe('native experience', () => {
     dispatchPointer(card, 'pointerup', 22, 22);
     expect(card.hasAttribute('data-pressed')).toBe(false);
   });
-
-  it('releases stuck focus when a scroll takes over with pointercancel on cards', () => {
-    mockDisplayMode(true);
-    const card = document.createElement('div');
-    card.tabIndex = 0;
-    document.body.append(card);
-
-    dispose = initializeNativeExperience();
-
-    dispatchPointer(card, 'pointerdown', 30, 30);
-    card.focus();
-    expect(document.activeElement).toBe(card);
-
-    dispatchPointer(card, 'pointercancel', 40, 60);
-    expect(document.activeElement).not.toBe(card);
-    expect(card.hasAttribute('data-pressed')).toBe(false);
-  });
-
-  it('suppresses the context menu inside denied surfaces like the bottom nav', () => {
-    mockDisplayMode(true);
-    const nav = document.createElement('nav');
-    nav.setAttribute('data-native-context-menu', 'deny');
-    const link = document.createElement('a');
-    link.href = '/';
-    nav.append(link);
-    document.body.append(nav);
-
-    dispose = initializeNativeExperience();
-
-    expect(dispatchContextMenu(link).defaultPrevented).toBe(true);
-    expect(dispatchContextMenu(nav).defaultPrevented).toBe(true);
-  });
 });

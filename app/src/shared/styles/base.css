@@ -158,11 +158,6 @@ html.is-standalone :is(a[href], img, video, audio, input, textarea, select, pre,
   -webkit-touch-callout: default;
 }
 
-html.is-standalone [data-native-context-menu="deny"],
-html.is-standalone [data-native-context-menu="deny"] * {
-  -webkit-touch-callout: none !important;
-}
-
 /* Installed apps do not expose browser scrollbars. Scroll gestures still work. */
 html.is-standalone,
 html.is-standalone * {

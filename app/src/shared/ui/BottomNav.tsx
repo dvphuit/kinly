@@ -130,7 +130,7 @@ export const BottomNav = memo(function BottomNav({ onOpenQuickLog, onRouteIntent
   );
 
   return (
-    <nav className="bottom-nav-container" data-native-context-menu="deny">
+    <nav className="bottom-nav-container">
       {navItems.map(renderNavItem)}
 
       <div className="fab-center-wrapper">
