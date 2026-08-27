@@ -12,6 +12,7 @@ import {
   checkDriveBackup,
   deleteTimelineMediaFromDrive,
   downloadTimelineMediaFromDrive,
+  downloadTimelineMediaThumbnailFromDrive,
   getLastSyncedAt,
   isGoogleLinked,
   isGoogleSessionActive,
@@ -99,6 +100,10 @@ function formatLogTime(value: string): string {
   }).format(date);
 }
 
+function isAbortError(value: unknown): boolean {
+  return value instanceof Error && value.name === 'AbortError';
+}
+
 async function copyText(value: string): Promise<void> {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(value);
@@ -178,37 +183,114 @@ function DataOverviewCard({
 function DriveMediaTile({
   file,
   linkedTitle,
+  localBlob,
+  preloadFullImage,
   onOpen,
   onDelete,
   onError,
 }: {
   file: DriveTimelineMediaFile;
   linkedTitle?: string;
+  localBlob?: Blob;
+  preloadFullImage: boolean;
   onOpen: (src: string, isVideo: boolean) => void;
   onDelete: () => void;
   onError: (message: string) => void;
 }) {
   const isVideo = file.mimeType.startsWith('video/');
   const [opening, setOpening] = useState(false);
-  const objectUrl = useRef<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const mounted = useRef(false);
+  const mediaObjectUrl = useRef<string | null>(null);
+  const thumbnailObjectUrl = useRef<string | null>(null);
+  const mediaLoad = useRef<Promise<string | null> | null>(null);
+  const mediaController = useRef<AbortController | null>(null);
 
-  useEffect(() => () => {
-    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      mediaController.current?.abort();
+      if (mediaObjectUrl.current) URL.revokeObjectURL(mediaObjectUrl.current);
+      if (thumbnailObjectUrl.current) URL.revokeObjectURL(thumbnailObjectUrl.current);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!localBlob || mediaObjectUrl.current) return;
+    mediaController.current?.abort();
+    const nextUrl = URL.createObjectURL(localBlob);
+    mediaObjectUrl.current = nextUrl;
+    if (!isVideo) setThumbnailUrl(nextUrl);
+  }, [isVideo, localBlob]);
+
+  useEffect(() => {
+    if (!file.thumbnailLink) return undefined;
+    const controller = new AbortController();
+    void downloadTimelineMediaThumbnailFromDrive(file.thumbnailLink, {
+      interactive: false,
+      signal: controller.signal,
+    }).then((blob) => {
+      if (!mounted.current || controller.signal.aborted || mediaObjectUrl.current) return;
+      const nextUrl = URL.createObjectURL(blob);
+      thumbnailObjectUrl.current = nextUrl;
+      setThumbnailUrl(nextUrl);
+    }).catch((thumbnailError) => {
+      if (isAbortError(thumbnailError)) return;
+      logDiagnostic('drive-ui', 'info', 'Drive media thumbnail unavailable', { fileId: file.id });
+    });
+    return () => controller.abort();
+  }, [file.id, file.thumbnailLink]);
+
+  const loadFullMedia = useCallback((interactive: boolean): Promise<string | null> => {
+    if (mediaObjectUrl.current) return Promise.resolve(mediaObjectUrl.current);
+    if (mediaLoad.current) return mediaLoad.current;
+
+    const controller = new AbortController();
+    mediaController.current = controller;
+    const pending = downloadTimelineMediaFromDrive(file.id, { interactive, signal: controller.signal })
+      .then((blob) => {
+        if (!mounted.current || controller.signal.aborted) return null;
+        if (mediaObjectUrl.current) return mediaObjectUrl.current;
+        const nextUrl = URL.createObjectURL(blob);
+        mediaObjectUrl.current = nextUrl;
+        if (!isVideo) {
+          if (thumbnailObjectUrl.current) {
+            URL.revokeObjectURL(thumbnailObjectUrl.current);
+            thumbnailObjectUrl.current = null;
+          }
+          setThumbnailUrl(nextUrl);
+        }
+        return nextUrl;
+      })
+      .finally(() => {
+        if (mediaController.current === controller) mediaController.current = null;
+        if (mediaLoad.current === pending) mediaLoad.current = null;
+      });
+    mediaLoad.current = pending;
+    return pending;
+  }, [file.id, isVideo]);
+
+  useEffect(() => {
+    if (!preloadFullImage || isVideo) return;
+    void loadFullMedia(false).catch(() => undefined);
+  }, [isVideo, loadFullMedia, preloadFullImage]);
 
   const openMedia = async () => {
     if (opening) return;
     setOpening(true);
     try {
-      if (!objectUrl.current) {
-        const blob = await downloadTimelineMediaFromDrive(file.id, { interactive: true });
-        objectUrl.current = URL.createObjectURL(blob);
-      }
-      if (objectUrl.current) onOpen(objectUrl.current, isVideo);
+      const mediaUrl = await loadFullMedia(true);
+      if (mounted.current && mediaUrl) onOpen(mediaUrl, isVideo);
     } catch (openError) {
-      onError(openError instanceof Error ? openError.message : 'Không thể mở media từ Google Drive.');
+      const aborted = isAbortError(openError);
+      if (mounted.current && aborted && mediaObjectUrl.current) {
+        onOpen(mediaObjectUrl.current, isVideo);
+      } else if (mounted.current && !aborted) {
+        onError(openError instanceof Error ? openError.message : 'Không thể mở media từ Google Drive.');
+      }
     } finally {
-      setOpening(false);
+      if (mounted.current) setOpening(false);
     }
   };
 
@@ -218,11 +300,20 @@ function DriveMediaTile({
         type="button"
         className="drive-media-preview"
         onClick={() => void openMedia()}
+        onPointerEnter={() => { if (!isVideo) void loadFullMedia(false).catch(() => undefined); }}
+        onFocus={() => { if (!isVideo) void loadFullMedia(false).catch(() => undefined); }}
         aria-label={`Xem ${isVideo ? 'video' : 'ảnh'} ${file.name}`}
         disabled={opening}
       >
         <span className="drive-media-placeholder" aria-hidden="true">{isVideo ? <Video size={22} /> : <ImageIcon size={22} />}</span>
-        {file.thumbnailLink && <img src={file.thumbnailLink} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />}
+        {(thumbnailUrl || file.thumbnailLink) && (
+          <img
+            key={thumbnailUrl || file.thumbnailLink}
+            src={thumbnailUrl || file.thumbnailLink}
+            alt=""
+            onError={(event) => { event.currentTarget.hidden = true; }}
+          />
+        )}
         {isVideo && <span className="drive-media-play" aria-hidden="true"><Play size={15} fill="currentColor" /></span>}
       </button>
       <div className="drive-media-info">
@@ -318,12 +409,16 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
   const [debugSheetOpen, setDebugSheetOpen] = useState(false);
   const [logs, setLogs] = useState<DiagnosticLogEntry[]>(getDiagnosticLogs);
+  const driveLoadSequence = useRef(0);
 
   useEffect(() => subscribeDiagnosticLogs(setLogs), []);
   useEffect(() => subscribeSyncState(() => {
     setLinked(isGoogleLinked());
     setSessionActive(isGoogleSessionActive());
   }), []);
+  useEffect(() => () => {
+    driveLoadSequence.current += 1;
+  }, []);
 
   const linkedMedia = useMemo(() => {
     const result = new Map<string, { title: string; media: TimelineMediaItem[] }>();
@@ -354,6 +449,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     });
     return result;
   }, [timelineItems]);
+  const localFilesById = useMemo(() => new Map(localFiles.map((file) => [file.id, file])), [localFiles]);
 
   const totalSize = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const videoCount = useMemo(() => files.filter((file) => file.mimeType.startsWith('video/')).length, [files]);
@@ -398,18 +494,26 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   }, []);
 
   const loadDriveData = useCallback(async () => {
+    const requestSequence = driveLoadSequence.current + 1;
+    driveLoadSequence.current = requestSequence;
     logDiagnostic('drive-ui', 'info', 'Drive management refresh started');
     setLoading(true);
     setError(null);
     try {
-      const [nextFiles, nextBackup, nextLastSyncedAt] = await Promise.all([
-        listTimelineMediaFromDrive({ interactive: false }),
-        checkDriveBackup(),
-        getLastSyncedAt(),
-      ]);
-      setFiles(nextFiles);
-      setBackup(nextBackup);
-      setLastSyncedAt(nextLastSyncedAt);
+      const filesPromise = listTimelineMediaFromDrive({ interactive: false }).then((nextFiles) => {
+        if (driveLoadSequence.current === requestSequence) setFiles(nextFiles);
+        return nextFiles;
+      });
+      const backupPromise = checkDriveBackup().then((nextBackup) => {
+        if (driveLoadSequence.current === requestSequence) setBackup(nextBackup);
+        return nextBackup;
+      });
+      const lastSyncedPromise = getLastSyncedAt().then((nextLastSyncedAt) => {
+        if (driveLoadSequence.current === requestSequence) setLastSyncedAt(nextLastSyncedAt);
+        return nextLastSyncedAt;
+      });
+      const [nextFiles, nextBackup] = await Promise.all([filesPromise, backupPromise, lastSyncedPromise]);
+      if (driveLoadSequence.current !== requestSequence) return;
       setLinked(true);
       setSessionActive(true);
       logDiagnostic('drive-ui', 'info', 'Drive management refresh completed', {
@@ -417,12 +521,13 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
         backupFound: nextBackup.found,
       });
     } catch (loadError) {
+      if (driveLoadSequence.current !== requestSequence) return;
       logDiagnostic('drive-ui', 'error', 'Drive management refresh failed', loadError);
       setError(loadError instanceof Error ? loadError.message : 'Không thể đọc dữ liệu Google Drive.');
       setLinked(isGoogleLinked());
       setSessionActive(isGoogleSessionActive());
     } finally {
-      setLoading(false);
+      if (driveLoadSequence.current === requestSequence) setLoading(false);
     }
   }, []);
 
@@ -742,16 +847,24 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
                   <div className="drive-data-state"><Cloud size={24} /><strong>Chưa có media trên Drive</strong><span>Ảnh và video sẽ xuất hiện sau lần đồng bộ tiếp theo.</span></div>
                 ) : (
                   <div className="drive-media-list">
-                    {files.map((file) => (
-                      <DriveMediaTile
-                        key={file.id}
-                        file={file}
-                        linkedTitle={linkedMedia.get(file.id)?.title}
-                        onOpen={onOpenLightbox}
-                        onDelete={() => setDeleteTarget(file)}
-                        onError={setError}
-                      />
-                    ))}
+                    {files.map((file, index) => {
+                      const linkedDriveMedia = linkedMedia.get(file.id);
+                      const localBlob = linkedDriveMedia?.media
+                        .map((media) => media.blobId ? localFilesById.get(media.blobId)?.blob : undefined)
+                        .find((blob) => blob !== undefined);
+                      return (
+                        <DriveMediaTile
+                          key={file.id}
+                          file={file}
+                          linkedTitle={linkedDriveMedia?.title}
+                          localBlob={localBlob}
+                          preloadFullImage={index < 2}
+                          onOpen={onOpenLightbox}
+                          onDelete={() => setDeleteTarget(file)}
+                          onError={setError}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </section>

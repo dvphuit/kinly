@@ -10,6 +10,7 @@ const drive = vi.hoisted(() => ({
   checkDriveBackup: vi.fn(),
   deleteTimelineMediaFromDrive: vi.fn(),
   downloadTimelineMediaFromDrive: vi.fn(),
+  downloadTimelineMediaThumbnailFromDrive: vi.fn(),
   getLastSyncedAt: vi.fn(),
   isGoogleLinked: vi.fn(),
   isGoogleSessionActive: vi.fn(),
@@ -42,6 +43,7 @@ describe('GoogleDriveDataView', () => {
     drive.getLastSyncedAt.mockResolvedValue('2026-08-18T09:00:00.000Z');
     drive.deleteTimelineMediaFromDrive.mockResolvedValue(undefined);
     drive.downloadTimelineMediaFromDrive.mockResolvedValue(new Blob(['image-bytes'], { type: 'image/jpeg' }));
+    drive.downloadTimelineMediaThumbnailFromDrive.mockResolvedValue(new Blob(['thumbnail-bytes'], { type: 'image/jpeg' }));
     drive.requestGoogleAccessToken.mockResolvedValue(undefined);
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:drive-preview'), revokeObjectURL: vi.fn() });
     Object.defineProperty(navigator, 'storage', {
@@ -128,6 +130,74 @@ describe('GoogleDriveDataView', () => {
     await waitFor(() => expect(drive.deleteTimelineMediaFromDrive).toHaveBeenCalledWith('drive-1', { interactive: true }));
     await waitFor(() => expect(screen.queryByText('baby.jpg')).not.toBeInTheDocument());
     expect(useTimelineStore.getState().timelineItems[0].mediaItems).toEqual([]);
+  });
+
+  it('renders the Drive file list without waiting for the backup check', async () => {
+    let resolveBackup: ((backup: { found: boolean }) => void) | undefined;
+    drive.checkDriveBackup.mockReturnValue(new Promise((resolve) => { resolveBackup = resolve; }));
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+
+    expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
+    expect(screen.queryByText('Bản sao lưu đang hoạt động')).not.toBeInTheDocument();
+    resolveBackup?.({ found: true });
+    expect(await screen.findByText('Bản sao lưu đang hoạt động')).toBeInTheDocument();
+  });
+
+  it('loads private thumbnails with Drive authentication', async () => {
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-1', name: 'baby.jpg', mimeType: 'image/jpeg', size: 2048,
+      thumbnailLink: 'https://lh3.googleusercontent.com/private-thumbnail',
+    }]);
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+
+    const preview = await screen.findByRole('button', { name: 'Xem ảnh baby.jpg' });
+    await waitFor(() => expect(drive.downloadTimelineMediaThumbnailFromDrive).toHaveBeenCalledWith(
+      'https://lh3.googleusercontent.com/private-thumbnail',
+      expect.objectContaining({ interactive: false, signal: expect.any(AbortSignal) }),
+    ));
+    await waitFor(() => expect(preview.querySelector('img')).toHaveAttribute('src', 'blob:drive-preview'));
+  });
+
+  it('does not open media after leaving the Drive view while a download is pending', async () => {
+    let resolveDownload: ((blob: Blob) => void) | undefined;
+    drive.downloadTimelineMediaFromDrive.mockReturnValue(new Promise((resolve) => { resolveDownload = resolve; }));
+    const onOpenLightbox = vi.fn();
+    const view = render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xem ảnh baby.jpg' }));
+
+    view.unmount();
+    resolveDownload?.(new Blob(['image-bytes'], { type: 'image/jpeg' }));
+    await act(async () => Promise.resolve());
+
+    expect(onOpenLightbox).not.toHaveBeenCalled();
+  });
+
+  it('opens the local copy immediately when the Drive file is still on the device', async () => {
+    await setLocalMedia('blob-local-copy', new Blob(['local-image'], { type: 'image/jpeg' }));
+    useTimelineStore.getState().addTimelineItem({
+      title: 'Ảnh có hai bản',
+      mediaItems: [{
+        id: 'media-local-copy',
+        blobId: 'blob-local-copy',
+        driveFileId: 'drive-1',
+        type: 'photo',
+        name: 'baby.jpg',
+      }],
+    });
+    const onOpenLightbox = vi.fn();
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={vi.fn()} /></MemoryRouter>);
+    await screen.findByText(/Ảnh có hai bản/);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xem ảnh baby.jpg' }));
+
+    await waitFor(() => expect(onOpenLightbox).toHaveBeenCalledWith('blob:drive-preview', false));
+    expect(drive.downloadTimelineMediaFromDrive).not.toHaveBeenCalled();
   });
 
   it('uses a play affordance for video cards without a media-type label', async () => {

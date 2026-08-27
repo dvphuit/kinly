@@ -195,6 +195,37 @@ describe('generation-2 Google Drive sync', () => {
     );
   });
 
+  it('downloads private Drive thumbnails with the current Google token', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(accountResponse())
+      .mockResolvedValueOnce(binaryResponse('thumbnail-bytes', 'image/jpeg'));
+    vi.stubGlobal('fetch', fetchMock);
+    const sync = await import('@/features/sync/googleDriveSync');
+    await sync.requestGoogleAccessToken();
+
+    const downloaded = await sync.downloadTimelineMediaThumbnailFromDrive(
+      'https://lh3.googleusercontent.com/private-thumbnail',
+    );
+
+    expect(await downloaded.text()).toBe('thumbnail-bytes');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://lh3.googleusercontent.com/private-thumbnail',
+      expect.objectContaining({ headers: { Authorization: 'Bearer token' } }),
+    );
+  });
+
+  it('does not send the Google token to an untrusted thumbnail host', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(accountResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    const sync = await import('@/features/sync/googleDriveSync');
+    await sync.requestGoogleAccessToken();
+
+    await expect(sync.downloadTimelineMediaThumbnailFromDrive(
+      'https://example.com/untrusted-thumbnail',
+    )).rejects.toThrow('thumbnail URL không hợp lệ');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('expires the runtime session proactively and publishes re-authentication state', async () => {
     vi.useFakeTimers();
     installGoogleTokenClient('short-token', 61);

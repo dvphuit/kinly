@@ -266,10 +266,18 @@ export async function listTimelineMediaFromDrive(
 
 export async function downloadTimelineMediaFromDrive(
   fileId: string,
-  options: { interactive?: boolean } = {},
+  options: { interactive?: boolean; signal?: AbortSignal } = {},
 ): Promise<Blob> {
   const module = await loadGoogleDriveSync();
   return module.downloadTimelineMediaFromDrive(fileId, options);
+}
+
+export async function downloadTimelineMediaThumbnailFromDrive(
+  thumbnailLink: string,
+  options: { interactive?: boolean; signal?: AbortSignal } = {},
+): Promise<Blob> {
+  const module = await loadGoogleDriveSync();
+  return module.downloadTimelineMediaThumbnailFromDrive(thumbnailLink, options);
 }
 
 export async function deleteTimelineMediaFromDrive(

@@ -537,21 +537,30 @@ async function driveUploadRequest<T>(
   });
 }
 
-async function driveBlobRequest(url: string, interactive = false): Promise<Blob> {
-  const token = await ensureAccessToken(interactive);
+export interface DriveMediaDownloadOptions {
+  interactive?: boolean;
+  signal?: AbortSignal;
+}
+
+async function driveBlobRequest(url: string, options: DriveMediaDownloadOptions = {}): Promise<Blob> {
+  const token = await ensureAccessToken(options.interactive === true);
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 30_000);
+  const abortFromCaller = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) abortFromCaller();
+  else options.signal?.addEventListener('abort', abortFromCaller, { once: true });
   try {
     const response = await fetch(url, { signal: controller.signal, headers: { Authorization: `Bearer ${token}` } });
     if (response.status === 401) {
       markGoogleSessionExpired();
-      if (!interactive) throw new GoogleAuthRequiredError();
+      if (options.interactive !== true) throw new GoogleAuthRequiredError();
       throw new Error('Phiên Google đã hết hạn. Hãy đồng bộ lại để tải media.');
     }
     if (!response.ok) throw new Error(`Không thể tải media từ Google Drive (${response.status}).`);
     return response.blob();
   } finally {
     window.clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', abortFromCaller);
   }
 }
 
@@ -610,9 +619,21 @@ export async function listTimelineMediaFromDrive(
 
 export function downloadTimelineMediaFromDrive(
   fileId: string,
-  options: { interactive?: boolean } = {},
+  options: DriveMediaDownloadOptions = {},
 ): Promise<Blob> {
-  return driveBlobRequest(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, options.interactive === true);
+  return driveBlobRequest(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, options);
+}
+
+export async function downloadTimelineMediaThumbnailFromDrive(
+  thumbnailLink: string,
+  options: DriveMediaDownloadOptions = {},
+): Promise<Blob> {
+  const url = new URL(thumbnailLink);
+  const trustedHost = url.protocol === 'https:' && (
+    url.hostname === 'googleusercontent.com' || url.hostname.endsWith('.googleusercontent.com')
+  );
+  if (!trustedHost) throw new Error('Google Drive trả về thumbnail URL không hợp lệ.');
+  return driveBlobRequest(thumbnailLink, options);
 }
 
 export async function deleteTimelineMediaFromDrive(
