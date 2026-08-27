@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearLocalMedia, getLocalMedia, setLocalMedia } from '@/data/localDb';
 import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import { GoogleDriveDataView } from './GoogleDriveDataView';
@@ -26,6 +26,11 @@ let syncStateListener: (() => void) | null = null;
 vi.mock('@/features/sync', () => drive);
 
 describe('GoogleDriveDataView', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(async () => {
     vi.clearAllMocks();
     syncStateListener = null;
@@ -49,6 +54,13 @@ describe('GoogleDriveDataView', () => {
     drive.downloadTimelineMediaThumbnailFromDrive.mockResolvedValue(new Blob(['thumbnail-bytes'], { type: 'image/jpeg' }));
     drive.requestGoogleAccessToken.mockResolvedValue(undefined);
     drive.releaseTimelineVideoStreamUrlFromDrive.mockResolvedValue(undefined);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new Uint8Array([0]), {
+      status: 206,
+      headers: {
+        'Content-Range': 'bytes 0-0/4096',
+        'Content-Type': 'video/mp4',
+      },
+    })));
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:drive-preview'), revokeObjectURL: vi.fn() });
     Object.defineProperty(navigator, 'storage', {
       configurable: true,
@@ -268,6 +280,14 @@ describe('GoogleDriveDataView', () => {
     });
     expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toBeInTheDocument();
     expect(drive.downloadTimelineMediaFromDrive).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledWith(
+      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: { Range: 'bytes=0-0' },
+        signal: expect.any(AbortSignal),
+      }),
+    );
 
     fireEvent.loadedMetadata(video!);
     await waitFor(() => expect(document.querySelector('.moment-media-preview-loading')).not.toBeInTheDocument());
@@ -275,6 +295,69 @@ describe('GoogleDriveDataView', () => {
     await waitFor(() => expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(
       'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
     ));
+  });
+
+  it('falls back to an authenticated download when the stream URL returns the app shell', async () => {
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
+      thumbnailLink: 'https://lh3.googleusercontent.com/video-thumbnail',
+    }]);
+    const streamUrl = 'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab';
+    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(streamUrl);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('<!doctype html><title>Kinly</title>', {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    }));
+    drive.downloadTimelineMediaFromDrive.mockResolvedValue(new Blob(['video-bytes'], { type: 'video/mp4' }));
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xem video first-steps.mp4' }));
+
+    await waitFor(() => expect(document.querySelector('video[controls]')).toHaveAttribute('src', 'blob:drive-preview'));
+    expect(drive.downloadTimelineMediaFromDrive).toHaveBeenCalledWith(
+      'drive-video',
+      expect.objectContaining({ interactive: true, signal: expect.any(AbortSignal) }),
+    );
+    expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(streamUrl);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('falls back to an authenticated download when stream initialization fails', async () => {
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
+    }]);
+    drive.createTimelineVideoStreamUrlFromDrive.mockRejectedValue(
+      new Error('Không thể khởi tạo streaming video từ Google Drive.'),
+    );
+    drive.downloadTimelineMediaFromDrive.mockResolvedValue(new Blob(['video-bytes'], { type: 'video/mp4' }));
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xem video first-steps.mp4' }));
+
+    await waitFor(() => expect(document.querySelector('video[controls]')).toHaveAttribute('src', 'blob:drive-preview'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('starts the download fallback quickly when stream initialization hangs', async () => {
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
+    }]);
+    drive.createTimelineVideoStreamUrlFromDrive.mockReturnValue(new Promise(() => undefined));
+    drive.downloadTimelineMediaFromDrive.mockResolvedValue(new Blob(['video-bytes'], { type: 'video/mp4' }));
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+    const tile = await screen.findByRole('button', { name: 'Xem video first-steps.mp4' });
+
+    vi.useFakeTimers();
+    fireEvent.click(tile);
+    await act(async () => vi.advanceTimersByTimeAsync(300));
+    vi.useRealTimers();
+
+    await waitFor(() => expect(document.querySelector('video[controls]')).toHaveAttribute('src', 'blob:drive-preview'));
+    expect(drive.downloadTimelineMediaFromDrive).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the preview open when the browser reports a stream playback error', async () => {

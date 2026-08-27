@@ -63,6 +63,13 @@ type DriveMediaPreviewEvent =
   | { kind: 'playable'; fileId: string }
   | { kind: 'error'; fileId: string; message: string };
 
+type DriveMediaDownloadOutcome =
+  | { kind: 'ready'; src: string }
+  | { kind: 'failed'; error: unknown };
+
+const VIDEO_STREAM_FALLBACK_DELAY_MS = 300;
+const VIDEO_STREAM_PROBE_TIMEOUT_MS = 4_000;
+
 interface DataOverviewMetric {
   label: string;
   value: string;
@@ -120,6 +127,28 @@ function isAbortError(value: unknown): boolean {
 
 function drivePreviewLayoutId(fileId: string): string {
   return `drive-data-preview-${fileId}`;
+}
+
+async function verifyVideoStreamUrl(streamUrl: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), VIDEO_STREAM_PROBE_TIMEOUT_MS);
+  try {
+    const response = await fetch(streamUrl, {
+      cache: 'no-store',
+      headers: { Range: 'bytes=0-0' },
+      signal: controller.signal,
+    });
+    const contentRange = response.headers.get('Content-Range');
+    const supportsByteRanges = response.status === 206
+      && contentRange !== null
+      && /^bytes 0-0\/(?:\d+|\*)$/i.test(contentRange);
+    await response.body?.cancel().catch(() => undefined);
+    return supportsByteRanges;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 async function copyText(value: string): Promise<void> {
@@ -220,11 +249,15 @@ function DriveMediaTile({
   const thumbnailObjectUrl = useRef<string | null>(null);
   const mediaLoad = useRef<Promise<string | null> | null>(null);
   const mediaController = useRef<AbortController | null>(null);
+  const streamFallbackTimer = useRef<number | null>(null);
+  const openSequence = useRef(0);
 
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      openSequence.current += 1;
+      if (streamFallbackTimer.current !== null) window.clearTimeout(streamFallbackTimer.current);
       mediaController.current?.abort();
       if (mediaObjectUrl.current) URL.revokeObjectURL(mediaObjectUrl.current);
       if (thumbnailObjectUrl.current) URL.revokeObjectURL(thumbnailObjectUrl.current);
@@ -299,39 +332,109 @@ function DriveMediaTile({
   }, [isVideo, loadFullMedia, preloadFullImage]);
 
   const openMedia = async () => {
+    const sequence = openSequence.current + 1;
+    openSequence.current = sequence;
+    if (streamFallbackTimer.current !== null) {
+      window.clearTimeout(streamFallbackTimer.current);
+      streamFallbackTimer.current = null;
+    }
+    const isCurrentOpen = () => mounted.current && openSequence.current === sequence;
     onPreviewEvent({
       kind: 'open',
       file,
       previewSrc: thumbnailUrl || file.thumbnailLink || null,
     });
-    try {
-      if (isVideo && !mediaObjectUrl.current) {
-        const streamUrl = await createTimelineVideoStreamUrlFromDrive(file.id, { interactive: true });
-        if (streamUrl) {
-          if (mounted.current) {
-            onPreviewEvent({ kind: 'stream-ready', fileId: file.id, src: streamUrl });
-          } else {
-            void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
-          }
-          return;
-        }
-      }
-      const mediaUrl = await loadFullMedia({
+
+    let fallbackDownload: Promise<DriveMediaDownloadOutcome> | null = null;
+    const startFallbackDownload = (): Promise<DriveMediaDownloadOutcome> => {
+      if (fallbackDownload) return fallbackDownload;
+      fallbackDownload = loadFullMedia({
         interactive: true,
-        onProgress: (progress) => onPreviewEvent({ kind: 'progress', fileId: file.id, progress }),
+        onProgress: (progress) => {
+          if (isCurrentOpen()) onPreviewEvent({ kind: 'progress', fileId: file.id, progress });
+        },
+      }).then((mediaUrl): DriveMediaDownloadOutcome => {
+        if (!mediaUrl) return { kind: 'failed', error: new Error('Không thể tải media từ Google Drive.') };
+        if (isCurrentOpen()) onPreviewEvent({ kind: 'download-ready', fileId: file.id, src: mediaUrl });
+        return { kind: 'ready', src: mediaUrl };
+      }).catch((downloadError): DriveMediaDownloadOutcome => ({ kind: 'failed', error: downloadError }));
+      return fallbackDownload;
+    };
+
+    const reportFallbackFailure = (outcome: DriveMediaDownloadOutcome, streamError?: unknown) => {
+      if (outcome.kind !== 'failed' || !isCurrentOpen()) return;
+      const failure = !isAbortError(outcome.error) ? outcome.error : streamError;
+      if (isAbortError(failure)) return;
+      onPreviewEvent({
+        kind: 'error',
+        fileId: file.id,
+        message: failure instanceof Error ? failure.message : 'Không thể mở media từ Google Drive.',
       });
-      if (mounted.current && mediaUrl) onPreviewEvent({ kind: 'download-ready', fileId: file.id, src: mediaUrl });
-    } catch (openError) {
-      const aborted = isAbortError(openError);
-      if (mounted.current && aborted && mediaObjectUrl.current) {
-        onPreviewEvent({ kind: 'download-ready', fileId: file.id, src: mediaObjectUrl.current });
-      } else if (mounted.current && !aborted) {
-        onPreviewEvent({
-          kind: 'error',
-          fileId: file.id,
-          message: openError instanceof Error ? openError.message : 'Không thể mở media từ Google Drive.',
-        });
+    };
+
+    if (!isVideo || mediaObjectUrl.current) {
+      reportFallbackFailure(await startFallbackDownload());
+      return;
+    }
+
+    const fallbackTimer = window.setTimeout(() => {
+      if (streamFallbackTimer.current === fallbackTimer) streamFallbackTimer.current = null;
+      void startFallbackDownload();
+    }, VIDEO_STREAM_FALLBACK_DELAY_MS);
+    streamFallbackTimer.current = fallbackTimer;
+
+    const clearFallbackTimer = () => {
+      window.clearTimeout(fallbackTimer);
+      if (streamFallbackTimer.current === fallbackTimer) streamFallbackTimer.current = null;
+    };
+
+    try {
+      const streamUrl = await createTimelineVideoStreamUrlFromDrive(file.id, { interactive: true });
+      if (!isCurrentOpen()) {
+        clearFallbackTimer();
+        if (streamUrl) void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+        return;
       }
+
+      if (mediaObjectUrl.current) {
+        clearFallbackTimer();
+        if (streamUrl) void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+        return;
+      }
+
+      const streamSupported = streamUrl ? await verifyVideoStreamUrl(streamUrl) : false;
+      if (!isCurrentOpen()) {
+        clearFallbackTimer();
+        if (streamUrl) void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+        return;
+      }
+      if (mediaObjectUrl.current) {
+        clearFallbackTimer();
+        if (streamUrl) void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+        return;
+      }
+      if (streamUrl && streamSupported) {
+        clearFallbackTimer();
+        mediaController.current?.abort();
+        onPreviewEvent({ kind: 'stream-ready', fileId: file.id, src: streamUrl });
+        return;
+      }
+
+      if (streamUrl) {
+        logDiagnostic('drive-ui', 'info', 'Drive video stream probe failed; using authenticated download', {
+          fileId: file.id,
+        });
+        void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+      }
+
+      clearFallbackTimer();
+      reportFallbackFailure(await startFallbackDownload());
+    } catch (streamError) {
+      clearFallbackTimer();
+      logDiagnostic('drive-ui', 'info', 'Drive video streaming unavailable; using authenticated download', {
+        fileId: file.id,
+      });
+      reportFallbackFailure(await startFallbackDownload(), streamError);
     }
   };
 
@@ -342,6 +445,7 @@ function DriveMediaTile({
         className="drive-media-preview"
         onClick={() => void openMedia()}
         onPointerEnter={() => { if (!isVideo) void loadFullMedia({ interactive: false }).catch(() => undefined); }}
+        onPointerDown={() => { if (!isVideo) void loadFullMedia({ interactive: false }).catch(() => undefined); }}
         onFocus={() => { if (!isVideo) void loadFullMedia({ interactive: false }).catch(() => undefined); }}
         aria-label={`Xem ${isVideo ? 'video' : 'ảnh'} ${file.name}`}
       >
@@ -351,6 +455,9 @@ function DriveMediaTile({
             key={thumbnailUrl || file.thumbnailLink}
             src={thumbnailUrl || file.thumbnailLink}
             alt=""
+            loading={preloadFullImage ? 'eager' : 'lazy'}
+            decoding="async"
+            fetchPriority={preloadFullImage ? 'high' : 'auto'}
             onError={(event) => { event.currentTarget.hidden = true; }}
           />
         )}
@@ -590,6 +697,12 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     return result;
   }, [timelineItems]);
   const localFilesById = useMemo(() => new Map(localFiles.map((file) => [file.id, file])), [localFiles]);
+  const preloadImageIds = useMemo(() => new Set(
+    files
+      .filter((file) => !file.mimeType.startsWith('video/'))
+      .slice(0, 2)
+      .map((file) => file.id),
+  ), [files]);
 
   const totalSize = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const videoCount = useMemo(() => files.filter((file) => file.mimeType.startsWith('video/')).length, [files]);
@@ -987,7 +1100,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
                   <div className="drive-data-state"><Cloud size={24} /><strong>Chưa có media trên Drive</strong><span>Ảnh và video sẽ xuất hiện sau lần đồng bộ tiếp theo.</span></div>
                 ) : (
                   <div className="drive-media-list">
-                    {files.map((file, index) => {
+                    {files.map((file) => {
                       const linkedDriveMedia = linkedMedia.get(file.id);
                       const localBlob = linkedDriveMedia?.media
                         .map((media) => media.blobId ? localFilesById.get(media.blobId)?.blob : undefined)
@@ -998,7 +1111,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
                           file={file}
                           linkedTitle={linkedDriveMedia?.title}
                           localBlob={localBlob}
-                          preloadFullImage={index < 2}
+                          preloadFullImage={preloadImageIds.has(file.id)}
                           onPreviewEvent={handleDrivePreviewEvent}
                           onDelete={() => setDeleteTarget(file)}
                         />
