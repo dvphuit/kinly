@@ -62,16 +62,17 @@ describe('service worker activation', () => {
     vi.resetModules();
   });
 
-  it('claims clients without navigating an app window during activation', async () => {
+  it('claims clients without navigating an app window during first activation', async () => {
     const { navigate, serviceWorker } = await activateServiceWorker({ hasActiveWorker: false });
 
     expect(serviceWorker.clients.claim).toHaveBeenCalledOnce();
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('refreshes an existing app window when an updated worker activates', async () => {
-    const { navigate } = await activateServiceWorker({ hasActiveWorker: true });
+  it('keeps an open app window intact when an updated worker activates', async () => {
+    const { navigate, serviceWorker } = await activateServiceWorker({ hasActiveWorker: true });
 
-    expect(navigate).toHaveBeenCalledWith('https://baby-growth.test/');
+    expect(serviceWorker.clients.claim).toHaveBeenCalledOnce();
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
