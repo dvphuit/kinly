@@ -8,12 +8,21 @@ export interface DriveMediaStreamSession {
 }
 
 export type DriveMediaStreamMessage =
-  | ({ kind: 'drive-media-stream/register' } & DriveMediaStreamSession)
+  | ({ kind: 'drive-media-stream/register'; requestId: string } & DriveMediaStreamSession)
+  | { kind: 'drive-media-stream/unregister'; streamId: string };
+
+export type ParsedDriveMediaStreamMessage =
+  | ({ kind: 'drive-media-stream/register'; requestId: string | null } & DriveMediaStreamSession)
   | { kind: 'drive-media-stream/unregister'; streamId: string };
 
 export type DriveMediaStreamReply =
   | { kind: 'drive-media-stream/registered' }
   | { kind: 'drive-media-stream/error'; message: string };
+
+export interface ParsedDriveMediaStreamClientReply {
+  requestId: string;
+  reply: DriveMediaStreamReply;
+}
 
 export interface DriveMediaStreamSessionRequest {
   kind: 'drive-media-stream/session-request';
@@ -77,7 +86,7 @@ export function driveMediaStreamIdFromPath(pathname: string): string | null {
   }
 }
 
-export function parseDriveMediaStreamMessage(value: unknown): DriveMediaStreamMessage | null {
+export function parseDriveMediaStreamMessage(value: unknown): ParsedDriveMediaStreamMessage | null {
   if (!isObject(value) || typeof value.kind !== 'string') return null;
   if (value.kind === 'drive-media-stream/unregister') {
     return isDriveMediaStreamId(value.streamId)
@@ -89,6 +98,7 @@ export function parseDriveMediaStreamMessage(value: unknown): DriveMediaStreamMe
   if (!session) return null;
   return {
     kind: value.kind,
+    requestId: isDriveMediaStreamId(value.requestId) ? value.requestId : null,
     ...session,
   };
 }
@@ -100,6 +110,12 @@ export function parseDriveMediaStreamReply(value: unknown): DriveMediaStreamRepl
     return { kind: value.kind, message: value.message };
   }
   return null;
+}
+
+export function parseDriveMediaStreamClientReply(value: unknown): ParsedDriveMediaStreamClientReply | null {
+  if (!isObject(value) || !isDriveMediaStreamId(value.requestId)) return null;
+  const reply = parseDriveMediaStreamReply(value);
+  return reply ? { requestId: value.requestId, reply } : null;
 }
 
 export function parseDriveMediaStreamSessionRequest(value: unknown): DriveMediaStreamSessionRequest | null {

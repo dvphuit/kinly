@@ -2,6 +2,7 @@ import {
   createDriveMediaStreamId,
   driveMediaStreamIdFromPath,
   driveMediaStreamPath,
+  parseDriveMediaStreamClientReply,
   parseDriveMediaStreamReply,
   parseDriveMediaStreamSessionRequest,
   type DriveMediaStreamMessage,
@@ -15,6 +16,10 @@ const SERVICE_WORKER_URL = '/sw.js';
 const SERVICE_WORKER_SCOPE = '/';
 const activeSessions = new Map<string, DriveMediaStreamSession>();
 const sessionBridgeContainers = new WeakSet<ServiceWorkerContainer>();
+const pendingRegistrationReplies = new Map<
+  string,
+  (reply: ReturnType<typeof parseDriveMediaStreamReply>) => void
+>();
 
 function serviceWorkerContainer(): ServiceWorkerContainer | null {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
@@ -25,8 +30,14 @@ function currentServiceWorker(): ServiceWorker | null {
   return serviceWorkerContainer()?.controller ?? null;
 }
 
-function registerMessage(session: DriveMediaStreamSession): DriveMediaStreamMessage {
-  return { kind: 'drive-media-stream/register', ...session };
+function registerMessage(
+  session: DriveMediaStreamSession,
+): Extract<DriveMediaStreamMessage, { kind: 'drive-media-stream/register' }> {
+  return {
+    kind: 'drive-media-stream/register',
+    requestId: createDriveMediaStreamId(),
+    ...session,
+  };
 }
 
 function installSessionBridge(container: ServiceWorkerContainer): void {
@@ -34,6 +45,12 @@ function installSessionBridge(container: ServiceWorkerContainer): void {
   sessionBridgeContainers.add(container);
 
   container.addEventListener('message', (event: MessageEvent<unknown>) => {
+    const registrationReply = parseDriveMediaStreamClientReply(event.data);
+    if (registrationReply) {
+      pendingRegistrationReplies.get(registrationReply.requestId)?.(registrationReply.reply);
+      return;
+    }
+
     const request = parseDriveMediaStreamSessionRequest(event.data);
     if (!request) return;
     const session = activeSessions.get(request.streamId);
@@ -52,7 +69,7 @@ function installSessionBridge(container: ServiceWorkerContainer): void {
         activeSessions.delete(streamId);
         continue;
       }
-      void requestStreamRegistration(controller, registerMessage(session));
+      void requestStreamRegistration(controller, session);
     }
   });
 }
@@ -133,25 +150,35 @@ function streamUnavailableError(): Error {
 
 async function requestStreamRegistration(
   controller: ServiceWorker,
-  message: DriveMediaStreamMessage,
+  session: DriveMediaStreamSession,
 ): Promise<ReturnType<typeof parseDriveMediaStreamReply>> {
-  const channel = new MessageChannel();
+  const message = registerMessage(session);
+  const channel = typeof MessageChannel === 'undefined' ? null : new MessageChannel();
 
   return new Promise<ReturnType<typeof parseDriveMediaStreamReply>>((resolve) => {
-    const timeoutId = window.setTimeout(() => resolve(null), REGISTRATION_REPLY_TIMEOUT_MS);
-    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+    let settled = false;
+    const finish = (reply: ReturnType<typeof parseDriveMediaStreamReply>) => {
+      if (settled) return;
+      settled = true;
       window.clearTimeout(timeoutId);
-      resolve(parseDriveMediaStreamReply(event.data));
+      pendingRegistrationReplies.delete(message.requestId);
+      resolve(reply);
     };
+    const timeoutId = window.setTimeout(() => finish(null), REGISTRATION_REPLY_TIMEOUT_MS);
+    pendingRegistrationReplies.set(message.requestId, finish);
+    if (channel) {
+      channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+        finish(parseDriveMediaStreamReply(event.data));
+      };
+    }
     try {
-      controller.postMessage(message, [channel.port2]);
+      controller.postMessage(message, channel ? [channel.port2] : []);
     } catch {
-      window.clearTimeout(timeoutId);
-      resolve(null);
+      finish(null);
     }
   }).finally(() => {
-    channel.port1.close();
-    channel.port2.close();
+    channel?.port1.close();
+    channel?.port2.close();
   });
 }
 
@@ -163,7 +190,7 @@ export async function registerDriveMediaStream(
   session: Omit<DriveMediaStreamSession, 'streamId'>,
 ): Promise<string> {
   const container = serviceWorkerContainer();
-  if (!container || typeof MessageChannel === 'undefined') throw streamUnavailableError();
+  if (!container) throw streamUnavailableError();
   installSessionBridge(container);
 
   const controller = await waitForActiveServiceWorker();
@@ -174,18 +201,17 @@ export async function registerDriveMediaStream(
     streamId,
     ...session,
   };
-  const message = registerMessage(activeSession);
   activeSessions.set(streamId, activeSession);
 
   try {
-    const reply = await requestStreamRegistration(controller, message);
+    const reply = await requestStreamRegistration(controller, activeSession);
     if (reply?.kind === 'drive-media-stream/error') throw new Error(reply.message);
     if (reply?.kind === 'drive-media-stream/registered') return streamUrl(streamId);
 
     const refreshedController = await refreshServiceWorkerController(controller);
     if (!refreshedController) throw streamUnavailableError();
 
-    const retryReply = await requestStreamRegistration(refreshedController, message);
+    const retryReply = await requestStreamRegistration(refreshedController, activeSession);
     if (retryReply?.kind === 'drive-media-stream/error') throw new Error(retryReply.message);
     if (retryReply?.kind !== 'drive-media-stream/registered') throw streamUnavailableError();
 

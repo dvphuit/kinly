@@ -61,6 +61,8 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
     : { kind: 'drive-media-stream/error', message: 'Phiên Google Drive đã hết hạn.' }
   if (reply.kind === 'drive-media-stream/registered')
     driveMediaStreams.register(message)
+  if (message.requestId)
+    event.source?.postMessage({ ...reply, requestId: message.requestId })
   event.ports[0]?.postMessage(reply)
 })
 

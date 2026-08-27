@@ -109,6 +109,53 @@ describe('Drive media stream client', () => {
     unregisterDriveMediaStream(streamUrl);
   });
 
+  it('registers through direct service-worker messages when MessageChannel is unavailable', async () => {
+    vi.stubGlobal('MessageChannel', undefined);
+    vi.spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce('01234567-89ab-4cde-8fab-0123456789ab')
+      .mockReturnValueOnce('11234567-89ab-4cde-8fab-0123456789ab');
+    const messageListeners = new Set<EventListener>();
+    const controller = {
+      postMessage: vi.fn((message: unknown) => {
+        if (
+          typeof message !== 'object'
+          || message === null
+          || !('kind' in message)
+          || message.kind !== 'drive-media-stream/register'
+          || !('requestId' in message)
+          || typeof message.requestId !== 'string'
+        ) {
+          return;
+        }
+        const replyEvent = new MessageEvent('message', {
+          data: {
+            kind: 'drive-media-stream/registered',
+            requestId: message.requestId,
+          },
+        });
+        messageListeners.forEach((listener) => listener(replyEvent));
+      }),
+    };
+    const serviceWorker = {
+      controller,
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'message') messageListeners.add(listener);
+      }),
+    };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: serviceWorker,
+    });
+
+    await expect(registerDriveMediaStream({
+      fileId: 'drive-video',
+      accessToken: 'google-access-token',
+      expiresAt: Date.now() + 60_000,
+    })).resolves.toBe(
+      'http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+    );
+  });
+
   it('registers the PWA worker on demand instead of falling back to a full video download', async () => {
     vi.stubGlobal('MessageChannel', FakeMessageChannel);
     vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
