@@ -217,7 +217,6 @@ describe('GoogleDriveDataView', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
 
     fireEvent.click(await screen.findByRole('button', { name: 'Xem ảnh baby.jpg' }));
-
     expect(await screen.findByRole('dialog', { name: 'Xem media baby.jpg' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'baby.jpg, ảnh 1' })).toHaveAttribute('src', 'blob:drive-preview');
     expect(drive.downloadTimelineMediaFromDrive).not.toHaveBeenCalled();
@@ -254,8 +253,10 @@ describe('GoogleDriveDataView', () => {
     resolveDownload?.(new Blob(['video-bytes'], { type: 'video/mp4' }));
 
     await waitFor(() => expect(document.querySelector('.moment-media-preview-loading')).not.toBeInTheDocument());
-    expect(document.querySelector('.moment-media-preview-asset')).toHaveAttribute('src', 'blob:drive-preview');
-    expect(document.querySelector('video[controls]')).toBeInTheDocument();
+    const video = document.querySelector('video.moment-media-preview-asset');
+    expect(video).toHaveAttribute('src', 'blob:drive-preview');
+    expect(video).not.toHaveAttribute('controls');
+    expect(document.querySelector('.moment-video-controls')).toBeInTheDocument();
   });
 
   it('streams Drive video through the service worker without downloading the full blob', async () => {
@@ -274,7 +275,7 @@ describe('GoogleDriveDataView', () => {
     fireEvent.click(tile);
 
     const video = await waitFor(() => {
-      const element = document.querySelector('video[controls]');
+      const element = document.querySelector('video.moment-media-preview-asset');
       expect(element).toHaveAttribute('src', streamUrl);
       return element;
     });
@@ -312,7 +313,7 @@ describe('GoogleDriveDataView', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
     fireEvent.click(await screen.findByRole('button', { name: 'Xem video first-steps.mp4' }));
 
-    await waitFor(() => expect(document.querySelector('video[controls]')).toHaveAttribute('src', 'blob:drive-preview'));
+    await waitFor(() => expect(document.querySelector('video.moment-media-preview-asset')).toHaveAttribute('src', 'blob:drive-preview'));
     expect(drive.downloadTimelineMediaFromDrive).toHaveBeenCalledWith(
       'drive-video',
       expect.objectContaining({ interactive: true, signal: expect.any(AbortSignal) }),
@@ -334,7 +335,7 @@ describe('GoogleDriveDataView', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
     fireEvent.click(await screen.findByRole('button', { name: 'Xem video first-steps.mp4' }));
 
-    await waitFor(() => expect(document.querySelector('video[controls]')).toHaveAttribute('src', 'blob:drive-preview'));
+    await waitFor(() => expect(document.querySelector('video.moment-media-preview-asset')).toHaveAttribute('src', 'blob:drive-preview'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -356,7 +357,7 @@ describe('GoogleDriveDataView', () => {
     await act(async () => vi.advanceTimersByTimeAsync(1));
     vi.useRealTimers();
 
-    await waitFor(() => expect(document.querySelector('video[controls]')).toHaveAttribute('src', 'blob:drive-preview'));
+    await waitFor(() => expect(document.querySelector('video.moment-media-preview-asset')).toHaveAttribute('src', 'blob:drive-preview'));
     expect(drive.downloadTimelineMediaFromDrive).toHaveBeenCalledTimes(1);
   });
 
@@ -372,7 +373,7 @@ describe('GoogleDriveDataView', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
     fireEvent.click(await screen.findByRole('button', { name: 'Xem video first-steps.mp4' }));
     const video = await waitFor(() => {
-      const element = document.querySelector('video[controls]');
+      const element = document.querySelector('video.moment-media-preview-asset');
       expect(element).toBeInTheDocument();
       return element;
     });
