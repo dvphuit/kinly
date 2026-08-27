@@ -1,14 +1,24 @@
 import React from 'react';
-
-export interface ToastMessage {
-  id: string;
-  message: string;
-  icon?: string;
-}
+import type { ToastMessage } from '@/shared/hooks/useToast';
 
 interface ToastContainerProps {
   toasts: ToastMessage[];
 }
+
+const ACTION_STYLE: React.CSSProperties = {
+  minWidth: 44,
+  minHeight: 44,
+  marginLeft: 'auto',
+  padding: '0 8px',
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  fontWeight: 800,
+  textDecoration: 'underline',
+  textUnderlineOffset: 3,
+  cursor: 'pointer',
+};
 
 export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts }) => (
   toasts.length > 0 ? (
@@ -17,6 +27,16 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts }) => (
         <div key={toast.id} className="toast-item" role="status">
           <span className="toast-item-icon" aria-hidden="true">{toast.icon || '✓'}</span>
           <span className="toast-item-copy">{toast.message}</span>
+          {toast.action && (
+            <button
+              type="button"
+              aria-label={toast.action.label}
+              style={ACTION_STYLE}
+              onClick={toast.action.onAction}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

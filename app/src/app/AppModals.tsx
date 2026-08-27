@@ -101,7 +101,13 @@ export function AppModals({ modals, onSuccessToast }: AppModalsProps) {
             isOpen={Boolean(modals.activityLogMode)}
             mode={modals.activityLogMode ?? lastActivityMode}
             onClose={modals.closeActivityLog}
-            onSaved={(message) => onSuccessToast(message, '✓')}
+            onSaved={(message, undo) => onSuccessToast(
+              message,
+              '✓',
+              undo
+                ? { actionLabel: 'Hoàn tác', onAction: undo, durationMs: 5000 }
+                : undefined,
+            )}
           />
       )}
       {growthMounted && (
