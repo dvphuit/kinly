@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const source = await readFile(new URL('./GoogleDriveDataView.tsx', import.meta.url), 'utf8');
+const source = await readFile('src/features/profile/GoogleDriveDataView.tsx', 'utf8');
 
 describe('Drive video startup policy', () => {
   it('does not probe validated cross-origin broker streams before mounting video', () => {
