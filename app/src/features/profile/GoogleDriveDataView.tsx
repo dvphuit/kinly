@@ -10,6 +10,7 @@ import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { HavenDialog } from '@/shared/ui/HavenDialog';
 import {
   checkDriveBackup,
+  createTimelineVideoStreamUrlFromDrive,
   deleteTimelineMediaFromDrive,
   downloadTimelineMediaFromDrive,
   downloadTimelineMediaThumbnailFromDrive,
@@ -18,6 +19,7 @@ import {
   isGoogleSessionActive,
   listTimelineMediaFromDrive,
   requestGoogleAccessToken,
+  releaseTimelineVideoStreamUrlFromDrive,
   subscribeSyncState,
   SYNC_KEYS,
   type DriveBackupSummary,
@@ -56,7 +58,9 @@ type DataSegment = 'device' | 'drive';
 type DriveMediaPreviewEvent =
   | { kind: 'open'; file: DriveTimelineMediaFile; previewSrc: string | null }
   | { kind: 'progress'; fileId: string; progress: number }
-  | { kind: 'ready'; fileId: string; src: string }
+  | { kind: 'download-ready'; fileId: string; src: string }
+  | { kind: 'stream-ready'; fileId: string; src: string }
+  | { kind: 'playable'; fileId: string }
   | { kind: 'error'; fileId: string; message: string };
 
 interface DataOverviewMetric {
@@ -301,15 +305,26 @@ function DriveMediaTile({
       previewSrc: thumbnailUrl || file.thumbnailLink || null,
     });
     try {
+      if (isVideo && !mediaObjectUrl.current) {
+        const streamUrl = await createTimelineVideoStreamUrlFromDrive(file.id, { interactive: true });
+        if (streamUrl) {
+          if (mounted.current) {
+            onPreviewEvent({ kind: 'stream-ready', fileId: file.id, src: streamUrl });
+          } else {
+            void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+          }
+          return;
+        }
+      }
       const mediaUrl = await loadFullMedia({
         interactive: true,
         onProgress: (progress) => onPreviewEvent({ kind: 'progress', fileId: file.id, progress }),
       });
-      if (mounted.current && mediaUrl) onPreviewEvent({ kind: 'ready', fileId: file.id, src: mediaUrl });
+      if (mounted.current && mediaUrl) onPreviewEvent({ kind: 'download-ready', fileId: file.id, src: mediaUrl });
     } catch (openError) {
       const aborted = isAbortError(openError);
       if (mounted.current && aborted && mediaObjectUrl.current) {
-        onPreviewEvent({ kind: 'ready', fileId: file.id, src: mediaObjectUrl.current });
+        onPreviewEvent({ kind: 'download-ready', fileId: file.id, src: mediaObjectUrl.current });
       } else if (mounted.current && !aborted) {
         onPreviewEvent({
           kind: 'error',
@@ -436,6 +451,8 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   const [logs, setLogs] = useState<DiagnosticLogEntry[]>(getDiagnosticLogs);
   const [drivePreview, setDrivePreview] = useState<MomentMediaPreviewState | null>(null);
   const driveLoadSequence = useRef(0);
+  const drivePreviewFileId = useRef<string | null>(null);
+  const driveStreamUrl = useRef<string | null>(null);
 
   useEffect(() => subscribeDiagnosticLogs(setLogs), []);
   useEffect(() => subscribeSyncState(() => {
@@ -446,9 +463,19 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     driveLoadSequence.current += 1;
   }, []);
 
+  const releaseActiveDriveStream = useCallback(() => {
+    const streamUrl = driveStreamUrl.current;
+    driveStreamUrl.current = null;
+    if (streamUrl) void releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+  }, []);
+
+  useEffect(() => () => releaseActiveDriveStream(), [releaseActiveDriveStream]);
+
   const handleDrivePreviewEvent = useCallback((event: DriveMediaPreviewEvent) => {
     switch (event.kind) {
       case 'open': {
+        drivePreviewFileId.current = event.file.id;
+        releaseActiveDriveStream();
         const isVideo = event.file.mimeType.startsWith('video/');
         setDrivePreview({
           items: [{ id: event.file.id, type: isVideo ? 'video' : 'photo', name: event.file.name }],
@@ -473,7 +500,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
           };
         });
         return;
-      case 'ready':
+      case 'download-ready':
         setDrivePreview((current) => {
           if (!current || current.layoutId !== drivePreviewLayoutId(event.fileId)) return current;
           return {
@@ -483,7 +510,31 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
           };
         });
         return;
+      case 'stream-ready':
+        if (drivePreviewFileId.current !== event.fileId) {
+          void releaseTimelineVideoStreamUrlFromDrive(event.src);
+          return;
+        }
+        releaseActiveDriveStream();
+        driveStreamUrl.current = event.src;
+        setDrivePreview((current) => {
+          if (!current || current.layoutId !== drivePreviewLayoutId(event.fileId)) return current;
+          return {
+            ...current,
+            items: current.items.map((media, index) => index === 0 ? { ...media, url: event.src } : media),
+            loading: { kind: 'stream', previewSrc: current.loading?.previewSrc ?? null },
+          };
+        });
+        return;
+      case 'playable':
+        setDrivePreview((current) => {
+          if (current?.layoutId !== drivePreviewLayoutId(event.fileId) || current.loading?.kind !== 'stream') return current;
+          return { ...current, loading: undefined };
+        });
+        return;
       case 'error':
+        drivePreviewFileId.current = null;
+        releaseActiveDriveStream();
         setDrivePreview((current) => (
           current?.layoutId === drivePreviewLayoutId(event.fileId) ? null : current
         ));
@@ -494,7 +545,13 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
         return exhaustiveEvent;
       }
     }
-  }, []);
+  }, [releaseActiveDriveStream]);
+
+  const closeDrivePreview = useCallback(() => {
+    drivePreviewFileId.current = null;
+    releaseActiveDriveStream();
+    setDrivePreview(null);
+  }, [releaseActiveDriveStream]);
 
   const linkedMedia = useMemo(() => {
     const result = new Map<string, { title: string; media: TimelineMediaItem[] }>();
@@ -950,7 +1007,21 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
 
       {error && <p className="drive-data-error" role="alert">{error}</p>}
 
-      <MomentMediaPreview preview={drivePreview} onClose={() => setDrivePreview(null)} />
+      <MomentMediaPreview
+        preview={drivePreview}
+        onClose={closeDrivePreview}
+        onMediaReady={(media) => {
+          if (media.id) handleDrivePreviewEvent({ kind: 'playable', fileId: media.id });
+        }}
+        onMediaError={(media) => {
+          if (!media.id) return;
+          handleDrivePreviewEvent({
+            kind: 'error',
+            fileId: media.id,
+            message: 'Không thể phát video từ Google Drive. Hãy thử lại.',
+          });
+        }}
+      />
 
       <BottomSheet
         isOpen={debugSheetOpen}

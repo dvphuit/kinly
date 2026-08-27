@@ -8,6 +8,7 @@ import { GoogleDriveDataView } from './GoogleDriveDataView';
 const drive = vi.hoisted(() => ({
   SYNC_KEYS: ['babygrowth_v2_timeline'],
   checkDriveBackup: vi.fn(),
+  createTimelineVideoStreamUrlFromDrive: vi.fn(),
   deleteTimelineMediaFromDrive: vi.fn(),
   downloadTimelineMediaFromDrive: vi.fn(),
   downloadTimelineMediaThumbnailFromDrive: vi.fn(),
@@ -16,6 +17,7 @@ const drive = vi.hoisted(() => ({
   isGoogleSessionActive: vi.fn(),
   listTimelineMediaFromDrive: vi.fn(),
   requestGoogleAccessToken: vi.fn(),
+  releaseTimelineVideoStreamUrlFromDrive: vi.fn(),
   subscribeSyncState: vi.fn(),
 }));
 
@@ -40,11 +42,13 @@ describe('GoogleDriveDataView', () => {
       createdTime: '2026-08-18T08:00:00.000Z', modifiedTime: '2026-08-18T09:00:00.000Z',
     }]);
     drive.checkDriveBackup.mockResolvedValue({ found: true, updatedAt: '2026-08-18T09:00:00.000Z' });
+    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(null);
     drive.getLastSyncedAt.mockResolvedValue('2026-08-18T09:00:00.000Z');
     drive.deleteTimelineMediaFromDrive.mockResolvedValue(undefined);
     drive.downloadTimelineMediaFromDrive.mockResolvedValue(new Blob(['image-bytes'], { type: 'image/jpeg' }));
     drive.downloadTimelineMediaThumbnailFromDrive.mockResolvedValue(new Blob(['thumbnail-bytes'], { type: 'image/jpeg' }));
     drive.requestGoogleAccessToken.mockResolvedValue(undefined);
+    drive.releaseTimelineVideoStreamUrlFromDrive.mockResolvedValue(undefined);
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:drive-preview'), revokeObjectURL: vi.fn() });
     Object.defineProperty(navigator, 'storage', {
       configurable: true,
@@ -226,7 +230,9 @@ describe('GoogleDriveDataView', () => {
 
     expect(screen.getByRole('dialog', { name: 'Xem media first-steps.mp4' })).toBeInTheDocument();
     expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toHaveAttribute('src', 'blob:drive-preview');
-    expect(screen.getByRole('progressbar', { name: 'Đang tải video từ Google Drive' })).toHaveAttribute('aria-valuenow', '37');
+    await waitFor(() => expect(
+      screen.getByRole('progressbar', { name: 'Đang tải video từ Google Drive' }),
+    ).toHaveAttribute('aria-valuenow', '37'));
     expect(screen.getByText('37%')).toBeInTheDocument();
 
     resolveDownload?.(new Blob(['video-bytes'], { type: 'video/mp4' }));
@@ -234,6 +240,41 @@ describe('GoogleDriveDataView', () => {
     await waitFor(() => expect(document.querySelector('.moment-media-preview-loading')).not.toBeInTheDocument());
     expect(document.querySelector('.moment-media-preview-asset')).toHaveAttribute('src', 'blob:drive-preview');
     expect(document.querySelector('video[controls]')).toBeInTheDocument();
+  });
+
+  it('streams Drive video through the service worker without downloading the full blob', async () => {
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
+      thumbnailLink: 'https://lh3.googleusercontent.com/video-thumbnail',
+    }]);
+    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(
+      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+    );
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+    const tile = await screen.findByRole('button', { name: 'Xem video first-steps.mp4' });
+    await waitFor(() => expect(tile.querySelector('img')).toHaveAttribute('src', 'blob:drive-preview'));
+
+    fireEvent.click(tile);
+
+    const video = await waitFor(() => {
+      const element = document.querySelector('video[controls]');
+      expect(element).toHaveAttribute(
+        'src',
+        'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+      );
+      return element;
+    });
+    expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toBeInTheDocument();
+    expect(drive.downloadTimelineMediaFromDrive).not.toHaveBeenCalled();
+
+    fireEvent.loadedMetadata(video!);
+    await waitFor(() => expect(document.querySelector('.moment-media-preview-loading')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng preview' }));
+    await waitFor(() => expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(
+      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+    ));
   });
 
   it('uses a play affordance for video cards without a media-type label', async () => {

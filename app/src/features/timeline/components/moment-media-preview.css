@@ -15,7 +15,7 @@
 .moment-media-preview-asset { max-width: 100%; max-height: 100%; display: block; object-fit: contain !important; background: transparent; }
 .moment-media-preview-stage img.moment-media-preview-asset, .moment-media-preview-slide img.moment-media-preview-asset { width: auto; height: auto; }
 .moment-media-preview-stage video.moment-media-preview-asset, .moment-media-preview-slide video.moment-media-preview-asset { width: min(100%, 960px); height: 100%; }
-.moment-media-preview-loading-thumbnail { filter: blur(16px) brightness(0.58) saturate(0.82); opacity: 0.9; transform: scale(1.08); }
+.moment-media-preview-loading-thumbnail { position: absolute; inset: 0; margin: auto; filter: blur(16px) brightness(0.58) saturate(0.82); opacity: 0.9; transform: scale(1.08); }
 .moment-media-preview-loading { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; padding: 24px; pointer-events: none; }
 .moment-media-preview-loading-card { width: min(210px, 72vw); padding: 13px 14px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; background: rgba(24,17,14,0.56); box-shadow: 0 14px 40px rgba(0,0,0,0.24); backdrop-filter: blur(14px); display: grid; gap: 8px; text-align: center; }
 .moment-media-preview-loading-card span { color: rgba(255,255,255,0.84); font: 680 10px/1.35 var(--font-family-body); }

@@ -3,10 +3,17 @@ import { clientsClaim } from 'workbox-core'
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { CacheFirst } from 'workbox-strategies'
+import { createDriveMediaStreamRegistry } from '@/driveMediaStreamWorker'
+import {
+  driveMediaStreamIdFromPath,
+  parseDriveMediaStreamMessage,
+  type DriveMediaStreamReply,
+} from '@/features/sync/driveMediaStreamProtocol'
 
 declare let self: ServiceWorkerGlobalScope
 
 const isServiceWorkerUpdate = Boolean(self.registration.active)
+const driveMediaStreams = createDriveMediaStreamRegistry({ fetch })
 
 self.skipWaiting()
 clientsClaim()
@@ -50,6 +57,24 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   })())
 })
 
+self.addEventListener('message', (event: ExtendableMessageEvent) => {
+  const message = parseDriveMediaStreamMessage(event.data)
+  if (!message)
+    return
+
+  if (message.kind === 'drive-media-stream/unregister') {
+    driveMediaStreams.unregister(message.streamId)
+    return
+  }
+
+  const reply: DriveMediaStreamReply = message.expiresAt > Date.now()
+    ? { kind: 'drive-media-stream/registered' }
+    : { kind: 'drive-media-stream/error', message: 'Phiên Google Drive đã hết hạn.' }
+  if (reply.kind === 'drive-media-stream/registered')
+    driveMediaStreams.register(message)
+  event.ports[0]?.postMessage(reply)
+})
+
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
@@ -65,6 +90,20 @@ registerRoute(
 registerRoute(
   ({ request, url }) => request.destination === 'image' && url.origin === self.location.origin,
   new CacheFirst({ cacheName: 'babygrowth-runtime-images' }),
+)
+
+registerRoute(
+  ({ request, url }) => (
+    request.method === 'GET'
+    && url.origin === self.location.origin
+    && driveMediaStreamIdFromPath(url.pathname) !== null
+  ),
+  ({ request, url }) => {
+    const streamId = driveMediaStreamIdFromPath(url.pathname)
+    return streamId
+      ? driveMediaStreams.respond(request, streamId)
+      : Promise.resolve(new Response('Stream không hợp lệ.', { status: 404 }))
+  },
 )
 
 /** @type {RegExp[] | undefined} */

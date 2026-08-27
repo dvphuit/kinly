@@ -24,6 +24,35 @@ describe('MomentMediaPreview', () => {
     expect(screen.getByText('42%')).toBeInTheDocument();
   });
 
+  it('starts a stream behind the blurred thumbnail and reports when video becomes playable', () => {
+    const media: TimelineMediaItem = {
+      id: 'drive-video',
+      type: 'video',
+      url: 'https://kinly.test/__kinly/drive-media/stream-session-id-123',
+    };
+    const onMediaReady = vi.fn();
+    render(
+      <MomentMediaPreview
+        preview={{
+          items: [media],
+          initialIndex: 0,
+          title: 'Video từ Drive',
+          layoutId: 'drive-video-preview',
+          originSrc: 'blob:thumbnail',
+          loading: { kind: 'stream', previewSrc: 'blob:thumbnail' },
+        }}
+        onClose={vi.fn()}
+        onMediaReady={onMediaReady}
+      />,
+    );
+
+    const video = document.querySelector('video[controls]');
+    expect(video).toHaveAttribute('src', media.url);
+    expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toHaveAttribute('src', 'blob:thumbnail');
+    fireEvent.loadedMetadata(video!);
+    expect(onMediaReady).toHaveBeenCalledWith(media);
+  });
+
   it('opens the tapped media with the active shared-layout identity', () => {
     const items: TimelineMediaItem[] = [
       { id: 'photo-1', type: 'photo', url: 'https://example.com/one.jpg' },

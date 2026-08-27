@@ -272,6 +272,19 @@ export async function downloadTimelineMediaFromDrive(
   return module.downloadTimelineMediaFromDrive(fileId, options);
 }
 
+export async function createTimelineVideoStreamUrlFromDrive(
+  fileId: string,
+  options: { interactive?: boolean } = {},
+): Promise<string | null> {
+  const module = await loadGoogleDriveSync();
+  return module.createTimelineVideoStreamUrlFromDrive(fileId, options);
+}
+
+export async function releaseTimelineVideoStreamUrlFromDrive(streamUrl: string): Promise<void> {
+  const module = await loadGoogleDriveSync();
+  module.releaseTimelineVideoStreamUrlFromDrive(streamUrl);
+}
+
 export async function downloadTimelineMediaThumbnailFromDrive(
   thumbnailLink: string,
   options: { interactive?: boolean; signal?: AbortSignal } = {},

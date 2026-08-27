@@ -18,7 +18,8 @@ import './moment-media-preview.css';
 
 export type MomentMediaPreviewLoadingState =
   | { kind: 'indeterminate'; previewSrc: string | null }
-  | { kind: 'determinate'; previewSrc: string | null; progress: number };
+  | { kind: 'determinate'; previewSrc: string | null; progress: number }
+  | { kind: 'stream'; previewSrc: string | null };
 
 export interface MomentMediaPreviewState {
   items: TimelineMediaItem[];
@@ -33,11 +34,15 @@ export interface MomentMediaPreviewState {
 interface MomentMediaPreviewProps {
   preview: MomentMediaPreviewState | null;
   onClose: () => void;
+  onMediaReady?: (media: TimelineMediaItem) => void;
+  onMediaError?: (media: TimelineMediaItem) => void;
 }
 
 interface MomentMediaPreviewContentProps extends MomentMediaPreviewState {
   onClose: () => void;
   externalClosing: boolean;
+  onMediaReady?: (media: TimelineMediaItem) => void;
+  onMediaError?: (media: TimelineMediaItem) => void;
 }
 
 interface PointerGesture {
@@ -66,6 +71,8 @@ function MomentMediaSlideAsset({
   layoutId,
   contentRef,
   loading,
+  onMediaReady,
+  onMediaError,
 }: {
   media: TimelineMediaItem;
   title: string;
@@ -76,42 +83,19 @@ function MomentMediaSlideAsset({
   layoutId?: string;
   contentRef?: Ref<HTMLDivElement>;
   loading?: MomentMediaPreviewLoadingState;
+  onMediaReady?: (media: TimelineMediaItem) => void;
+  onMediaError?: (media: TimelineMediaItem) => void;
 }) {
   const resolvedUrl = useTimelineMediaUrl(media);
   const src = resolvedUrl || media.url || (isInitial && originSrc) || '';
   const isVideo = media.type === 'video';
   const loadingLabel = `Đang tải ${isVideo ? 'video' : 'ảnh'} từ Google Drive`;
+  const renderMedia = !loading || loading.kind === 'stream';
+  const indeterminate = loading?.kind !== 'determinate';
 
   return (
     <div ref={contentRef} className={`moment-media-preview-slide-content ${loading ? 'is-loading' : ''}`}>
-      {loading ? (
-        <>
-          {loading.previewSrc && (
-            <img
-              className="moment-media-preview-asset moment-media-preview-loading-thumbnail"
-              src={loading.previewSrc}
-              alt=""
-              draggable={false}
-            />
-          )}
-          <div className="moment-media-preview-loading" role="status" aria-live="polite">
-            <div className="moment-media-preview-loading-card">
-              <span>{loadingLabel}</span>
-              <div
-                className={`moment-media-preview-progress ${loading.kind === 'indeterminate' ? 'is-indeterminate' : ''}`}
-                role="progressbar"
-                aria-label={loadingLabel}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={loading.kind === 'determinate' ? loading.progress : undefined}
-              >
-                <i style={loading.kind === 'determinate' ? { width: `${loading.progress}%` } : undefined} />
-              </div>
-              <strong>{loading.kind === 'determinate' ? `${loading.progress}%` : 'Đang kết nối…'}</strong>
-            </div>
-          </div>
-        </>
-      ) : isVideo ? (
+      {renderMedia && (isVideo ? (
         <video
           data-layout-id={isActive ? layoutId : undefined}
           data-native-transition-id={isActive ? layoutId : undefined}
@@ -121,6 +105,8 @@ function MomentMediaSlideAsset({
           playsInline
           preload={isActive ? 'metadata' : 'none'}
           style={{ borderRadius: 0 }}
+          onLoadedMetadata={() => onMediaReady?.(media)}
+          onError={() => onMediaError?.(media)}
         />
       ) : (
         <img
@@ -134,6 +120,34 @@ function MomentMediaSlideAsset({
           decoding="async"
           style={{ borderRadius: 0 }}
         />
+      ))}
+      {loading && (
+        <>
+          {loading.previewSrc && (
+            <img
+              className="moment-media-preview-asset moment-media-preview-loading-thumbnail"
+              src={loading.previewSrc}
+              alt=""
+              draggable={false}
+            />
+          )}
+          <div className="moment-media-preview-loading" role="status" aria-live="polite">
+            <div className="moment-media-preview-loading-card">
+              <span>{loadingLabel}</span>
+              <div
+                className={`moment-media-preview-progress ${indeterminate ? 'is-indeterminate' : ''}`}
+                role="progressbar"
+                aria-label={loadingLabel}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={loading.kind === 'determinate' ? loading.progress : undefined}
+              >
+                <i style={loading.kind === 'determinate' ? { width: `${loading.progress}%` } : undefined} />
+              </div>
+              <strong>{loading.kind === 'determinate' ? `${loading.progress}%` : 'Đang kết nối…'}</strong>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -150,6 +164,8 @@ function MomentMediaSlideItem({
   layoutId,
   activeContentRef,
   loading,
+  onMediaReady,
+  onMediaError,
 }: {
   media: TimelineMediaItem;
   title: string;
@@ -161,6 +177,8 @@ function MomentMediaSlideItem({
   layoutId?: string;
   activeContentRef: Ref<HTMLDivElement>;
   loading?: MomentMediaPreviewLoadingState;
+  onMediaReady?: (media: TimelineMediaItem) => void;
+  onMediaError?: (media: TimelineMediaItem) => void;
 }) {
   return (
     <div
@@ -178,6 +196,8 @@ function MomentMediaSlideItem({
           layoutId={layoutId}
           contentRef={isActive ? activeContentRef : undefined}
           loading={isActive ? loading : undefined}
+          onMediaReady={isActive ? onMediaReady : undefined}
+          onMediaError={isActive ? onMediaError : undefined}
         />
       )}
     </div>
@@ -194,6 +214,8 @@ function MomentMediaPreviewContent({
   onClose,
   externalClosing,
   loading,
+  onMediaReady,
+  onMediaError,
 }: MomentMediaPreviewContentProps) {
   const safeInitialIndex = Math.max(0, Math.min(items.length - 1, initialIndex));
   const [activeIndex, setActiveIndex] = useState(safeInitialIndex);
@@ -443,6 +465,8 @@ function MomentMediaPreviewContent({
                   layoutId={index === safeInitialIndex ? layoutId : getLayoutId?.(index, media)}
                   activeContentRef={activeContentRef}
                   loading={loading}
+                  onMediaReady={onMediaReady}
+                  onMediaError={onMediaError}
                 />
               );
             })}
@@ -500,7 +524,7 @@ function MomentMediaPreviewContent({
   );
 }
 
-export function MomentMediaPreview({ preview, onClose }: MomentMediaPreviewProps) {
+export function MomentMediaPreview({ preview, onClose, onMediaReady, onMediaError }: MomentMediaPreviewProps) {
   const lastPreviewRef = useRef<MomentMediaPreviewState | null>(preview);
   if (preview) lastPreviewRef.current = preview;
   const presence = useNativePresence(Boolean(preview), DISMISS_MS);
@@ -514,6 +538,8 @@ export function MomentMediaPreview({ preview, onClose }: MomentMediaPreviewProps
       {...renderedPreview}
       externalClosing={presence.phase === 'closing'}
       onClose={onClose}
+      onMediaReady={onMediaReady}
+      onMediaError={onMediaError}
     />,
     document.body,
   );

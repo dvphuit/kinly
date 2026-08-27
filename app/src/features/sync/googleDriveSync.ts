@@ -5,6 +5,7 @@ import { parseSyncSnapshot, SyncSnapshotIntegrityError, type SyncSnapshot } from
 import { getLocalRecord, setLocalRecord } from '@/data/localDb';
 import { logDiagnostic } from '@/app/diagnostics/diagnosticLog';
 import { scheduleIdleTask } from '@/shared/lib/idleTask';
+import { registerDriveMediaStream, unregisterDriveMediaStream } from './driveMediaStreamClient';
 
 export { SyncSnapshotIntegrityError };
 export type { SyncSnapshot };
@@ -669,6 +670,22 @@ export function downloadTimelineMediaFromDrive(
   options: DriveMediaDownloadOptions = {},
 ): Promise<Blob> {
   return driveBlobRequest(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, options);
+}
+
+export async function createTimelineVideoStreamUrlFromDrive(
+  fileId: string,
+  options: { interactive?: boolean } = {},
+): Promise<string | null> {
+  const token = await ensureAccessToken(options.interactive === true);
+  return registerDriveMediaStream({
+    fileId,
+    accessToken: token,
+    expiresAt: accessTokenExpiresAt,
+  });
+}
+
+export function releaseTimelineVideoStreamUrlFromDrive(streamUrl: string): void {
+  unregisterDriveMediaStream(streamUrl);
 }
 
 export async function downloadTimelineMediaThumbnailFromDrive(
