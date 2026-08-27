@@ -32,7 +32,7 @@ describe('native experience', () => {
     expect(dispatchContextMenu(surface).defaultPrevented).toBe(true);
   });
 
-  it('keeps native actions available for links, video, fields, and Shift-click', () => {
+  it('keeps native actions available for links, media, fields, and Shift-click', () => {
     mockDisplayMode(true);
     const surface = document.createElement('div');
     const link = document.createElement('a');
@@ -45,7 +45,7 @@ describe('native experience', () => {
     dispose = initializeNativeExperience();
 
     expect(dispatchContextMenu(link).defaultPrevented).toBe(false);
-    expect(dispatchContextMenu(image).defaultPrevented).toBe(true);
+    expect(dispatchContextMenu(image).defaultPrevented).toBe(false);
     expect(dispatchContextMenu(input).defaultPrevented).toBe(false);
     expect(dispatchContextMenu(surface, true).defaultPrevented).toBe(false);
   });

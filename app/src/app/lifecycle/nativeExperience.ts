@@ -2,6 +2,7 @@ const STANDALONE_CLASS = 'is-standalone';
 
 const NATIVE_CONTEXT_MENU_TARGETS = [
   'a[href]',
+  'img',
   'video',
   'audio',
   'input:not([disabled])',
