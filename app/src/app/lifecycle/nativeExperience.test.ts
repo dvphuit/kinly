@@ -122,6 +122,10 @@ describe('native experience', () => {
 
     dispatchPointer(button, 'pointerup', 52, 51);
     expect(button.hasAttribute('data-pressed')).toBe(false);
+
+    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+    button.dispatchEvent(clickEvent);
+    expect(clickEvent.defaultPrevented).toBe(false);
   });
 
   it('does not add pressed state for inputs and keeps native focus on down', () => {
@@ -133,23 +137,5 @@ describe('native experience', () => {
 
     dispatchPointer(input, 'pointerdown', 10, 10);
     expect(input.hasAttribute('data-pressed')).toBe(false);
-  });
-
-  it('applies pressed state to generic elements when enabled for all', () => {
-    mockDisplayMode(true);
-    const card = document.createElement('div');
-    card.textContent = 'Card';
-    document.body.append(card);
-
-    dispose = initializeNativeExperience();
-
-    dispatchPointer(card, 'pointerdown', 20, 20);
-    expect(card.hasAttribute('data-pressed')).toBe(true);
-
-    dispatchPointer(card, 'pointermove', 22, 22);
-    expect(card.hasAttribute('data-pressed')).toBe(true);
-
-    dispatchPointer(card, 'pointerup', 22, 22);
-    expect(card.hasAttribute('data-pressed')).toBe(false);
   });
 });
