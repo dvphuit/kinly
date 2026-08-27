@@ -11,20 +11,6 @@ function dispatchContextMenu(target: Element, shiftKey = false): MouseEvent {
   return event;
 }
 
-function dispatchPointer(target: Element, type: string, x: number, y: number): PointerEvent {
-  const event = new PointerEvent(type, {
-    bubbles: true,
-    cancelable: true,
-    clientX: x,
-    clientY: y,
-    pointerId: 1,
-    pointerType: 'touch',
-    button: 0,
-  });
-  target.dispatchEvent(event);
-  return event;
-}
-
 describe('native experience', () => {
   let dispose: (() => void) | undefined;
 
@@ -73,69 +59,5 @@ describe('native experience', () => {
 
     expect(document.documentElement).not.toHaveClass('is-standalone');
     expect(dispatchContextMenu(surface).defaultPrevented).toBe(false);
-  });
-
-  it('supports touch down / move / release: down shows pressed, move beyond threshold cancels focus and suppresses click', () => {
-    mockDisplayMode(true);
-    const button = document.createElement('button');
-    button.textContent = 'Tap';
-    document.body.append(button);
-
-    dispose = initializeNativeExperience();
-
-    const clickSpy = vi.fn();
-    button.addEventListener('click', clickSpy);
-
-    dispatchPointer(button, 'pointerdown', 100, 100);
-    expect(button.hasAttribute('data-pressed')).toBe(true);
-
-    button.focus();
-    expect(document.activeElement).toBe(button);
-
-    dispatchPointer(button, 'pointermove', 115, 100);
-    expect(button.hasAttribute('data-pressed')).toBe(false);
-    expect(document.activeElement).not.toBe(button);
-
-    dispatchPointer(button, 'pointerup', 115, 100);
-    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
-    button.dispatchEvent(clickEvent);
-    expect(clickEvent.defaultPrevented).toBe(true);
-    expect(clickSpy).not.toHaveBeenCalled();
-  });
-
-  it('supports touch down / release without move: keeps pressed until release and allows click', () => {
-    mockDisplayMode(false);
-    const button = document.createElement('button');
-    button.textContent = 'Tap';
-    document.body.append(button);
-
-    dispose = initializeNativeExperience();
-
-    const clickSpy = vi.fn();
-    button.addEventListener('click', clickSpy);
-
-    dispatchPointer(button, 'pointerdown', 50, 50);
-    expect(button.hasAttribute('data-pressed')).toBe(true);
-
-    dispatchPointer(button, 'pointermove', 52, 51);
-    expect(button.hasAttribute('data-pressed')).toBe(true);
-
-    dispatchPointer(button, 'pointerup', 52, 51);
-    expect(button.hasAttribute('data-pressed')).toBe(false);
-
-    const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
-    button.dispatchEvent(clickEvent);
-    expect(clickEvent.defaultPrevented).toBe(false);
-  });
-
-  it('does not add pressed state for inputs and keeps native focus on down', () => {
-    mockDisplayMode(true);
-    const input = document.createElement('input');
-    document.body.append(input);
-
-    dispose = initializeNativeExperience();
-
-    dispatchPointer(input, 'pointerdown', 10, 10);
-    expect(input.hasAttribute('data-pressed')).toBe(false);
   });
 });

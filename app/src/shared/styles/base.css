@@ -115,14 +115,6 @@ button {
   -webkit-user-drag: none;
 }
 
-button[data-pressed],
-a[data-pressed],
-[role="button"][data-pressed],
-[data-pressable][data-pressed] {
-  transform: scale(0.97);
-  opacity: 0.96;
-}
-
 /* Keep copy, edit, and media actions available where users expect them. */
 input,
 textarea,
