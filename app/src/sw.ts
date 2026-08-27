@@ -12,25 +12,10 @@ import {
 
 declare let self: ServiceWorkerGlobalScope
 
-const isServiceWorkerUpdate = Boolean(self.registration.active)
 const driveMediaStreams = createDriveMediaStreamRegistry({ fetch })
 
 self.skipWaiting()
 clientsClaim()
-
-self.addEventListener('activate', (event: ExtendableEvent) => {
-  if (!isServiceWorkerUpdate)
-    return
-
-  event.waitUntil((async () => {
-    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    await Promise.all(clients.map(async (client) => {
-      if (new URL(client.url).origin !== self.location.origin)
-        return
-      await (client as WindowClient).navigate(client.url)
-    }))
-  })())
-})
 
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close()
