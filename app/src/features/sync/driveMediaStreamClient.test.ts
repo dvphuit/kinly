@@ -50,7 +50,7 @@ describe('Drive media stream client', () => {
     const register = vi.fn();
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
-      value: { controller, register },
+      value: { controller, register, addEventListener: vi.fn() },
     });
 
     const streamUrl = await registerDriveMediaStream({
@@ -72,6 +72,41 @@ describe('Drive media stream client', () => {
       kind: 'drive-media-stream/unregister',
       streamId: '01234567-89ab-4cde-8fab-0123456789ab',
     });
+  });
+
+  it('re-registers an open stream when a new service worker takes control', async () => {
+    vi.stubGlobal('MessageChannel', FakeMessageChannel);
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
+    const firstController = streamController();
+    const nextController = streamController();
+    const controllerChangeListeners = new Set<EventListener>();
+    const serviceWorker = {
+      controller: firstController,
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'controllerchange') controllerChangeListeners.add(listener);
+      }),
+    };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: serviceWorker,
+    });
+
+    const streamUrl = await registerDriveMediaStream({
+      fileId: 'drive-video',
+      accessToken: 'google-access-token',
+      expiresAt: Date.now() + 60_000,
+    });
+
+    serviceWorker.controller = nextController;
+    controllerChangeListeners.forEach((listener) => listener(new Event('controllerchange')));
+
+    await vi.waitFor(() => expect(nextController.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'drive-media-stream/register',
+      fileId: 'drive-video',
+      accessToken: 'google-access-token',
+    }), expect.any(Array)));
+
+    unregisterDriveMediaStream(streamUrl);
   });
 
   it('registers the PWA worker on demand instead of falling back to a full video download', async () => {
@@ -137,10 +172,12 @@ describe('Drive media stream client', () => {
 
     await vi.advanceTimersByTimeAsync(5_500);
     expect(controller.postMessage).not.toHaveBeenCalled();
-    expect(controllerChangeListeners.size).toBe(1);
+    expect(controllerChangeListeners.size).toBe(2);
 
     serviceWorker.controller = controller;
     controllerChangeListeners.forEach((listener) => listener(new Event('controllerchange')));
+
+    expect(controllerChangeListeners.size).toBe(1);
 
     await expect(streamPromise).resolves.toBe(
       'http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
@@ -190,10 +227,12 @@ describe('Drive media stream client', () => {
     }), expect.any(Array));
     expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
     expect(registration.update).toHaveBeenCalledOnce();
-    expect(controllerChangeListeners.size).toBe(1);
+    expect(controllerChangeListeners.size).toBe(2);
 
     serviceWorker.controller = freshController;
     controllerChangeListeners.forEach((listener) => listener(new Event('controllerchange')));
+
+    expect(controllerChangeListeners.size).toBe(1);
 
     await expect(streamPromise).resolves.toBe(
       'http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',

@@ -17,7 +17,11 @@ interface DriveMediaStreamRegistryOptions {
 export interface DriveMediaStreamRegistry {
   register: (session: DriveMediaStreamSession) => void;
   unregister: (streamId: string) => void;
-  respond: (request: Request, streamId: string) => Promise<Response>;
+  respond: (
+    request: Request,
+    streamId: string,
+    recoverSession?: (streamId: string) => Promise<DriveMediaStreamSession | null>,
+  ) => Promise<Response>;
 }
 
 function errorResponse(status: number, message: string): Response {
@@ -67,8 +71,15 @@ export function createDriveMediaStreamRegistry({
     unregister(streamId) {
       sessions.delete(streamId);
     },
-    async respond(request, streamId) {
-      const session = sessions.get(streamId);
+    async respond(request, streamId, recoverSession) {
+      let session = sessions.get(streamId);
+      if (!session && recoverSession) {
+        const recovered = await recoverSession(streamId);
+        if (recovered?.streamId === streamId) {
+          sessions.set(streamId, recovered);
+          session = recovered;
+        }
+      }
       if (!session) return errorResponse(404, 'Stream không tồn tại hoặc đã đóng.');
       if (session.expiresAt <= now()) {
         sessions.delete(streamId);

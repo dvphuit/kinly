@@ -15,10 +15,40 @@ export type DriveMediaStreamReply =
   | { kind: 'drive-media-stream/registered' }
   | { kind: 'drive-media-stream/error'; message: string };
 
+export interface DriveMediaStreamSessionRequest {
+  kind: 'drive-media-stream/session-request';
+  streamId: string;
+}
+
+export type DriveMediaStreamSessionReply =
+  | { kind: 'drive-media-stream/session'; session: DriveMediaStreamSession }
+  | { kind: 'drive-media-stream/session-unavailable' };
+
 const STREAM_ID_PATTERN = /^[A-Za-z0-9_-]{20,80}$/;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function parseDriveMediaStreamSession(value: unknown): DriveMediaStreamSession | null {
+  if (
+    !isObject(value)
+    || !isDriveMediaStreamId(value.streamId)
+    || typeof value.fileId !== 'string'
+    || !value.fileId.trim()
+    || typeof value.accessToken !== 'string'
+    || !value.accessToken
+    || typeof value.expiresAt !== 'number'
+    || !Number.isFinite(value.expiresAt)
+  ) {
+    return null;
+  }
+  return {
+    streamId: value.streamId,
+    fileId: value.fileId,
+    accessToken: value.accessToken,
+    expiresAt: value.expiresAt,
+  };
 }
 
 export function isDriveMediaStreamId(value: unknown): value is string {
@@ -55,23 +85,11 @@ export function parseDriveMediaStreamMessage(value: unknown): DriveMediaStreamMe
       : null;
   }
   if (value.kind !== 'drive-media-stream/register') return null;
-  if (
-    !isDriveMediaStreamId(value.streamId)
-    || typeof value.fileId !== 'string'
-    || !value.fileId.trim()
-    || typeof value.accessToken !== 'string'
-    || !value.accessToken
-    || typeof value.expiresAt !== 'number'
-    || !Number.isFinite(value.expiresAt)
-  ) {
-    return null;
-  }
+  const session = parseDriveMediaStreamSession(value);
+  if (!session) return null;
   return {
     kind: value.kind,
-    streamId: value.streamId,
-    fileId: value.fileId,
-    accessToken: value.accessToken,
-    expiresAt: value.expiresAt,
+    ...session,
   };
 }
 
@@ -82,4 +100,23 @@ export function parseDriveMediaStreamReply(value: unknown): DriveMediaStreamRepl
     return { kind: value.kind, message: value.message };
   }
   return null;
+}
+
+export function parseDriveMediaStreamSessionRequest(value: unknown): DriveMediaStreamSessionRequest | null {
+  if (
+    !isObject(value)
+    || value.kind !== 'drive-media-stream/session-request'
+    || !isDriveMediaStreamId(value.streamId)
+  ) {
+    return null;
+  }
+  return { kind: value.kind, streamId: value.streamId };
+}
+
+export function parseDriveMediaStreamSessionReply(value: unknown): DriveMediaStreamSessionReply | null {
+  if (!isObject(value) || typeof value.kind !== 'string') return null;
+  if (value.kind === 'drive-media-stream/session-unavailable') return { kind: value.kind };
+  if (value.kind !== 'drive-media-stream/session') return null;
+  const session = parseDriveMediaStreamSession(value.session);
+  return session ? { kind: value.kind, session } : null;
 }

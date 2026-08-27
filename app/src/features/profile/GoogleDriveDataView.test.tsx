@@ -277,6 +277,33 @@ describe('GoogleDriveDataView', () => {
     ));
   });
 
+  it('keeps the preview open when the browser reports a stream playback error', async () => {
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
+      thumbnailLink: 'https://lh3.googleusercontent.com/video-thumbnail',
+    }]);
+    drive.createTimelineVideoStreamUrlFromDrive.mockResolvedValue(
+      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+    );
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Xem video first-steps.mp4' }));
+    const video = await waitFor(() => {
+      const element = document.querySelector('video[controls]');
+      expect(element).toBeInTheDocument();
+      return element;
+    });
+
+    fireEvent.error(video!);
+
+    expect(screen.getByRole('dialog', { name: 'Xem media first-steps.mp4' })).toBeInTheDocument();
+    expect(screen.getByText('Không thể phát video từ Google Drive. Hãy thử lại.')).toBeInTheDocument();
+    expect(drive.releaseTimelineVideoStreamUrlFromDrive).toHaveBeenCalledWith(
+      'https://kinly.test/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+    );
+  });
+
   it('uses a play affordance for video cards without a media-type label', async () => {
     drive.listTimelineMediaFromDrive.mockResolvedValue([{
       id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,

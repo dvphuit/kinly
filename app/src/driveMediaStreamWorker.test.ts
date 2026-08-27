@@ -62,4 +62,39 @@ describe('Drive media stream service worker registry', () => {
     expect((await registry.respond(request, STREAM_ID)).status).toBe(404);
     expect(fetchUpstream).not.toHaveBeenCalled();
   });
+
+  it('recovers an open stream session after a service worker update clears memory', async () => {
+    const fetchUpstream: typeof fetch = vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), {
+      status: 206,
+      headers: {
+        'Content-Length': '3',
+        'Content-Range': 'bytes 0-2/1000',
+        'Content-Type': 'video/mp4',
+      },
+    }));
+    const recoverSession = vi.fn(async () => ({
+      streamId: STREAM_ID,
+      fileId: 'drive-video',
+      accessToken: 'secret-google-token',
+      expiresAt: 2_000,
+    }));
+    const registry = createDriveMediaStreamRegistry({ fetch: fetchUpstream, now: () => 1_000 });
+
+    const response = await registry.respond(
+      new Request(`https://kinly.test/__kinly/drive-media/${STREAM_ID}`, {
+        headers: { Range: 'bytes=0-2' },
+      }),
+      STREAM_ID,
+      recoverSession,
+    );
+
+    expect(response.status).toBe(206);
+    expect(recoverSession).toHaveBeenCalledWith(STREAM_ID);
+    expect(fetchUpstream).toHaveBeenCalledWith(
+      'https://www.googleapis.com/drive/v3/files/drive-video?alt=media',
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+  });
 });

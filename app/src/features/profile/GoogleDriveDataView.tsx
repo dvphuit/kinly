@@ -535,10 +535,17 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
       case 'error':
         drivePreviewFileId.current = null;
         releaseActiveDriveStream();
-        setDrivePreview((current) => (
-          current?.layoutId === drivePreviewLayoutId(event.fileId) ? null : current
-        ));
-        setError(event.message);
+        setDrivePreview((current) => {
+          if (!current || current.layoutId !== drivePreviewLayoutId(event.fileId)) return current;
+          return {
+            ...current,
+            loading: {
+              kind: 'error',
+              previewSrc: current.loading?.previewSrc ?? null,
+              message: event.message,
+            },
+          };
+        });
         return;
       default: {
         const exhaustiveEvent: never = event;

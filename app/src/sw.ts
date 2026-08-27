@@ -7,12 +7,16 @@ import { createDriveMediaStreamRegistry } from '@/driveMediaStreamWorker'
 import {
   driveMediaStreamIdFromPath,
   parseDriveMediaStreamMessage,
+  parseDriveMediaStreamSessionReply,
   type DriveMediaStreamReply,
+  type DriveMediaStreamSession,
+  type DriveMediaStreamSessionRequest,
 } from '@/shared/lib/driveMediaStreamProtocol'
 
 declare let self: ServiceWorkerGlobalScope
 
 const driveMediaStreams = createDriveMediaStreamRegistry({ fetch })
+const DRIVE_MEDIA_SESSION_REPLY_TIMEOUT_MS = 1_500
 
 self.skipWaiting()
 clientsClaim()
@@ -60,6 +64,39 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
   event.ports[0]?.postMessage(reply)
 })
 
+async function recoverDriveMediaStreamSession(
+  clientId: string,
+  streamId: string,
+): Promise<DriveMediaStreamSession | null> {
+  const client = await self.clients.get(clientId)
+  if (!client)
+    return null
+
+  const channel = new MessageChannel()
+  const request: DriveMediaStreamSessionRequest = {
+    kind: 'drive-media-stream/session-request',
+    streamId,
+  }
+  return new Promise<DriveMediaStreamSession | null>((resolve) => {
+    const timeoutId = self.setTimeout(() => resolve(null), DRIVE_MEDIA_SESSION_REPLY_TIMEOUT_MS)
+    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+      self.clearTimeout(timeoutId)
+      const reply = parseDriveMediaStreamSessionReply(event.data)
+      resolve(reply?.kind === 'drive-media-stream/session' ? reply.session : null)
+    }
+    try {
+      client.postMessage(request, [channel.port2])
+    }
+    catch {
+      self.clearTimeout(timeoutId)
+      resolve(null)
+    }
+  }).finally(() => {
+    channel.port1.close()
+    channel.port2.close()
+  })
+}
+
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
@@ -83,10 +120,17 @@ registerRoute(
     && url.origin === self.location.origin
     && driveMediaStreamIdFromPath(url.pathname) !== null
   ),
-  ({ request, url }) => {
+  ({ event, request, url }) => {
     const streamId = driveMediaStreamIdFromPath(url.pathname)
+    const clientId = 'clientId' in event && typeof event.clientId === 'string'
+      ? event.clientId
+      : null
     return streamId
-      ? driveMediaStreams.respond(request, streamId)
+      ? driveMediaStreams.respond(
+          request,
+          streamId,
+          clientId ? (missingStreamId) => recoverDriveMediaStreamSession(clientId, missingStreamId) : undefined,
+        )
       : Promise.resolve(new Response('Stream không hợp lệ.', { status: 404 }))
   },
 )

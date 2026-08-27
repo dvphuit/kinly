@@ -19,7 +19,8 @@ import './moment-media-preview.css';
 export type MomentMediaPreviewLoadingState =
   | { kind: 'indeterminate'; previewSrc: string | null }
   | { kind: 'determinate'; previewSrc: string | null; progress: number }
-  | { kind: 'stream'; previewSrc: string | null };
+  | { kind: 'stream'; previewSrc: string | null }
+  | { kind: 'error'; previewSrc: string | null; message: string };
 
 export interface MomentMediaPreviewState {
   items: TimelineMediaItem[];
@@ -133,18 +134,27 @@ function MomentMediaSlideAsset({
           )}
           <div className="moment-media-preview-loading" role="status" aria-live="polite">
             <div className="moment-media-preview-loading-card">
-              <span>{loadingLabel}</span>
-              <div
-                className={`moment-media-preview-progress ${indeterminate ? 'is-indeterminate' : ''}`}
-                role="progressbar"
-                aria-label={loadingLabel}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={loading.kind === 'determinate' ? loading.progress : undefined}
-              >
-                <i style={loading.kind === 'determinate' ? { width: `${loading.progress}%` } : undefined} />
-              </div>
-              <strong>{loading.kind === 'determinate' ? `${loading.progress}%` : 'Đang kết nối…'}</strong>
+              {loading.kind === 'error' ? (
+                <>
+                  <span>Không thể mở video</span>
+                  <strong role="alert">{loading.message}</strong>
+                </>
+              ) : (
+                <>
+                  <span>{loadingLabel}</span>
+                  <div
+                    className={`moment-media-preview-progress ${indeterminate ? 'is-indeterminate' : ''}`}
+                    role="progressbar"
+                    aria-label={loadingLabel}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={loading.kind === 'determinate' ? loading.progress : undefined}
+                  >
+                    <i style={loading.kind === 'determinate' ? { width: `${loading.progress}%` } : undefined} />
+                  </div>
+                  <strong>{loading.kind === 'determinate' ? `${loading.progress}%` : 'Đang kết nối…'}</strong>
+                </>
+              )}
             </div>
           </div>
         </>
