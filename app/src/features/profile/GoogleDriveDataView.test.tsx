@@ -340,7 +340,7 @@ describe('GoogleDriveDataView', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('starts the download fallback quickly when stream initialization hangs', async () => {
+  it('starts the download fallback when stream initialization hangs past the grace period', async () => {
     drive.listTimelineMediaFromDrive.mockResolvedValue([{
       id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
     }]);
@@ -353,7 +353,9 @@ describe('GoogleDriveDataView', () => {
 
     vi.useFakeTimers();
     fireEvent.click(tile);
-    await act(async () => vi.advanceTimersByTimeAsync(300));
+    await act(async () => vi.advanceTimersByTimeAsync(1_499));
+    expect(drive.downloadTimelineMediaFromDrive).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1));
     vi.useRealTimers();
 
     await waitFor(() => expect(document.querySelector('video[controls]')).toHaveAttribute('src', 'blob:drive-preview'));
