@@ -38,6 +38,7 @@ function streamController() {
 
 describe('Drive media stream client', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -100,6 +101,50 @@ describe('Drive media stream client', () => {
 
     expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
     expect(streamUrl).toBe('http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab');
+    expect(controller.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'drive-media-stream/register',
+      fileId: 'drive-video',
+    }), expect.any(Array));
+  });
+
+  it('keeps the lightbox connection alive while first-time worker activation takes longer than five seconds', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('MessageChannel', FakeMessageChannel);
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
+    const controller = streamController();
+    const controllerChangeListeners = new Set<EventListener>();
+    const serviceWorker = {
+      controller: null as ReturnType<typeof streamController> | null,
+      register: vi.fn(async () => ({})),
+      ready: new Promise(() => undefined),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'controllerchange') controllerChangeListeners.add(listener);
+      }),
+      removeEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'controllerchange') controllerChangeListeners.delete(listener);
+      }),
+    };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: serviceWorker,
+    });
+
+    const streamPromise = registerDriveMediaStream({
+      fileId: 'drive-video',
+      accessToken: 'google-access-token',
+      expiresAt: Date.now() + 60_000,
+    });
+
+    await vi.advanceTimersByTimeAsync(5_500);
+    expect(controller.postMessage).not.toHaveBeenCalled();
+    expect(controllerChangeListeners.size).toBe(1);
+
+    serviceWorker.controller = controller;
+    controllerChangeListeners.forEach((listener) => listener(new Event('controllerchange')));
+
+    await expect(streamPromise).resolves.toBe(
+      'http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab',
+    );
     expect(controller.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'drive-media-stream/register',
       fileId: 'drive-video',
