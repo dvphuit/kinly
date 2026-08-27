@@ -1,4 +1,4 @@
-import type { DriveMediaStreamSession } from '@/features/sync/driveMediaStreamProtocol';
+import type { DriveMediaStreamSession } from '@/shared/lib/driveMediaStreamProtocol';
 
 const FORWARDED_RESPONSE_HEADERS = [
   'Accept-Ranges',

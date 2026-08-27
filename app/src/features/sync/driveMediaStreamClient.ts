@@ -5,9 +5,11 @@ import {
   parseDriveMediaStreamReply,
   type DriveMediaStreamMessage,
   type DriveMediaStreamSession,
-} from './driveMediaStreamProtocol';
+} from '@/shared/lib/driveMediaStreamProtocol';
 
 const REGISTRATION_TIMEOUT_MS = 5_000;
+const SERVICE_WORKER_URL = '/sw.js';
+const SERVICE_WORKER_SCOPE = '/';
 
 function serviceWorkerContainer(): ServiceWorkerContainer | null {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
@@ -18,10 +20,9 @@ function currentServiceWorker(): ServiceWorker | null {
   return serviceWorkerContainer()?.controller ?? null;
 }
 
-async function requestPwaServiceWorkerRegistration(): Promise<void> {
+async function requestPwaServiceWorkerRegistration(container: ServiceWorkerContainer): Promise<void> {
   try {
-    const { registerSW } = await import('virtual:pwa-register');
-    registerSW({ immediate: true });
+    await container.register(SERVICE_WORKER_URL, { scope: SERVICE_WORKER_SCOPE });
   } catch {
     // Streaming remains unavailable if the browser cannot register the PWA worker.
   }
@@ -32,7 +33,7 @@ async function waitForActiveServiceWorker(): Promise<ServiceWorker | null> {
   if (!container) return null;
   if (container.controller) return container.controller;
 
-  await requestPwaServiceWorkerRegistration();
+  await requestPwaServiceWorkerRegistration(container);
   if (container.controller) return container.controller;
 
   return new Promise<ServiceWorker | null>((resolve) => {

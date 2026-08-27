@@ -8,7 +8,7 @@ import {
   driveMediaStreamIdFromPath,
   parseDriveMediaStreamMessage,
   type DriveMediaStreamReply,
-} from '@/features/sync/driveMediaStreamProtocol'
+} from '@/shared/lib/driveMediaStreamProtocol'
 
 declare let self: ServiceWorkerGlobalScope
 

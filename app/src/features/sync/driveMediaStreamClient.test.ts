@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerDriveMediaStream, unregisterDriveMediaStream } from './driveMediaStreamClient';
 
-const pwa = vi.hoisted(() => ({ registerSW: vi.fn() }));
-
-vi.mock('virtual:pwa-register', () => ({ registerSW: pwa.registerSW }));
-
 class FakeMessagePort {
   onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
   peer: FakeMessagePort | null = null;
@@ -42,7 +38,6 @@ function streamController() {
 
 describe('Drive media stream client', () => {
   afterEach(() => {
-    pwa.registerSW.mockReset();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -51,9 +46,10 @@ describe('Drive media stream client', () => {
     vi.stubGlobal('MessageChannel', FakeMessageChannel);
     vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
     const controller = streamController();
+    const register = vi.fn();
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
-      value: { controller },
+      value: { controller, register },
     });
 
     const streamUrl = await registerDriveMediaStream({
@@ -63,7 +59,7 @@ describe('Drive media stream client', () => {
     });
 
     expect(streamUrl).toBe('http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab');
-    expect(pwa.registerSW).not.toHaveBeenCalled();
+    expect(register).not.toHaveBeenCalled();
     expect(controller.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'drive-media-stream/register',
       fileId: 'drive-video',
@@ -81,27 +77,19 @@ describe('Drive media stream client', () => {
     vi.stubGlobal('MessageChannel', FakeMessageChannel);
     vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
     const controller = streamController();
-    const controllerChangeListeners = new Set<EventListener>();
     const serviceWorker = {
       controller: null as ReturnType<typeof streamController> | null,
+      register: vi.fn(async () => {
+        serviceWorker.controller = controller;
+        return {};
+      }),
       ready: Promise.resolve({}),
-      addEventListener: vi.fn((type: string, listener: EventListener) => {
-        if (type === 'controllerchange') controllerChangeListeners.add(listener);
-      }),
-      removeEventListener: vi.fn((type: string, listener: EventListener) => {
-        if (type === 'controllerchange') controllerChangeListeners.delete(listener);
-      }),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     };
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
       value: serviceWorker,
-    });
-    pwa.registerSW.mockImplementation(() => {
-      queueMicrotask(() => {
-        serviceWorker.controller = controller;
-        controllerChangeListeners.forEach((listener) => listener(new Event('controllerchange')));
-      });
-      return vi.fn();
     });
 
     const streamUrl = await registerDriveMediaStream({
@@ -110,7 +98,7 @@ describe('Drive media stream client', () => {
       expiresAt: Date.now() + 60_000,
     });
 
-    expect(pwa.registerSW).toHaveBeenCalledWith({ immediate: true });
+    expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/' });
     expect(streamUrl).toBe('http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab');
     expect(controller.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'drive-media-stream/register',
