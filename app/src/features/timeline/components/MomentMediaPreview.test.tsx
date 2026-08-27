@@ -46,11 +46,64 @@ describe('MomentMediaPreview', () => {
       />,
     );
 
-    const video = document.querySelector('video[controls]');
+    const video = document.querySelector('video');
     expect(video).toHaveAttribute('src', media.url);
+    expect(video).not.toHaveAttribute('controls');
+    expect(screen.getAllByRole('button', { name: 'Phát video' }).length).toBeGreaterThan(0);
     expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toHaveAttribute('src', 'blob:thumbnail');
     fireEvent.loadedMetadata(video!);
     expect(onMediaReady).toHaveBeenCalledWith(media);
+  });
+
+  it('uses custom playback, seek, mute, and fullscreen controls for the active video', () => {
+    const media: TimelineMediaItem = {
+      id: 'video-controls',
+      type: 'video',
+      url: 'https://example.com/video.mp4',
+    };
+
+    render(
+      <MomentMediaPreview
+        preview={{
+          items: [media],
+          initialIndex: 0,
+          title: 'Video controls',
+          layoutId: 'moment-video-controls',
+          originSrc: media.url ?? '',
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const video = screen.getByLabelText('Video controls, video 1') as HTMLVideoElement;
+    Object.defineProperty(video, 'duration', { configurable: true, value: 120 });
+    Object.defineProperty(video, 'paused', { configurable: true, value: true });
+    const play = vi.fn().mockResolvedValue(undefined);
+    const pause = vi.fn();
+    Object.defineProperty(video, 'play', { configurable: true, value: play });
+    Object.defineProperty(video, 'pause', { configurable: true, value: pause });
+
+    fireEvent.loadedMetadata(video);
+    expect(screen.getByText(/0:00/)).toHaveTextContent('0:00 / 2:00');
+
+    const playButtons = screen.getAllByRole('button', { name: 'Phát video' });
+    fireEvent.click(playButtons[playButtons.length - 1]);
+    expect(play).toHaveBeenCalledTimes(1);
+
+    fireEvent.play(video);
+    expect(screen.getByRole('button', { name: 'Tạm dừng video' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tới 10 giây' }));
+    expect(video.currentTime).toBe(10);
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Vị trí phát video' }), { target: { value: '45' } });
+    expect(video.currentTime).toBe(45);
+    expect(screen.getByText(/0:45/)).toHaveTextContent('0:45 / 2:00');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tắt tiếng' }));
+    expect(video.muted).toBe(true);
+    expect(screen.getByRole('button', { name: 'Bật tiếng' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Toàn màn hình' })).toBeInTheDocument();
   });
 
   it('opens the tapped media with the active shared-layout identity', () => {
@@ -266,11 +319,36 @@ describe('MomentMediaPreview', () => {
     const adjacentVideos = videos.filter((video) => video !== activeVideo);
 
     expect(activeVideo).toHaveAttribute('preload', 'metadata');
-    expect(activeVideo).toHaveAttribute('controls');
+    expect(activeVideo).not.toHaveAttribute('controls');
+    expect(screen.getAllByRole('button', { name: 'Phát video' }).length).toBeGreaterThan(0);
     adjacentVideos.forEach((video) => {
       expect(video).toHaveAttribute('preload', 'none');
       expect(video).not.toHaveAttribute('controls');
     });
+  });
+
+  it('keeps video scrubber arrow keys from navigating the gallery', () => {
+    const items: TimelineMediaItem[] = [
+      { id: 'video-1', type: 'video', url: 'https://example.com/one.mp4' },
+      { id: 'photo-2', type: 'photo', url: 'https://example.com/two.jpg' },
+    ];
+
+    render(
+      <MomentMediaPreview
+        preview={{
+          items,
+          initialIndex: 0,
+          title: 'Mixed album',
+          layoutId: 'moment-video-1',
+          originSrc: items[0].url ?? '',
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const scrubber = screen.getByRole('slider', { name: 'Vị trí phát video' });
+    fireEvent.keyDown(scrubber, { key: 'ArrowRight' });
+    expect(screen.getByText('1 / 2')).toBeInTheDocument();
   });
 
   it('closes preview after the close button animation finishes', async () => {
