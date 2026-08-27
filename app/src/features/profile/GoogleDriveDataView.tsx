@@ -67,7 +67,7 @@ type DriveMediaDownloadOutcome =
   | { kind: 'ready'; src: string }
   | { kind: 'failed'; error: unknown };
 
-const VIDEO_STREAM_FALLBACK_DELAY_MS = 300;
+const VIDEO_STREAM_FALLBACK_DELAY_MS = 1_500;
 const VIDEO_STREAM_PROBE_TIMEOUT_MS = 4_000;
 
 interface DataOverviewMetric {
@@ -130,6 +130,12 @@ function drivePreviewLayoutId(fileId: string): string {
 }
 
 async function verifyVideoStreamUrl(streamUrl: string): Promise<boolean> {
+  try {
+    if (new URL(streamUrl, window.location.origin).origin !== window.location.origin) return true;
+  } catch {
+    return false;
+  }
+
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), VIDEO_STREAM_PROBE_TIMEOUT_MS);
   try {
