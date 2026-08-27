@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerDriveMediaStream, unregisterDriveMediaStream } from './driveMediaStreamClient';
 
+const pwa = vi.hoisted(() => ({ registerSW: vi.fn() }));
+
+vi.mock('virtual:pwa-register', () => ({ registerSW: pwa.registerSW }));
+
 class FakeMessagePort {
   onmessage: ((event: MessageEvent<unknown>) => void) | null = null;
   peer: FakeMessagePort | null = null;
@@ -22,8 +26,23 @@ class FakeMessageChannel {
   }
 }
 
+function streamController() {
+  const postMessage = vi.fn((message: unknown, ports?: FakeMessagePort[]) => {
+    if (
+      typeof message === 'object'
+      && message !== null
+      && 'kind' in message
+      && message.kind === 'drive-media-stream/register'
+    ) {
+      ports?.[0]?.postMessage({ kind: 'drive-media-stream/registered' });
+    }
+  });
+  return { postMessage };
+}
+
 describe('Drive media stream client', () => {
   afterEach(() => {
+    pwa.registerSW.mockReset();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -31,19 +50,10 @@ describe('Drive media stream client', () => {
   it('registers an opaque same-origin stream URL and unregisters it on release', async () => {
     vi.stubGlobal('MessageChannel', FakeMessageChannel);
     vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
-    const postMessage = vi.fn((message: unknown, ports?: FakeMessagePort[]) => {
-      if (
-        typeof message === 'object'
-        && message !== null
-        && 'kind' in message
-        && message.kind === 'drive-media-stream/register'
-      ) {
-        ports?.[0]?.postMessage({ kind: 'drive-media-stream/registered' });
-      }
-    });
+    const controller = streamController();
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
-      value: { controller: { postMessage } },
+      value: { controller },
     });
 
     const streamUrl = await registerDriveMediaStream({
@@ -53,29 +63,71 @@ describe('Drive media stream client', () => {
     });
 
     expect(streamUrl).toBe('http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab');
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+    expect(pwa.registerSW).not.toHaveBeenCalled();
+    expect(controller.postMessage).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'drive-media-stream/register',
       fileId: 'drive-video',
       accessToken: 'google-access-token',
     }), expect.any(Array));
 
-    unregisterDriveMediaStream(streamUrl ?? '');
-    expect(postMessage).toHaveBeenLastCalledWith({
+    unregisterDriveMediaStream(streamUrl);
+    expect(controller.postMessage).toHaveBeenLastCalledWith({
       kind: 'drive-media-stream/unregister',
       streamId: '01234567-89ab-4cde-8fab-0123456789ab',
     });
   });
 
-  it('returns null when the page is not controlled by the service worker', async () => {
+  it('registers the PWA worker on demand instead of falling back to a full video download', async () => {
+    vi.stubGlobal('MessageChannel', FakeMessageChannel);
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('01234567-89ab-4cde-8fab-0123456789ab');
+    const controller = streamController();
+    const controllerChangeListeners = new Set<EventListener>();
+    const serviceWorker = {
+      controller: null as ReturnType<typeof streamController> | null,
+      ready: Promise.resolve({}),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'controllerchange') controllerChangeListeners.add(listener);
+      }),
+      removeEventListener: vi.fn((type: string, listener: EventListener) => {
+        if (type === 'controllerchange') controllerChangeListeners.delete(listener);
+      }),
+    };
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
-      value: { controller: null },
+      value: serviceWorker,
+    });
+    pwa.registerSW.mockImplementation(() => {
+      queueMicrotask(() => {
+        serviceWorker.controller = controller;
+        controllerChangeListeners.forEach((listener) => listener(new Event('controllerchange')));
+      });
+      return vi.fn();
+    });
+
+    const streamUrl = await registerDriveMediaStream({
+      fileId: 'drive-video',
+      accessToken: 'google-access-token',
+      expiresAt: Date.now() + 60_000,
+    });
+
+    expect(pwa.registerSW).toHaveBeenCalledWith({ immediate: true });
+    expect(streamUrl).toBe('http://localhost:3000/__kinly/drive-media/01234567-89ab-4cde-8fab-0123456789ab');
+    expect(controller.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'drive-media-stream/register',
+      fileId: 'drive-video',
+    }), expect.any(Array));
+  });
+
+  it('fails closed when service-worker streaming is unavailable', async () => {
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: undefined,
     });
 
     await expect(registerDriveMediaStream({
       fileId: 'drive-video',
       accessToken: 'google-access-token',
       expiresAt: Date.now() + 60_000,
-    })).resolves.toBeNull();
+    })).rejects.toThrow('Không thể khởi tạo streaming video từ Google Drive');
   });
 });
