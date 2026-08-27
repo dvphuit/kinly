@@ -109,19 +109,21 @@ describe('GoogleDriveDataView', () => {
   });
 
   it('lists, previews, and deletes private Drive media', async () => {
-    const onOpenLightbox = vi.fn();
     useTimelineStore.getState().addTimelineItem({
       title: 'Nụ cười đầu ngày',
       mediaItems: [{ id: 'media-1', driveFileId: 'drive-1', type: 'photo', name: 'baby.jpg' }],
     });
-    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={vi.fn()} /></MemoryRouter>);
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
 
     expect(await screen.findByText('baby.jpg')).toBeInTheDocument();
     expect(drive.listTimelineMediaFromDrive).toHaveBeenCalledWith({ interactive: false });
     expect(screen.getByText('Đang dùng trong “Nụ cười đầu ngày”')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Xem ảnh baby.jpg' }));
-    await waitFor(() => expect(onOpenLightbox).toHaveBeenCalledWith('blob:drive-preview', false));
+    const mediaPreview = await screen.findByRole('dialog', { name: 'Xem media baby.jpg' });
+    expect(screen.getByRole('img', { name: 'baby.jpg, ảnh 1' })).toHaveAttribute('src', 'blob:drive-preview');
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng preview' }));
+    await waitFor(() => expect(mediaPreview).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: 'Xóa baby.jpg khỏi Google Drive' }));
     expect(screen.getByRole('dialog', { name: 'Xóa media khỏi Drive?' })).toBeInTheDocument();
@@ -175,6 +177,7 @@ describe('GoogleDriveDataView', () => {
     await act(async () => Promise.resolve());
 
     expect(onOpenLightbox).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Xem media baby.jpg' })).not.toBeInTheDocument();
   });
 
   it('opens the local copy immediately when the Drive file is still on the device', async () => {
@@ -189,15 +192,48 @@ describe('GoogleDriveDataView', () => {
         name: 'baby.jpg',
       }],
     });
-    const onOpenLightbox = vi.fn();
-    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={onOpenLightbox} onShowToast={vi.fn()} /></MemoryRouter>);
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
     await screen.findByText(/Ảnh có hai bản/);
     fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
 
     fireEvent.click(await screen.findByRole('button', { name: 'Xem ảnh baby.jpg' }));
 
-    await waitFor(() => expect(onOpenLightbox).toHaveBeenCalledWith('blob:drive-preview', false));
+    expect(await screen.findByRole('dialog', { name: 'Xem media baby.jpg' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'baby.jpg, ảnh 1' })).toHaveAttribute('src', 'blob:drive-preview');
     expect(drive.downloadTimelineMediaFromDrive).not.toHaveBeenCalled();
+  });
+
+  it('opens the journal preview immediately with a blurred thumbnail and download progress', async () => {
+    let resolveDownload: ((blob: Blob) => void) | undefined;
+    drive.listTimelineMediaFromDrive.mockResolvedValue([{
+      id: 'drive-video', name: 'first-steps.mp4', mimeType: 'video/mp4', size: 4096,
+      thumbnailLink: 'https://lh3.googleusercontent.com/video-thumbnail',
+    }]);
+    drive.downloadTimelineMediaFromDrive.mockImplementation((
+      _fileId: string,
+      options: { onProgress?: (progress: number) => void },
+    ) => {
+      options.onProgress?.(37);
+      return new Promise((resolve) => { resolveDownload = resolve; });
+    });
+
+    render(<MemoryRouter><GoogleDriveDataView onOpenLightbox={vi.fn()} onShowToast={vi.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('tab', { name: /Google Drive/i }));
+    const tile = await screen.findByRole('button', { name: 'Xem video first-steps.mp4' });
+    await waitFor(() => expect(tile.querySelector('img')).toHaveAttribute('src', 'blob:drive-preview'));
+
+    fireEvent.click(tile);
+
+    expect(screen.getByRole('dialog', { name: 'Xem media first-steps.mp4' })).toBeInTheDocument();
+    expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toHaveAttribute('src', 'blob:drive-preview');
+    expect(screen.getByRole('progressbar', { name: 'Đang tải video từ Google Drive' })).toHaveAttribute('aria-valuenow', '37');
+    expect(screen.getByText('37%')).toBeInTheDocument();
+
+    resolveDownload?.(new Blob(['video-bytes'], { type: 'video/mp4' }));
+
+    await waitFor(() => expect(document.querySelector('.moment-media-preview-loading')).not.toBeInTheDocument());
+    expect(document.querySelector('.moment-media-preview-asset')).toHaveAttribute('src', 'blob:drive-preview');
+    expect(document.querySelector('video[controls]')).toBeInTheDocument();
   });
 
   it('uses a play affordance for video cards without a media-type label', async () => {

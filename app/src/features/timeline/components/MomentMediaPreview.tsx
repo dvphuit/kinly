@@ -14,6 +14,11 @@ import { useNativePresence } from '@/shared/hooks/useNativePresence';
 import { TimelineMediaSyncBadge } from '@/features/timeline/components/TimelineMediaSyncBadge';
 import { useTimelineMediaUrl } from '@/features/timeline/hooks/useTimelineMediaUrl';
 import type { TimelineMediaItem } from '@/features/timeline/domain/types';
+import './moment-media-preview.css';
+
+export type MomentMediaPreviewLoadingState =
+  | { kind: 'indeterminate'; previewSrc: string | null }
+  | { kind: 'determinate'; previewSrc: string | null; progress: number };
 
 export interface MomentMediaPreviewState {
   items: TimelineMediaItem[];
@@ -22,6 +27,7 @@ export interface MomentMediaPreviewState {
   layoutId: string;
   originSrc: string;
   getLayoutId?: (index: number, media: TimelineMediaItem) => string;
+  loading?: MomentMediaPreviewLoadingState;
 }
 
 interface MomentMediaPreviewProps {
@@ -59,6 +65,7 @@ function MomentMediaSlideAsset({
   originSrc,
   layoutId,
   contentRef,
+  loading,
 }: {
   media: TimelineMediaItem;
   title: string;
@@ -68,14 +75,43 @@ function MomentMediaSlideAsset({
   originSrc?: string;
   layoutId?: string;
   contentRef?: Ref<HTMLDivElement>;
+  loading?: MomentMediaPreviewLoadingState;
 }) {
   const resolvedUrl = useTimelineMediaUrl(media);
-  const src = (isInitial && originSrc) || resolvedUrl || media.url || '';
+  const src = resolvedUrl || media.url || (isInitial && originSrc) || '';
   const isVideo = media.type === 'video';
+  const loadingLabel = `Đang tải ${isVideo ? 'video' : 'ảnh'} từ Google Drive`;
 
   return (
-    <div ref={contentRef} className="moment-media-preview-slide-content">
-      {isVideo ? (
+    <div ref={contentRef} className={`moment-media-preview-slide-content ${loading ? 'is-loading' : ''}`}>
+      {loading ? (
+        <>
+          {loading.previewSrc && (
+            <img
+              className="moment-media-preview-asset moment-media-preview-loading-thumbnail"
+              src={loading.previewSrc}
+              alt=""
+              draggable={false}
+            />
+          )}
+          <div className="moment-media-preview-loading" role="status" aria-live="polite">
+            <div className="moment-media-preview-loading-card">
+              <span>{loadingLabel}</span>
+              <div
+                className={`moment-media-preview-progress ${loading.kind === 'indeterminate' ? 'is-indeterminate' : ''}`}
+                role="progressbar"
+                aria-label={loadingLabel}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={loading.kind === 'determinate' ? loading.progress : undefined}
+              >
+                <i style={loading.kind === 'determinate' ? { width: `${loading.progress}%` } : undefined} />
+              </div>
+              <strong>{loading.kind === 'determinate' ? `${loading.progress}%` : 'Đang kết nối…'}</strong>
+            </div>
+          </div>
+        </>
+      ) : isVideo ? (
         <video
           data-layout-id={isActive ? layoutId : undefined}
           data-native-transition-id={isActive ? layoutId : undefined}
@@ -113,6 +149,7 @@ function MomentMediaSlideItem({
   originSrc,
   layoutId,
   activeContentRef,
+  loading,
 }: {
   media: TimelineMediaItem;
   title: string;
@@ -123,6 +160,7 @@ function MomentMediaSlideItem({
   originSrc?: string;
   layoutId?: string;
   activeContentRef: Ref<HTMLDivElement>;
+  loading?: MomentMediaPreviewLoadingState;
 }) {
   return (
     <div
@@ -139,6 +177,7 @@ function MomentMediaSlideItem({
           originSrc={originSrc}
           layoutId={layoutId}
           contentRef={isActive ? activeContentRef : undefined}
+          loading={isActive ? loading : undefined}
         />
       )}
     </div>
@@ -154,6 +193,7 @@ function MomentMediaPreviewContent({
   getLayoutId,
   onClose,
   externalClosing,
+  loading,
 }: MomentMediaPreviewContentProps) {
   const safeInitialIndex = Math.max(0, Math.min(items.length - 1, initialIndex));
   const [activeIndex, setActiveIndex] = useState(safeInitialIndex);
@@ -402,6 +442,7 @@ function MomentMediaPreviewContent({
                   originSrc={originSrc}
                   layoutId={index === safeInitialIndex ? layoutId : getLayoutId?.(index, media)}
                   activeContentRef={activeContentRef}
+                  loading={loading}
                 />
               );
             })}

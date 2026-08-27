@@ -540,10 +540,57 @@ async function driveUploadRequest<T>(
 export interface DriveMediaDownloadOptions {
   interactive?: boolean;
   signal?: AbortSignal;
+  onProgress?: (progress: number) => void;
+}
+
+async function driveBlobProgressRequest(
+  url: string,
+  token: string,
+  options: DriveMediaDownloadOptions,
+): Promise<Blob> {
+  if (options.signal?.aborted) throw new DOMException('Download aborted', 'AbortError');
+
+  return new Promise<Blob>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    const abortFromCaller = () => request.abort();
+    const finish = (callback: () => void) => {
+      options.signal?.removeEventListener('abort', abortFromCaller);
+      callback();
+    };
+    request.open('GET', url);
+    request.responseType = 'blob';
+    request.timeout = 30_000;
+    request.setRequestHeader('Authorization', `Bearer ${token}`);
+    request.onprogress = (event) => {
+      if (!event.lengthComputable || event.total <= 0) return;
+      options.onProgress?.(Math.max(1, Math.min(99, Math.round((event.loaded / event.total) * 100))));
+    };
+    request.onload = () => finish(() => {
+      if (request.status === 401) {
+        markGoogleSessionExpired();
+        reject(options.interactive === true
+          ? new Error('Phiên Google đã hết hạn. Hãy đồng bộ lại để tải media.')
+          : new GoogleAuthRequiredError());
+        return;
+      }
+      if (request.status < 200 || request.status >= 300 || !(request.response instanceof Blob)) {
+        reject(new Error(`Không thể tải media từ Google Drive (${request.status}).`));
+        return;
+      }
+      options.onProgress?.(100);
+      resolve(request.response);
+    });
+    request.onerror = () => finish(() => reject(new Error('Không thể kết nối Google Drive khi tải media.')));
+    request.ontimeout = () => finish(() => reject(new Error('Google Drive không phản hồi kịp thời. Hãy kiểm tra kết nối rồi thử lại.')));
+    request.onabort = () => finish(() => reject(new DOMException('Download aborted', 'AbortError')));
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+    request.send();
+  });
 }
 
 async function driveBlobRequest(url: string, options: DriveMediaDownloadOptions = {}): Promise<Blob> {
   const token = await ensureAccessToken(options.interactive === true);
+  if (options.onProgress) return driveBlobProgressRequest(url, token, options);
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 30_000);
   const abortFromCaller = () => controller.abort(options.signal?.reason);

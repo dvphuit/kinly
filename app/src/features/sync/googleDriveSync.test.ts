@@ -43,6 +43,22 @@ function binaryResponse(value: string, contentType: string): Response {
   });
 }
 
+class FakeDownloadRequest {
+  readonly open = vi.fn();
+  readonly setRequestHeader = vi.fn();
+  readonly send = vi.fn();
+  readonly abort = vi.fn(() => this.onabort?.());
+  responseType = '';
+  timeout = 0;
+  status = 200;
+  response: Blob = new Blob(['image-bytes'], { type: 'image/jpeg' });
+  onprogress: ((event: ProgressEvent) => void) | null = null;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  ontimeout: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+}
+
 function installGoogleTokenClient(token = 'token', expiresIn = 3600): ReturnType<typeof vi.fn> {
   const requestAccessToken = vi.fn();
   Object.defineProperty(window, 'google', {
@@ -193,6 +209,39 @@ describe('generation-2 Google Drive sync', () => {
       expect.stringContaining('/drive/v3/files/drive-media-1?alt=media'),
       expect.objectContaining({ headers: { Authorization: 'Bearer token' } }),
     );
+  });
+
+  it('reports authenticated Drive download progress before returning the media blob', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(accountResponse());
+    vi.stubGlobal('fetch', fetchMock);
+    const sync = await import('@/features/sync/googleDriveSync');
+    await sync.requestGoogleAccessToken();
+    const request = new FakeDownloadRequest();
+    function FakeDownloadRequestConstructor() {
+      return request;
+    }
+    vi.stubGlobal('XMLHttpRequest', FakeDownloadRequestConstructor);
+    const progress: number[] = [];
+
+    const pendingDownload = sync.downloadTimelineMediaFromDrive('drive-media-1', {
+      interactive: true,
+      onProgress: (value) => progress.push(value),
+    });
+    await Promise.resolve();
+    request.onprogress?.(new ProgressEvent('progress', {
+      lengthComputable: true,
+      loaded: 44,
+      total: 100,
+    }));
+    request.onload?.();
+
+    await expect(pendingDownload).resolves.toBe(request.response);
+    expect(progress).toEqual([44, 100]);
+    expect(request.open).toHaveBeenCalledWith(
+      'GET',
+      expect.stringContaining('/drive/v3/files/drive-media-1?alt=media'),
+    );
+    expect(request.setRequestHeader).toHaveBeenCalledWith('Authorization', 'Bearer token');
   });
 
   it('downloads private Drive thumbnails with the current Google token', async () => {

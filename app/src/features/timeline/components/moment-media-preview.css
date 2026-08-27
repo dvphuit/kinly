@@ -1,0 +1,52 @@
+.moment-media-preview-page { position: fixed; z-index: 1400; inset: 0; color: #fff; pointer-events: auto; }
+.moment-media-preview-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; background: rgba(18, 13, 10, 0.95); cursor: zoom-out; }
+.moment-media-preview-frame { position: fixed; z-index: 2; inset: 0; overflow: hidden; background: transparent; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.moment-media-preview-header, .moment-media-preview-footer { position: relative; z-index: 3; }
+.moment-media-preview-header { min-height: 62px; box-sizing: border-box; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 8px; background: linear-gradient(180deg, rgba(17, 12, 10, 0.66), transparent); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.moment-media-preview-header > div { min-width: 0; display: grid; gap: 3px; }
+.moment-media-preview-header strong { overflow: hidden; font: 760 12px/1.25 var(--font-family-display); text-overflow: ellipsis; white-space: nowrap; }
+.moment-media-preview-header span { color: rgba(255,255,255,0.68); font: 650 8px/1 var(--font-family-body); font-variant-numeric: tabular-nums; }
+.moment-media-preview-header > button { width: 36px; height: 36px; padding: 0; border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; corner-shape: round; background: rgba(255,255,255,0.12); backdrop-filter: blur(9px); color: #fff; display: grid; place-items: center; cursor: pointer; flex: 0 0 auto; }
+.moment-media-preview-stage { position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; display: flex; align-items: center; touch-action: none; user-select: none; }
+.moment-media-preview-track { display: flex; height: 100%; width: 100%; flex: 0 0 100%; cursor: grab; touch-action: none; will-change: transform; }
+.moment-media-preview-track:active { cursor: grabbing; }
+.moment-media-preview-slide { position: relative; flex: 0 0 100%; width: 100%; height: 100%; display: grid; place-items: center; box-sizing: border-box; }
+.moment-media-preview-slide-content { position: relative; width: 100%; height: 100%; display: grid; place-items: center; overflow: hidden; transform-origin: center center; will-change: transform; }
+.moment-media-preview-asset { max-width: 100%; max-height: 100%; display: block; object-fit: contain !important; background: transparent; }
+.moment-media-preview-stage img.moment-media-preview-asset, .moment-media-preview-slide img.moment-media-preview-asset { width: auto; height: auto; }
+.moment-media-preview-stage video.moment-media-preview-asset, .moment-media-preview-slide video.moment-media-preview-asset { width: min(100%, 960px); height: 100%; }
+.moment-media-preview-loading-thumbnail { filter: blur(16px) brightness(0.58) saturate(0.82); opacity: 0.9; transform: scale(1.08); }
+.moment-media-preview-loading { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; padding: 24px; pointer-events: none; }
+.moment-media-preview-loading-card { width: min(210px, 72vw); padding: 13px 14px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; background: rgba(24,17,14,0.56); box-shadow: 0 14px 40px rgba(0,0,0,0.24); backdrop-filter: blur(14px); display: grid; gap: 8px; text-align: center; }
+.moment-media-preview-loading-card span { color: rgba(255,255,255,0.84); font: 680 10px/1.35 var(--font-family-body); }
+.moment-media-preview-loading-card strong { color: #fff; font: 780 10px/1 var(--font-family-body); font-variant-numeric: tabular-nums; }
+.moment-media-preview-progress { position: relative; height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.2); }
+.moment-media-preview-progress i { position: absolute; inset: 0 auto 0 0; min-width: 6px; border-radius: inherit; background: linear-gradient(90deg, #b9d990, #fff); box-shadow: 0 0 12px rgba(210,239,173,0.5); transition: width 180ms ease-out; }
+.moment-media-preview-progress.is-indeterminate i { width: 42%; animation: momentMediaProgress 1.15s ease-in-out infinite; }
+.moment-media-preview-nav { position: absolute; z-index: 5; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; padding: 0; border: 1px solid rgba(255,255,255,0.22); border-radius: 50%; corner-shape: round; background: rgba(26, 18, 14, 0.45); backdrop-filter: blur(8px); color: #fff; display: grid; place-items: center; cursor: pointer; transition: background 160ms ease, transform 160ms ease; }
+.moment-media-preview-nav:hover { background: rgba(26, 18, 14, 0.72); transform: translateY(-50%) scale(1.06); }
+.moment-media-preview-nav.prev { left: 16px; }
+.moment-media-preview-nav.next { right: 16px; }
+.moment-media-preview-footer { min-height: 70px; box-sizing: border-box; padding: 10px 14px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(0deg, rgba(17, 12, 10, 0.7), transparent); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 10px; }
+.journal-media-sync.in-preview { position: relative; z-index: auto; left: auto; bottom: auto; width: 26px; height: 26px; justify-self: start; }
+.moment-media-preview-indicator { grid-column: 2; min-height: 26px; padding: 0 8px; border-radius: 999px; background: rgba(255,255,255,0.1); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; gap: 5px; }
+.moment-media-preview-indicator button { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 50%; corner-shape: round; background: rgba(255,255,255,0.34); cursor: pointer; transition: transform 180ms ease, background 180ms ease; }
+.moment-media-preview-indicator button.is-active { width: 17px; border-radius: 999px; background: #fff; }
+.moment-media-preview-indicator > span { min-width: 32px; color: #fff; font: 760 9px/1 var(--font-family-body); text-align: center; font-variant-numeric: tabular-nums; }
+
+@keyframes momentMediaProgress {
+  0% { transform: translateX(-115%); }
+  55% { transform: translateX(105%); }
+  100% { transform: translateX(245%); }
+}
+
+@media (max-width: 480px) {
+  .moment-media-preview-nav { width: 38px; height: 38px; }
+  .moment-media-preview-nav.prev { left: 8px; }
+  .moment-media-preview-nav.next { right: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moment-media-preview-progress i { transition: none; }
+  .moment-media-preview-progress.is-indeterminate i { animation-duration: 2s; }
+}

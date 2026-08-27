@@ -74,6 +74,7 @@ const LEGACY_FEATURE_BOUNDARY_VIOLATIONS = [
   'features/home/hooks/useHomeTimeline.ts -> @/features/timeline/components/TimelineEntryDialog',
   'features/home/hooks/useHomeTimeline.ts -> @/features/timeline/domain/timelineMedia',
   'features/home/hooks/useHomeTimeline.ts -> @/features/timeline/store/useTimelineStore',
+  'features/profile/GoogleDriveDataView.tsx -> @/features/timeline/components/MomentMediaPreview',
   'features/profile/GoogleDriveDataView.tsx -> @/features/timeline/store/useTimelineStore',
   'features/profile/ProfileView.tsx -> @/features/growth/domain/growthSelectors',
   'features/profile/ProfileView.tsx -> @/features/growth/store/useGrowthStore',
@@ -218,5 +219,21 @@ describe('architecture acceptance guard', () => {
     expect(packageLock.name).toBe('babygrowth');
     expect(packageLock.packages?.['']?.name).toBe('babygrowth');
     expect(JSON.stringify(packageLock)).not.toContain('babygrowth-ai');
+  });
+
+  it('keeps reusable moment preview styles owned by the preview component', () => {
+    const preview = readFileSync(
+      join(SRC, 'features', 'timeline', 'components', 'MomentMediaPreview.tsx'),
+      'utf8',
+    );
+    const previewCss = readFileSync(
+      join(SRC, 'features', 'timeline', 'components', 'moment-media-preview.css'),
+      'utf8',
+    );
+    const timelineCss = readFileSync(join(SRC, 'features', 'timeline', 'timeline.css'), 'utf8');
+
+    expect(preview).toContain("import './moment-media-preview.css';");
+    expect(previewCss).toContain('.moment-media-preview-loading-thumbnail');
+    expect(timelineCss).not.toContain('.moment-media-preview-page');
   });
 });

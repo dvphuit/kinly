@@ -4,6 +4,26 @@ import { MomentMediaPreview } from '@/features/timeline/components/MomentMediaPr
 import type { TimelineMediaItem } from '@/features/timeline/domain/types';
 
 describe('MomentMediaPreview', () => {
+  it('renders a blurred thumbnail with determinate Drive progress', () => {
+    render(
+      <MomentMediaPreview
+        preview={{
+          items: [{ id: 'drive-photo', type: 'photo' }],
+          initialIndex: 0,
+          title: 'Ảnh từ Drive',
+          layoutId: 'drive-photo-preview',
+          originSrc: 'blob:thumbnail',
+          loading: { kind: 'determinate', previewSrc: 'blob:thumbnail', progress: 42 },
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(document.querySelector('.moment-media-preview-loading-thumbnail')).toHaveAttribute('src', 'blob:thumbnail');
+    expect(screen.getByRole('progressbar', { name: 'Đang tải ảnh từ Google Drive' })).toHaveAttribute('aria-valuenow', '42');
+    expect(screen.getByText('42%')).toBeInTheDocument();
+  });
+
   it('opens the tapped media with the active shared-layout identity', () => {
     const items: TimelineMediaItem[] = [
       { id: 'photo-1', type: 'photo', url: 'https://example.com/one.jpg' },

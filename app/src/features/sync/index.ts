@@ -266,7 +266,7 @@ export async function listTimelineMediaFromDrive(
 
 export async function downloadTimelineMediaFromDrive(
   fileId: string,
-  options: { interactive?: boolean; signal?: AbortSignal } = {},
+  options: { interactive?: boolean; signal?: AbortSignal; onProgress?: (progress: number) => void } = {},
 ): Promise<Blob> {
   const module = await loadGoogleDriveSync();
   return module.downloadTimelineMediaFromDrive(fileId, options);
