@@ -7,7 +7,8 @@ import {
   type DriveMediaStreamSession,
 } from '@/shared/lib/driveMediaStreamProtocol';
 
-const REGISTRATION_TIMEOUT_MS = 5_000;
+const SERVICE_WORKER_ACTIVATION_TIMEOUT_MS = 20_000;
+const REGISTRATION_REPLY_TIMEOUT_MS = 5_000;
 const SERVICE_WORKER_URL = '/sw.js';
 const SERVICE_WORKER_SCOPE = '/';
 
@@ -20,11 +21,13 @@ function currentServiceWorker(): ServiceWorker | null {
   return serviceWorkerContainer()?.controller ?? null;
 }
 
-async function requestPwaServiceWorkerRegistration(container: ServiceWorkerContainer): Promise<void> {
+async function requestPwaServiceWorkerRegistration(
+  container: ServiceWorkerContainer,
+): Promise<ServiceWorkerRegistration | null> {
   try {
-    await container.register(SERVICE_WORKER_URL, { scope: SERVICE_WORKER_SCOPE });
+    return await container.register(SERVICE_WORKER_URL, { scope: SERVICE_WORKER_SCOPE });
   } catch {
-    // Streaming remains unavailable if the browser cannot register the PWA worker.
+    return null;
   }
 }
 
@@ -33,7 +36,8 @@ async function waitForActiveServiceWorker(): Promise<ServiceWorker | null> {
   if (!container) return null;
   if (container.controller) return container.controller;
 
-  await requestPwaServiceWorkerRegistration(container);
+  const registration = await requestPwaServiceWorkerRegistration(container);
+  if (!registration) return null;
   if (container.controller) return container.controller;
 
   return new Promise<ServiceWorker | null>((resolve) => {
@@ -46,7 +50,10 @@ async function waitForActiveServiceWorker(): Promise<ServiceWorker | null> {
       resolve(controller);
     };
     const handleControllerChange = () => finish(container.controller);
-    const timeoutId = window.setTimeout(() => finish(container.controller), REGISTRATION_TIMEOUT_MS);
+    const timeoutId = window.setTimeout(
+      () => finish(container.controller),
+      SERVICE_WORKER_ACTIVATION_TIMEOUT_MS,
+    );
 
     container.addEventListener('controllerchange', handleControllerChange);
     void container.ready
@@ -76,7 +83,7 @@ export async function registerDriveMediaStream(
   const channel = new MessageChannel();
 
   const reply = await new Promise<ReturnType<typeof parseDriveMediaStreamReply>>((resolve) => {
-    const timeoutId = window.setTimeout(() => resolve(null), REGISTRATION_TIMEOUT_MS);
+    const timeoutId = window.setTimeout(() => resolve(null), REGISTRATION_REPLY_TIMEOUT_MS);
     channel.port1.onmessage = (event: MessageEvent<unknown>) => {
       window.clearTimeout(timeoutId);
       resolve(parseDriveMediaStreamReply(event.data));
