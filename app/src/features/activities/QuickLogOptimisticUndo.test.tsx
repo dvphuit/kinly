@@ -37,6 +37,7 @@ describe('Quick Log optimistic save and undo', () => {
   it('creates an activity synchronously, closes the editor, and exposes an undo for that exact record', () => {
     const onClose = vi.fn();
     const onSaved = vi.fn();
+    const onUndoableSaved = vi.fn();
 
     render(
       <ActivityLogModal
@@ -44,6 +45,7 @@ describe('Quick Log optimistic save and undo', () => {
         mode="feeding"
         onClose={onClose}
         onSaved={onSaved}
+        onUndoableSaved={onUndoableSaved}
       />,
     );
 
@@ -55,14 +57,32 @@ describe('Quick Log optimistic save and undo', () => {
       amountMl: 90,
     });
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledTimes(1);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onUndoableSaved).toHaveBeenCalledTimes(1);
 
-    const [message, undo] = onSaved.mock.calls[0] as [string, (() => void) | undefined];
+    const [message, undo] = onUndoableSaved.mock.calls[0] as [string, (() => void) | undefined];
     expect(message).toBe('Đã lưu cữ bú.');
     expect(undo).toEqual(expect.any(Function));
 
     undo?.();
     expect(useActivityStore.getState().babyActivities).toHaveLength(0);
+  });
+
+  it('preserves the legacy saved callback when no undo consumer is provided', () => {
+    const onSaved = vi.fn();
+    render(
+      <ActivityLogModal
+        isOpen
+        mode="diaper"
+        onClose={vi.fn()}
+        onSaved={onSaved}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu ghi nhận' }));
+
+    expect(onSaved).toHaveBeenCalledWith('Đã lưu lần thay tã.');
+    expect(onSaved.mock.calls[0]).toHaveLength(1);
   });
 
   it('gives the dedicated pumping flow the same immediate save and undo behavior', () => {

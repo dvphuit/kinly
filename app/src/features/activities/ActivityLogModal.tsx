@@ -17,7 +17,8 @@ interface ActivityLogModalProps {
   isOpen: boolean;
   mode: ActivityLogMode;
   onClose: () => void;
-  onSaved: (message: string, undo?: () => void) => void;
+  onSaved: (message: string) => void;
+  onUndoableSaved?: (message: string, undo: () => void) => void;
 }
 
 const TITLES: Record<ActivityLogMode, string> = {
@@ -109,7 +110,13 @@ function createUndoForSavedActivity(mode: ActivityLogMode): (() => void) | undef
   return () => useActivityStore.getState().deleteActivity(recordId);
 }
 
-export function ActivityLogModal({ isOpen, mode, onClose, onSaved }: ActivityLogModalProps) {
+export function ActivityLogModal({
+  isOpen,
+  mode,
+  onClose,
+  onSaved,
+  onUndoableSaved,
+}: ActivityLogModalProps) {
   const draft = useMemo(() => createActivityDraft(mode), [mode]);
 
   return (
@@ -120,7 +127,15 @@ export function ActivityLogModal({ isOpen, mode, onClose, onSaved }: ActivityLog
       creating
       titleOverride={TITLES[mode]}
       onClose={onClose}
-      onSaved={() => onSaved(SAVED_MESSAGES[mode], createUndoForSavedActivity(mode))}
+      onSaved={() => {
+        const message = SAVED_MESSAGES[mode];
+        const undo = createUndoForSavedActivity(mode);
+        if (undo && onUndoableSaved) {
+          onUndoableSaved(message, undo);
+          return;
+        }
+        onSaved(message);
+      }}
     />
   );
 }
