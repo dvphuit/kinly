@@ -506,7 +506,10 @@ describe('TimelineView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mở video Một phút của mẹ' }));
     const preview = screen.getByRole('dialog', { name: 'Xem media Một phút của mẹ' });
     expect(within(preview).getByText('1 / 1')).toBeInTheDocument();
-    expect(preview.querySelector('video[controls]')).toBeInTheDocument();
+    const video = preview.querySelector('video.moment-media-preview-asset');
+    expect(video).toBeInTheDocument();
+    expect(video).not.toHaveAttribute('controls');
+    expect(preview.querySelector('.moment-video-controls')).toBeInTheDocument();
     expect(onOpenLightbox).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { animateElement, cancelElementAnimations, prefersReducedMotion } from '@/shared/lib/nativeAnimation';
 import { useNativePresence } from '@/shared/hooks/useNativePresence';
 import { TimelineMediaSyncBadge } from '@/features/timeline/components/TimelineMediaSyncBadge';
+import { MomentVideoPlayer } from '@/features/timeline/components/MomentVideoPlayer';
 import { useTimelineMediaUrl } from '@/features/timeline/hooks/useTimelineMediaUrl';
 import type { TimelineMediaItem } from '@/features/timeline/domain/types';
 import './moment-media-preview.css';
@@ -61,6 +62,11 @@ interface PointerGesture {
 const MEDIA_WINDOW_RADIUS = 1;
 const TRACK_SETTLE_MS = 240;
 const DISMISS_MS = 220;
+const MEDIA_CONTROL_SELECTOR = 'button, input, video, [data-media-controls]';
+
+function closestMediaControl(target: EventTarget | null) {
+  return target instanceof Element ? target.closest(MEDIA_CONTROL_SELECTOR) : null;
+}
 
 function MomentMediaSlideAsset({
   media,
@@ -97,15 +103,12 @@ function MomentMediaSlideAsset({
   return (
     <div ref={contentRef} className={`moment-media-preview-slide-content ${loading ? 'is-loading' : ''}`}>
       {renderMedia && (isVideo ? (
-        <video
-          data-layout-id={isActive ? layoutId : undefined}
-          data-native-transition-id={isActive ? layoutId : undefined}
-          className="moment-media-preview-asset"
+        <MomentVideoPlayer
           src={src || undefined}
-          controls={isActive}
-          playsInline
+          isActive={isActive}
+          layoutId={layoutId}
           preload={isActive ? 'metadata' : 'none'}
-          style={{ borderRadius: 0 }}
+          ariaLabel={`${title}, video ${index + 1}`}
           onLoadedMetadata={() => onMediaReady?.(media)}
           onError={() => onMediaError?.(media)}
         />
@@ -326,7 +329,11 @@ function MomentMediaPreviewContent({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') requestClose();
+      if (event.key === 'Escape') {
+        requestClose();
+        return;
+      }
+      if (closestMediaControl(event.target)) return;
       if (event.key === 'ArrowRight' && activeIndexRef.current < items.length - 1) goTo(activeIndexRef.current + 1);
       if (event.key === 'ArrowLeft' && activeIndexRef.current > 0) goTo(activeIndexRef.current - 1);
     };
@@ -338,9 +345,7 @@ function MomentMediaPreviewContent({
   }, [goTo, items.length, requestClose]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (closingRef.current) return;
-    const target = event.target as HTMLElement;
-    if (target.closest('button, video')) return;
+    if (closingRef.current || closestMediaControl(event.target)) return;
     cancelElementAnimations(activeContentRef.current);
     cancelElementAnimations(backdropRef.current);
     if (trackRef.current) trackRef.current.style.transition = 'none';
