@@ -127,23 +127,6 @@ function normalizeToEntryAndSource(
   return { entry, source: { kind: 'activity', record: act } };
 }
 
-function creationInitialFocusSelector(source: EditableTimelineSource | null): string | undefined {
-  if (!source) return undefined;
-  if (source.kind === 'growth') return 'input[type="number"]';
-  if (source.kind === 'moment') return 'input:not([type="file"]):not([type="range"])';
-
-  const record = source.record;
-  if (record.type === 'feeding') return 'input[aria-label="Lượng sữa (ml)"]';
-  if (record.type === 'temperature') return 'input[aria-label="Thân nhiệt (°C)"]';
-  if (record.type === 'health_note') return 'textarea';
-  if (record.type === 'medicine') return '.haven-medication-option button[role="radio"]';
-  if (record.type === 'mood') return '.haven-dropdown-trigger';
-  if (record.type === 'diaper') return '[aria-label="Loại tã"] button[role="radio"]';
-  if (record.type === 'sleep' && record.owner === 'baby') return '.haven-date-picker-trigger';
-  if (record.type === 'sleep' || record.type === 'pumping') return 'input[type="number"]';
-  return undefined;
-}
-
 export interface TimelineEntryDialogProps {
   open: boolean;
   onClose: () => void;
@@ -206,7 +189,6 @@ export function TimelineEntryDialog({
     isActivityDialog ? `journal-activity-dialog tone-${meta.tone}` : '',
     isFeedingEditor ? 'journal-feeding-editor-dialog' : '',
   ].filter(Boolean).join(' ');
-  const initialFocusSelector = creating ? creationInitialFocusSelector(source) : undefined;
 
   const deleteEntry = () => {
     if (!source) return;
@@ -230,8 +212,6 @@ export function TimelineEntryDialog({
       title={titleOverride || entry.title || 'Chi tiết ghi nhận'}
       description={`${ownerLabel(entry.owner)} · ${formatFullDate(new Date(entry.occurredAt))}`}
       className={dialogClassName || undefined}
-      initialFocusSelector={initialFocusSelector}
-      touchOptimized={creating}
       footer={
         editing && source ? (
           <>

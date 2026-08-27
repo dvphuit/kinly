@@ -57,7 +57,6 @@ export const QuickLogModal: React.FC<QuickLogModalProps> = ({ isOpen, onClose, o
       onClose={onClose}
       title={`Ghi nhanh cho ${isMom ? 'Mẹ' : 'Bé'}`}
       className="kinly-themed-sheet quick-log-bottom-sheet"
-      touchOptimized
     >
       <div className="quick-log-sheet">
         <div className="quick-log-intro">
