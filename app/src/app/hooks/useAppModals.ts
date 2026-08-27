@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { ActivityLogMode } from '@/features/activities/ActivityLogModal';
+import type { AddToast as SharedAddToast } from '@/shared/hooks/useToast';
 
-export type AddToast = (message: string, icon?: string) => void;
+export type AddToast = SharedAddToast;
 
 export interface AppModalController {
   isAnyModalOpen: boolean;
