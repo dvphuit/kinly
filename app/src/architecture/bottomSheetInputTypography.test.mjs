@@ -9,6 +9,7 @@ const BASE_CSS = join(ROOT, 'shared', 'styles', 'base.css');
 const HAVEN_DROPDOWN = join(ROOT, 'shared', 'ui', 'HavenDropdown.tsx');
 const HAVEN_DATE_PICKER = join(ROOT, 'shared', 'ui', 'HavenDatePicker.tsx');
 const FIELD_TEXT_SELECTOR = ".bottom-sheet .sheet-content-body :is(input, textarea, select, [data-field-control='input-text'])";
+const TEXTAREA_LABEL_SELECTOR = '.bottom-sheet .sheet-content-body label:has(> textarea) > span';
 const INLINE_TYPOGRAPHY_PROPERTIES = new Set(['fontFamily', 'fontSize', 'fontWeight']);
 
 function listTsxFiles(directory) {
@@ -137,6 +138,13 @@ describe('bottom-sheet input text typography', () => {
     const fieldRule = cssRuleBody(css, FIELD_TEXT_SELECTOR);
 
     expect(fieldRule).toContain('font: 600 16px/1.25 var(--font-family-body);');
+  });
+
+  it('keeps textarea labels readable instead of inheriting feature-level 9px captions', () => {
+    const css = readFileSync(BOTTOM_SHEET_CSS, 'utf8');
+    const labelRule = cssRuleBody(css, TEXTAREA_LABEL_SELECTOR);
+
+    expect(labelRule).toContain('font: 700 11px/1.35 var(--font-family-body);');
   });
 
   it('opts shared dropdown and date-picker triggers into the same field text contract', () => {

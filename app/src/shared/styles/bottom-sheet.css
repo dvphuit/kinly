@@ -24,6 +24,10 @@
   font: 600 16px/1.25 var(--font-family-body);
 }
 
+.bottom-sheet .sheet-content-body label:has(> textarea) > span {
+  font: 700 11px/1.35 var(--font-family-body);
+}
+
 .sheet-drag-handle-area {
   flex-shrink: 0;
   width: 100%;
