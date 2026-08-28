@@ -548,7 +548,10 @@ function LocalMediaTile({
 export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDriveDataViewProps) {
   const navigate = useNavigate();
   const visibleTimelineItems = useTimelineStore((state) => state.timelineItems);
-  const dexieTimelineItems = useLiveQuery(() => readAllJournalData().then((journal) => journal.timelineItems), []);
+  const dexieTimelineItems = useLiveQuery(
+    () => readAllJournalData().then((journal) => journal.timelineItems),
+    [visibleTimelineItems],
+  );
   const [timelineItems, setTimelineItems] = useState(visibleTimelineItems);
   const [activeSegment, setActiveSegment] = useState<DataSegment>('device');
   const [linked, setLinked] = useState(isGoogleLinked());
