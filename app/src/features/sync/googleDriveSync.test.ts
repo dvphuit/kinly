@@ -11,6 +11,7 @@ import { useUIStore } from '@/store/useUIStore';
 const localDb = vi.hoisted(() => ({
   getLocalRecord: vi.fn(),
   setLocalRecord: vi.fn(),
+  waitForLocalRecordWrites: vi.fn(async () => undefined),
 }));
 const timelineMediaDriveSync = vi.hoisted(() => ({
   syncTimelineMediaToDrive: vi.fn(),
@@ -105,7 +106,7 @@ describe('generation-2 Google Drive sync', () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2026-08-01' });
     const sync = await import('@/features/sync/googleDriveSync');
 
-    const snapshot = sync.createSyncSnapshot();
+    const snapshot = await sync.createSyncSnapshot();
 
     expect(snapshot.schemaVersion).toBe(2);
     expect(snapshot.data.generation).toBe(2);
@@ -156,7 +157,7 @@ describe('generation-2 Google Drive sync', () => {
   it('adopts a generation-2 backup that still uses the legacy filename', async () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2026-08-01' });
     const sync = await import('@/features/sync/googleDriveSync');
-    const legacyNamedSnapshot = sync.createSyncSnapshot();
+    const legacyNamedSnapshot = await sync.createSyncSnapshot();
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(accountResponse())
       .mockResolvedValueOnce(jsonResponse({ files: [] }))

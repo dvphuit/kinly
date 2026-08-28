@@ -2,17 +2,17 @@ import { useMemo } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { HeartPulse, Layers, Milk, Moon, Pill, Plus, Smile, Sparkles, Thermometer } from 'lucide-react';
 import { getBabyActivitiesForDay, getMomActivitiesForDay } from '@/features/activities/domain/activitySelectors';
-import { useActivityStore } from '@/features/activities/store/useActivityStore';
 import { HomeMomentStoryItem } from '@/features/timeline/components/HomeMomentStoryItem';
 import { NotebookStory } from '@/features/timeline/components/NotebookStory';
 import { buildBabyTimelineEntry } from '@/features/timeline/domain/timelineSelectors';
 import { useLiveNow } from '@/shared/hooks/useLiveNow';
-import { formatDurationMinutes, formatTimeOfDay } from '@/shared/lib/time';
+import { formatDurationMinutes, formatTimeOfDay, localDateKey } from '@/shared/lib/time';
 import type { BabyActivity, MomActivity } from '@/features/activities';
 import type { ProfileMode } from '@/features/profile';
 import { LazyMomentMediaPreview } from './LazyMomentMediaPreview';
 import { LazyTimelineEntryDialog } from './LazyTimelineEntryDialog';
 import { useHomeTimeline } from '../hooks/useHomeTimeline';
+import { useJournalRange } from '@/data/useNormalizedData';
 
 interface TimelinePreviewContentProps {
   owner: ProfileMode;
@@ -70,8 +70,14 @@ function momActivityDetail(record: MomActivity): string {
 }
 
 function BabyTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
-  const records = useActivityStore((state) => state.babyActivities);
   const now = useLiveNow();
+  const dayKey = localDateKey(now);
+  const { babyActivities: records, timelineItems } = useJournalRange({
+    owner: 'baby',
+    startDate: dayKey,
+    endDate: dayKey,
+    limit: 256,
+  });
   const dayActivities = useMemo(() => getBabyActivitiesForDay(records, now), [records, now]);
   const {
     timelineEntries,
@@ -83,7 +89,7 @@ function BabyTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
     openMomentMedia,
     closeEntry,
     closeMomentPreview,
-  } = useHomeTimeline({ owner: 'baby', records, dayActivities, now });
+  } = useHomeTimeline({ owner: 'baby', records, dayActivities, now, timelineItems });
 
   return (
     <>
@@ -164,8 +170,14 @@ function BabyTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
 }
 
 function MomTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
-  const records = useActivityStore((state) => state.momActivities);
   const now = useLiveNow();
+  const dayKey = localDateKey(now);
+  const { momActivities: records, timelineItems } = useJournalRange({
+    owner: 'mom',
+    startDate: dayKey,
+    endDate: dayKey,
+    limit: 256,
+  });
   const dayActivities = useMemo(() => getMomActivitiesForDay(records, now), [records, now]);
   const {
     timelineEntries,
@@ -177,7 +189,7 @@ function MomTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
     openMomentMedia,
     closeEntry,
     closeMomentPreview,
-  } = useHomeTimeline({ owner: 'mom', records, dayActivities, now });
+  } = useHomeTimeline({ owner: 'mom', records, dayActivities, now, timelineItems });
 
   return (
     <>

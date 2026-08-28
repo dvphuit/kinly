@@ -8,6 +8,18 @@ import { generateId } from '@/utils/format';
 import { useUIStore } from '@/store/useUIStore';
 import { useGrowthStore } from '@/features/growth/store/useGrowthStore';
 import { useProfileStore } from '@/features/profile/store/useProfileStore';
+import {
+  clearTimelineRecords,
+  deleteTimelineRecord,
+  saveTimelineItem,
+} from '@/data/normalizedRepositories';
+import { logDiagnostic } from '@/app/diagnostics/diagnosticLog';
+
+function reportPersistenceFailure(operation: Promise<void>, action: string, id?: string): void {
+  void operation.catch((error: unknown) => {
+    logDiagnostic('database', 'error', `Không thể ${action} nhật ký`, { id, error });
+  });
+}
 
 interface TimelineStoreState {
   timelineItems: TimelineItem[];
@@ -90,48 +102,60 @@ export const useTimelineStore = create<TimelineStoreState>()(
         set((state) => ({
           timelineItems: [newItem, ...state.timelineItems],
         }));
+        reportPersistenceFailure(saveTimelineItem(newItem), 'lưu', newItem.id);
       },
 
-      updateTimelineItem: (id, patch) => set((state) => ({
-        timelineItems: state.timelineItems.map((item) => {
-          if (item.id !== id) return item;
-          const date = patch.date ?? item.date;
-          const timeFormatted = patch.timeFormatted ?? item.timeFormatted;
-          const [year, month, day] = date.split('-');
-          const formattedDay = year && month && day ? `${day}/${month}/${year}` : date;
-          const next = { ...item, ...patch, id: item.id, date, timeFormatted, time: `${formattedDay} • ${timeFormatted}` };
-          if (patch.mediaItems) {
-            next.mediaItems = patch.mediaItems
-              .filter((media) => media.blobId || media.driveFileId || media.url?.trim())
-              .map((media) => ({
-                ...media,
-                id: media.id || generateId('media'),
-                url: media.url?.trim() || undefined,
-              }));
-            next.mediaUrl = next.mediaItems[0]?.url ?? null;
-            next.mediaType = next.mediaItems[0]?.type ?? null;
-          }
-          return next;
-        }),
-      })),
+      updateTimelineItem: (id, patch) => {
+        set((state) => ({
+          timelineItems: state.timelineItems.map((item) => {
+            if (item.id !== id) return item;
+            const date = patch.date ?? item.date;
+            const timeFormatted = patch.timeFormatted ?? item.timeFormatted;
+            const [year, month, day] = date.split('-');
+            const formattedDay = year && month && day ? `${day}/${month}/${year}` : date;
+            const next = { ...item, ...patch, id: item.id, date, timeFormatted, time: `${formattedDay} • ${timeFormatted}` };
+            if (patch.mediaItems) {
+              next.mediaItems = patch.mediaItems
+                .filter((media) => media.blobId || media.driveFileId || media.url?.trim())
+                .map((media) => ({
+                  ...media,
+                  id: media.id || generateId('media'),
+                  url: media.url?.trim() || undefined,
+                }));
+              next.mediaUrl = next.mediaItems[0]?.url ?? null;
+              next.mediaType = next.mediaItems[0]?.type ?? null;
+            }
+            return next;
+          }),
+        }));
+        const updated = useTimelineStore.getState().timelineItems.find((item) => item.id === id);
+        if (updated) reportPersistenceFailure(saveTimelineItem(updated), 'cập nhật', id);
+      },
 
-      deleteTimelineItem: (id) => set((state) => ({
-        timelineItems: state.timelineItems.filter((item) => item.id !== id),
-      })),
+      deleteTimelineItem: (id) => {
+        set((state) => ({
+          timelineItems: state.timelineItems.filter((item) => item.id !== id),
+        }));
+        reportPersistenceFailure(deleteTimelineRecord(id), 'xóa', id);
+      },
 
-      toggleLike: (id) => set((state) => ({
-        timelineItems: state.timelineItems.map((item) => {
-          if (item.id === id) {
-            const userLiked = !item.userLiked;
-            return {
-              ...item,
-              userLiked,
-              likes: item.likes + (userLiked ? 1 : -1),
-            };
-          }
-          return item;
-        }),
-      })),
+      toggleLike: (id) => {
+        set((state) => ({
+          timelineItems: state.timelineItems.map((item) => {
+            if (item.id === id) {
+              const userLiked = !item.userLiked;
+              return {
+                ...item,
+                userLiked,
+                likes: item.likes + (userLiked ? 1 : -1),
+              };
+            }
+            return item;
+          }),
+        }));
+        const updated = useTimelineStore.getState().timelineItems.find((item) => item.id === id);
+        if (updated) reportPersistenceFailure(saveTimelineItem(updated), 'cập nhật', id);
+      },
 
       setSelectedCalendarDate: (date) => set({ selectedCalendarDate: date }),
       setCalendarMonth: (year, month) => set({ calendarYear: year, calendarMonth: month }),
@@ -141,21 +165,23 @@ export const useTimelineStore = create<TimelineStoreState>()(
       })),
       setTimelineFilter: (filter) => set({ timelineFilter: filter }),
       setCurrentTimelineSubTab: (subTab) => set({ currentTimelineSubTab: subTab }),
-      resetTrackingData: () => set({
-        timelineItems: [],
-        selectedCalendarDate: todayStr(),
-        calendarYear: new Date().getFullYear(),
-        calendarMonth: new Date().getMonth(),
-        calendarViewMode: 'collapsed',
-        timelineFilter: 'all',
-        currentTimelineSubTab: 'feed',
-      }),
+      resetTrackingData: () => {
+        set({
+          timelineItems: [],
+          selectedCalendarDate: todayStr(),
+          calendarYear: new Date().getFullYear(),
+          calendarMonth: new Date().getMonth(),
+          calendarViewMode: 'collapsed',
+          timelineFilter: 'all',
+          currentTimelineSubTab: 'feed',
+        });
+        reportPersistenceFailure(clearTimelineRecords(), 'xóa toàn bộ');
+      },
     }),
     {
       name: 'babygrowth_v4_timeline',
       storage: createJSONStorage(() => indexedDbStorage),
       partialize: (state) => ({
-        timelineItems: state.timelineItems,
         selectedCalendarDate: state.selectedCalendarDate,
         calendarViewMode: state.calendarViewMode,
       }),

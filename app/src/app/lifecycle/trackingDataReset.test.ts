@@ -177,12 +177,11 @@ describe('resetTrackingData', () => {
     const { resetTrackingData } = await import('./trackingDataReset');
 
     const reset = resetTrackingData();
-    await flushMicrotasks();
+    await expect(reset).resolves.toEqual({ status: 'synced' });
 
     expect(drive.overwriteDriveBackupWithLocalData).toHaveBeenCalledOnce();
     expect(persistence.indexedDbStorage.getItem).toHaveBeenCalled();
     expect(onFinishHydration).not.toHaveBeenCalled();
-    await expect(reset).resolves.toEqual({ status: 'synced' });
     expect(useActivityStore.getState().babyActivities).toEqual([]);
   });
 });

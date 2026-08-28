@@ -22,6 +22,7 @@ interface UseHomeTimelineOptions<T extends ProfileMode> {
   records: OwnerActivity<T>[];
   dayActivities: OwnerActivity<T>[];
   now: Date;
+  timelineItems?: TimelineItem[];
 }
 
 export function useHomeTimeline<T extends ProfileMode>({
@@ -29,8 +30,10 @@ export function useHomeTimeline<T extends ProfileMode>({
   records,
   dayActivities,
   now,
+  timelineItems: providedTimelineItems,
 }: UseHomeTimelineOptions<T>) {
-  const timelineItems = useTimelineStore((state) => state.timelineItems);
+  const fallbackTimelineItems = useTimelineStore((state) => state.timelineItems);
+  const timelineItems = providedTimelineItems ?? fallbackTimelineItems;
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [selectedMomentId, setSelectedMomentId] = useState<string | null>(null);
   const [momentPreview, setMomentPreview] = useState<MomentMediaPreviewState | null>(null);

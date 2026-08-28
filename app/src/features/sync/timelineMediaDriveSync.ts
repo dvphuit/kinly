@@ -5,6 +5,8 @@ import { prepareTimelineMediaForDrive } from './mediaCompression';
 import { publishTimelineMediaSyncProgress } from './timelineMediaSyncProgress';
 import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import type { TimelineItem, TimelineMediaItem } from '@/features/timeline';
+import { hasIndexedDb } from '@/data/appDatabase';
+import { readAllJournalData, replaceTimelineItems } from '@/data/normalizedRepositories';
 
 const TIMELINE_STORAGE_KEY = 'babygrowth_v4_timeline';
 
@@ -18,7 +20,13 @@ export async function syncTimelineMediaToDrive(
 ): Promise<number> {
   logDiagnostic('drive-sync', 'info', 'Timeline media sync started', { interactive: options.interactive !== false });
   await waitForTimelineHydration();
-  const timelineItems = useTimelineStore.getState().timelineItems;
+  await waitForLocalRecordWrites([TIMELINE_STORAGE_KEY]);
+  const journal = await readAllJournalData();
+  const timelineItems = hasIndexedDb()
+    ? journal.timelineItems
+    : journal.timelineItems.length > 0
+      ? journal.timelineItems
+      : useTimelineStore.getState().timelineItems;
   let uploadedCount = 0;
   let firstUploadError: unknown = null;
 
@@ -79,6 +87,7 @@ export async function syncTimelineMediaToDrive(
   }
 
   if (uploadedCount > 0) {
+    await replaceTimelineItems(nextTimelineItems);
     useTimelineStore.setState({ timelineItems: nextTimelineItems });
     await waitForLocalRecordWrites([TIMELINE_STORAGE_KEY]);
   }

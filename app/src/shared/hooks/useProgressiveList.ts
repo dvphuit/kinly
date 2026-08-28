@@ -28,8 +28,9 @@ export function useProgressiveList({
 
   useEffect(() => {
     setVisibleCount(Math.min(totalCount, safeInitialCount));
+    // totalCount is read only for the initial clamp at reset time; subsequent totalCount growth is handled by the next effect to preserve scroll position
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey, safeInitialCount]);
-
   useEffect(() => {
     setVisibleCount((current) => Math.min(totalCount, Math.max(current, Math.min(totalCount, safeInitialCount))));
   }, [safeInitialCount, totalCount]);

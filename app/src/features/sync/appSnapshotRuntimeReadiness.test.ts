@@ -4,7 +4,7 @@ import type { AppSnapshotRuntime } from './appSnapshot';
 function unusedRuntime(): AppSnapshotRuntime {
   return {
     exportSnapshot: () => { throw new Error('not used'); },
-    applySnapshot: () => undefined,
+    applySnapshot: () => Promise.resolve(),
     subscribeChanges: () => () => undefined,
   };
 }

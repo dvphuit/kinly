@@ -7,24 +7,30 @@ async function suppressPwaBadge(page: Page): Promise<void> {
 async function waitForPersistedFeedingAmount(page: Page, amountMl: number): Promise<void> {
   await expect.poll(async () => page.evaluate(async (expectedAmount) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('babygrowth-local', 2);
+      const request = indexedDB.open('babygrowth-local');
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error ?? new Error('Failed to open BabyGrowth IndexedDB'));
     });
 
     try {
-      const raw = await new Promise<unknown>((resolve, reject) => {
-        const request = db.transaction('zustand', 'readonly').objectStore('zustand').get('babygrowth_v4_activities');
+      const rows = await new Promise<unknown>((resolve, reject) => {
+        const request = db.transaction('journalEntries', 'readonly').objectStore('journalEntries').getAll();
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error ?? new Error('Failed to read persisted activities'));
       });
-      if (typeof raw !== 'string') return false;
-      const parsed = JSON.parse(raw) as {
-        state?: { babyActivities?: Array<{ type?: string; amountMl?: number }> };
-      };
-      return parsed.state?.babyActivities?.some(
-        (activity) => activity.type === 'feeding' && activity.amountMl === expectedAmount,
-      ) === true;
+      if (!Array.isArray(rows)) return false;
+      return rows.some((row: unknown) => {
+        if (typeof row !== 'object' || row === null || !('kind' in row) || row.kind !== 'activity' || !('payload' in row)) {
+          return false;
+        }
+        const payload = row.payload;
+        return typeof payload === 'object'
+          && payload !== null
+          && 'type' in payload
+          && payload.type === 'feeding'
+          && 'amountMl' in payload
+          && payload.amountMl === expectedAmount;
+      });
     } finally {
       db.close();
     }
