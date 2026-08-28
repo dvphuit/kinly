@@ -55,7 +55,7 @@ workerScope.onmessage = async (event) => {
         codec: 'avc',
         height,
         frameRate: TARGET_FRAME_RATE,
-        quality: new Quality('medium'),
+        quality: new Quality('high'),
       },
     });
     if (!conversion.isValid) {
