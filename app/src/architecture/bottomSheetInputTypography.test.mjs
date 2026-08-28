@@ -4,6 +4,11 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = join(process.cwd(), 'src');
+const BOTTOM_SHEET_CSS = join(ROOT, 'shared', 'styles', 'bottom-sheet.css');
+const BASE_CSS = join(ROOT, 'shared', 'styles', 'base.css');
+const HAVEN_DROPDOWN = join(ROOT, 'shared', 'ui', 'HavenDropdown.tsx');
+const HAVEN_DATE_PICKER = join(ROOT, 'shared', 'ui', 'HavenDatePicker.tsx');
+const FIELD_TEXT_SELECTOR = ".bottom-sheet .sheet-content-body :is(input, textarea, select, [data-field-control='input-text'])";
 const INLINE_TYPOGRAPHY_PROPERTIES = new Set(['fontFamily', 'fontSize', 'fontWeight']);
 
 function listTsxFiles(directory) {
@@ -24,10 +29,19 @@ function classNameText(attribute) {
   if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
     return expression.text;
   }
-  if (ts.isTemplateExpression(expression)) {
-    return expression.getText();
-  }
+  if (ts.isTemplateExpression(expression)) return expression.getText();
   return '';
+}
+
+function attributeText(attribute) {
+  const initializer = attribute?.initializer;
+  if (!initializer) return '';
+  if (ts.isStringLiteral(initializer)) return initializer.text;
+  if (!ts.isJsxExpression(initializer) || !initializer.expression) return '';
+  if (ts.isStringLiteral(initializer.expression) || ts.isNoSubstitutionTemplateLiteral(initializer.expression)) {
+    return initializer.expression.text;
+  }
+  return initializer.expression.getText();
 }
 
 function propertyNameText(name) {
@@ -35,6 +49,43 @@ function propertyNameText(name) {
     return name.text;
   }
   return name.getText();
+}
+
+function jsxAttribute(node, source, name) {
+  return node.attributes.properties.find(
+    (attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText(source) === name,
+  );
+}
+
+function hasInputTextMarker(file, triggerClassName) {
+  const sourceText = readFileSync(file, 'utf8');
+  const source = ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let found = false;
+
+  function visit(node) {
+    if (found) return;
+    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText(source) === 'button') {
+      const className = jsxAttribute(node, source, 'className');
+      const marker = jsxAttribute(node, source, 'data-field-control');
+      if (className && classNameText(className).includes(triggerClassName) && attributeText(marker) === 'input-text') {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(source);
+  return found;
+}
+
+function cssRuleBody(css, selector) {
+  const selectorStart = css.indexOf(selector);
+  if (selectorStart < 0) throw new Error(`Missing CSS selector: ${selector}`);
+  const openBrace = css.indexOf('{', selectorStart + selector.length);
+  const closeBrace = css.indexOf('}', openBrace + 1);
+  if (openBrace < 0 || closeBrace < 0) throw new Error(`Malformed CSS rule: ${selector}`);
+  return css.slice(openBrace + 1, closeBrace);
 }
 
 function findInlineTypographyViolations(file) {
@@ -46,16 +97,12 @@ function findInlineTypographyViolations(file) {
     if (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) {
       const tagName = node.tagName.getText(source);
       if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
-        const classNameAttribute = node.attributes.properties.find(
-          (attribute) => ts.isJsxAttribute(attribute) && attribute.name.text === 'className',
-        );
+        const classNameAttribute = jsxAttribute(node, source, 'className');
         const usesSharedInput = classNameAttribute
           && classNameText(classNameAttribute).includes('log-input-control');
 
         if (usesSharedInput) {
-          const styleAttribute = node.attributes.properties.find(
-            (attribute) => ts.isJsxAttribute(attribute) && attribute.name.text === 'style',
-          );
+          const styleAttribute = jsxAttribute(node, source, 'style');
           const expression = styleAttribute?.initializer;
           const styleObject = expression && ts.isJsxExpression(expression)
             ? expression.expression
@@ -85,8 +132,35 @@ function findInlineTypographyViolations(file) {
   return violations;
 }
 
-describe('shared bottom-sheet input typography', () => {
-  it('keeps log input font styling in the shared stylesheet instead of inline overrides', () => {
+describe('bottom-sheet input text typography', () => {
+  it('owns native and custom field value typography at the bottom-sheet boundary', () => {
+    const css = readFileSync(BOTTOM_SHEET_CSS, 'utf8');
+    const sheetRule = cssRuleBody(css, '.bottom-sheet');
+    const fieldRule = cssRuleBody(css, FIELD_TEXT_SELECTOR);
+
+    expect(sheetRule).toContain('--sheet-field-font-family: var(--font-family-body);');
+    expect(sheetRule).toContain('--sheet-field-font-size: 16px;');
+    expect(sheetRule).toContain('--sheet-field-font-weight: 600;');
+    expect(sheetRule).toContain('--sheet-field-line-height: 1.25;');
+    expect(fieldRule).toContain('font-family: var(--sheet-field-font-family);');
+    expect(fieldRule).toContain('font-size: var(--sheet-field-font-size);');
+    expect(fieldRule).toContain('font-weight: var(--sheet-field-font-weight);');
+    expect(fieldRule).toContain('line-height: var(--sheet-field-line-height);');
+  });
+
+  it('opts shared dropdown and date-picker triggers into the same field text contract', () => {
+    expect(hasInputTextMarker(HAVEN_DROPDOWN, 'haven-dropdown-trigger')).toBe(true);
+    expect(hasInputTextMarker(HAVEN_DATE_PICKER, 'haven-date-picker-trigger')).toBe(true);
+  });
+
+  it('keeps the standalone iOS anti-zoom floor aligned with the sheet field size', () => {
+    const css = readFileSync(BASE_CSS, 'utf8');
+    const antiZoomRule = cssRuleBody(css, 'html.is-standalone :is(input, textarea, select)');
+
+    expect(antiZoomRule).toContain('font-size: max(16px, 1em) !important;');
+  });
+
+  it('keeps shared native field typography out of inline style overrides', () => {
     const violations = listTsxFiles(ROOT).flatMap(findInlineTypographyViolations);
 
     expect(violations).toEqual([]);

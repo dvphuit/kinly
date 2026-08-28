@@ -3,6 +3,10 @@
    ========================================================================== */
 
 .bottom-sheet {
+  --sheet-field-font-family: var(--font-family-body);
+  --sheet-field-font-size: 16px;
+  --sheet-field-font-weight: 600;
+  --sheet-field-line-height: 1.25;
   background: #FFFFFF;
   border-radius: 28px 28px 0 0;
   max-height: 88vh;
@@ -17,6 +21,27 @@
   box-shadow: none;
   touch-action: pan-y;
   transform-origin: 50% 100%;
+}
+
+/*
+ * Field value typography is owned by the sheet boundary. Native controls are
+ * covered automatically; custom field primitives opt in with data-field-control.
+ * Keep this at 16px so installed iOS/PWA input text matches the anti-zoom floor.
+ */
+.bottom-sheet .sheet-content-body :is(input, textarea, select, [data-field-control='input-text']) {
+  font-family: var(--sheet-field-font-family);
+  font-size: var(--sheet-field-font-size);
+  font-weight: var(--sheet-field-font-weight);
+  line-height: var(--sheet-field-line-height);
+}
+
+.bottom-sheet .sheet-content-body :is(input, textarea)::placeholder {
+  color: var(--color-text-muted);
+  font-family: var(--sheet-field-font-family);
+  font-size: inherit;
+  font-weight: 500;
+  line-height: inherit;
+  opacity: 1;
 }
 
 .sheet-drag-handle-area {

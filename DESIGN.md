@@ -67,6 +67,8 @@ Bottom sheets use large top radii and enough bottom padding for device safe area
 
 Fields share label, input, error, help text, disabled state, and focus styles. Domain-specific controls such as milk amount or medication selection may compose the field building blocks.
 
+Bottom-sheet field values use the body font at 16px and semibold weight across native inputs and custom field triggers. This matches the installed-app iOS anti-zoom floor, so feature styles must not introduce smaller or display-font input typography inside a bottom sheet.
+
 ### Empty states
 
 An empty state says what is missing and gives one useful next action. Avoid demo numbers that look like real user data.
