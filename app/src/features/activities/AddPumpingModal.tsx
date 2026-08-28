@@ -51,6 +51,7 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
       isOpen={isOpen}
       onClose={onClose}
       title="Ghi Nhận Cữ Hút Sữa Mẹ"
+      touchOptimized
       footer={
         <button type="submit" form={formId} className="log-btn-primary">
           <span>Lưu Cữ Hút Sữa</span>

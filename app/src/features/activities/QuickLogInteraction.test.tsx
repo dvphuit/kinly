@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActivityLogModal } from './ActivityLogModal';
 import { AddPumpingModal } from './AddPumpingModal';
@@ -7,7 +7,7 @@ import { createDefaultMedicationCatalog } from '@/features/activities/domain/med
 import { useActivityStore } from '@/features/activities/store/useActivityStore';
 import { useUIStore } from '@/store/useUIStore';
 
-describe('Quick Log UI regressions', () => {
+describe('Quick Log interaction polish', () => {
   beforeEach(() => {
     useUIStore.setState({ profileMode: 'baby' });
     useActivityStore.setState({
@@ -17,32 +17,29 @@ describe('Quick Log UI regressions', () => {
     });
   });
 
-  it('keeps the Quick Log close control and actions free of inline size mutation', () => {
+  it('focuses the first Quick Log action instead of the close button', async () => {
     render(<QuickLogModal isOpen onClose={vi.fn()} onSelectAction={vi.fn()} />);
 
-    const close = screen.getByRole('button', { name: 'Đóng' });
     const firstAction = screen.getByRole('button', { name: 'Cữ bú' });
-    expect(close.style.minWidth).toBe('');
-    expect(close.style.minHeight).toBe('');
-    expect(firstAction.style.minHeight).toBe('');
+    await waitFor(() => expect(firstAction).toHaveFocus());
+
+    const close = screen.getByRole('button', { name: 'Đóng' });
+    expect(close).toHaveStyle({ minWidth: '44px', minHeight: '44px' });
   });
 
-  it('keeps pumping keypad hints without stretching sheet controls', () => {
+  it('focuses the pumping amount, uses the numeric keypad, and keeps sheet controls touch-sized', async () => {
     render(<AddPumpingModal isOpen onClose={vi.fn()} onSuccessToast={vi.fn()} />);
 
     const amount = screen.getByLabelText('Lượng sữa hút được (ml)');
-    const close = screen.getByRole('button', { name: 'Đóng' });
-    const side = screen.getByRole('button', { name: '2 bên' });
-
+    await waitFor(() => expect(amount).toHaveFocus());
     expect(amount).toHaveAttribute('inputmode', 'numeric');
     expect(amount).toHaveAttribute('enterkeyhint', 'done');
-    expect(amount.style.minHeight).toBe('');
-    expect(close.style.minWidth).toBe('');
-    expect(close.style.minHeight).toBe('');
-    expect(side.style.minHeight).toBe('');
+
+    const close = screen.getByRole('button', { name: 'Đóng' });
+    expect(close).toHaveStyle({ minWidth: '44px', minHeight: '44px' });
   });
 
-  it('does not stretch compact activity editor controls with inline touch sizing', () => {
+  it('focuses the main feeding input and preserves its mobile numeric keypad', async () => {
     render(
       <ActivityLogModal
         isOpen
@@ -53,12 +50,25 @@ describe('Quick Log UI regressions', () => {
     );
 
     const amount = screen.getByLabelText('Lượng sữa (ml)');
-    const milkSource = screen.getByRole('radio', { name: /Sữa mẹ/i });
-    const close = screen.getByRole('button', { name: 'Đóng' });
+    await waitFor(() => expect(amount).toHaveFocus());
+    expect(amount).toHaveAttribute('inputmode', 'numeric');
 
-    expect(amount.style.minHeight).toBe('');
-    expect(milkSource.style.minHeight).toBe('');
-    expect(close.style.minWidth).toBe('');
-    expect(close.style.minHeight).toBe('');
+    const close = screen.getByRole('button', { name: 'Đóng' });
+    expect(close).toHaveStyle({ minWidth: '44px', minHeight: '44px' });
+  });
+
+  it('upgrades legacy Quick Log number fields to the numeric mobile keypad', async () => {
+    render(
+      <ActivityLogModal
+        isOpen
+        mode="mom-sleep"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    const duration = screen.getByRole('spinbutton', { name: 'Thời lượng (phút)' });
+    await waitFor(() => expect(duration).toHaveFocus());
+    expect(duration).toHaveAttribute('inputmode', 'numeric');
   });
 });
