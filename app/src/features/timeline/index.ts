@@ -10,5 +10,4 @@ export type { CalendarRangeEvent, CalendarViewMode, TimelineItem, TimelineMediaI
 
 export async function loadTimelineStyles(): Promise<void> {
   await import('./timeline.css');
-  await import('./activity-sheet-typography.css');
 }
