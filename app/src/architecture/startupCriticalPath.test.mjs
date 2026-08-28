@@ -40,6 +40,16 @@ describe('startup critical path', () => {
     expect(app).toContain('window.setTimeout(() => setShouldRegister(true), PWA_REGISTRATION_DELAY_MS)');
   });
 
+  it('recovers stale dynamic route chunks before using the custom router fallback', () => {
+    const main = source('main.tsx');
+    const recovery = source('app/lifecycle/preloadErrorRecovery.ts');
+
+    expect(main).toContain('installPreloadErrorRecovery();');
+    expect(main).toContain('errorElement: <AppRouteError />');
+    expect(recovery).toContain("window.addEventListener('vite:preloadError'");
+    expect(recovery).toContain('PRELOAD_RECOVERY_COOLDOWN_MS = 30_000');
+  });
+
   it('keeps development store hydration out of the production entry module', () => {
     const main = source('main.tsx');
     const bootstrap = source('data/bootstrapMockData.ts');
