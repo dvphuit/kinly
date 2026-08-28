@@ -19,6 +19,11 @@
   transform-origin: 50% 100%;
 }
 
+/* Keep bottom-sheet field values aligned with the installed iOS anti-zoom floor. */
+.bottom-sheet .sheet-content-body :is(input, textarea, select, [data-field-control='input-text']) {
+  font: 600 16px/1.25 var(--font-family-body);
+}
+
 .sheet-drag-handle-area {
   flex-shrink: 0;
   width: 100%;
