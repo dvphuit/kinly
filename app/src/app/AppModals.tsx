@@ -102,11 +102,6 @@ export function AppModals({ modals, onSuccessToast }: AppModalsProps) {
             mode={modals.activityLogMode ?? lastActivityMode}
             onClose={modals.closeActivityLog}
             onSaved={(message) => onSuccessToast(message, '✓')}
-            onUndoableSaved={(message, undo) => onSuccessToast(message, '✓', {
-              actionLabel: 'Hoàn tác',
-              onAction: undo,
-              durationMs: 5000,
-            })}
           />
       )}
       {growthMounted && (

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { TimelineEntryDialog } from '@/features/timeline';
 import type { ActivityRecord } from '@/features/activities/domain/types';
-import { useActivityStore } from '@/features/activities/store/useActivityStore';
 
 export type ActivityLogMode =
   | 'feeding'
@@ -18,7 +17,6 @@ interface ActivityLogModalProps {
   mode: ActivityLogMode;
   onClose: () => void;
   onSaved: (message: string) => void;
-  onUndoableSaved?: (message: string, undo: () => void) => void;
 }
 
 const TITLES: Record<ActivityLogMode, string> = {
@@ -41,17 +39,6 @@ const SAVED_MESSAGES: Record<ActivityLogMode, string> = {
   'mom-mood': 'Đã lưu tâm trạng của mẹ.',
   medicine: 'Đã lưu thuốc / vitamin.',
   temperature: 'Đã lưu nhiệt độ.',
-};
-
-const ACTIVITY_TYPES: Record<ActivityLogMode, ActivityRecord['type']> = {
-  feeding: 'feeding',
-  'baby-sleep': 'sleep',
-  diaper: 'diaper',
-  'baby-note': 'health_note',
-  'mom-sleep': 'sleep',
-  'mom-mood': 'mood',
-  medicine: 'medicine',
-  temperature: 'temperature',
 };
 
 function createActivityDraft(mode: ActivityLogMode, now = new Date()): ActivityRecord {
@@ -101,22 +88,7 @@ function createActivityDraft(mode: ActivityLogMode, now = new Date()): ActivityR
   }
 }
 
-function createUndoForSavedActivity(mode: ActivityLogMode): (() => void) | undefined {
-  const state = useActivityStore.getState();
-  const isMomMode = mode === 'mom-sleep' || mode === 'mom-mood';
-  const record = isMomMode ? state.momActivities[0] : state.babyActivities[0];
-  if (!record || record.type !== ACTIVITY_TYPES[mode]) return undefined;
-  const recordId = record.id;
-  return () => useActivityStore.getState().deleteActivity(recordId);
-}
-
-export function ActivityLogModal({
-  isOpen,
-  mode,
-  onClose,
-  onSaved,
-  onUndoableSaved,
-}: ActivityLogModalProps) {
+export function ActivityLogModal({ isOpen, mode, onClose, onSaved }: ActivityLogModalProps) {
   const draft = useMemo(() => createActivityDraft(mode), [mode]);
 
   return (
@@ -127,15 +99,7 @@ export function ActivityLogModal({
       creating
       titleOverride={TITLES[mode]}
       onClose={onClose}
-      onSaved={() => {
-        const message = SAVED_MESSAGES[mode];
-        const undo = createUndoForSavedActivity(mode);
-        if (undo && onUndoableSaved) {
-          onUndoableSaved(message, undo);
-          return;
-        }
-        onSaved(message);
-      }}
+      onSaved={() => onSaved(SAVED_MESSAGES[mode])}
     />
   );
 }

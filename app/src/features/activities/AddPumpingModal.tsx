@@ -1,13 +1,12 @@
 import { useState, useId } from 'react';
 import { Milk, ArrowRight } from 'lucide-react';
 import { BottomSheet } from '@/shared/ui/BottomSheet';
-import type { AddToast } from '@/shared/hooks/useToast';
 import { useActivityStore } from '@/features/activities/store/useActivityStore';
 
 interface AddPumpingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccessToast: AddToast;
+  onSuccessToast: (msg: string) => void;
 }
 
 const SIDE_MAP: Record<string, 'left' | 'right' | 'both'> = {
@@ -30,7 +29,7 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
       return;
     }
 
-    const saved = addMomActivity({
+    addMomActivity({
       owner: 'mom',
       type: 'pumping',
       occurredAt: new Date().toISOString(),
@@ -38,12 +37,8 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
       side: SIDE_MAP[side] ?? 'both',
     });
 
+    onSuccessToast(`Đã lưu cữ hút sữa: +${amountMl}ml (${side}) 🥛`);
     onClose();
-    onSuccessToast(`Đã lưu cữ hút sữa: +${amountMl}ml (${side}) 🥛`, '✓', {
-      actionLabel: 'Hoàn tác',
-      durationMs: 5000,
-      onAction: () => useActivityStore.getState().deleteActivity(saved.id),
-    });
   };
 
   return (
@@ -67,9 +62,6 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
             type="number"
             required
             min="1"
-            inputMode="numeric"
-            enterKeyHint="done"
-            aria-label="Lượng sữa hút được (ml)"
             className="log-input-control"
             style={{ textAlign: 'center', fontFamily: 'var(--font-family-display)', fontSize: '18px', fontWeight: 800 }}
             value={amount}
