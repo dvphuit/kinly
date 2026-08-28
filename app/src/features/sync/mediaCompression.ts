@@ -1,3 +1,9 @@
+import {
+  getMediaCompressionSettings,
+  type MediaCompressionKind,
+  type MediaCompressionPreset,
+} from './mediaCompressionSettings';
+
 const MEBIBYTE = 1024 * 1024;
 
 export const IMAGE_COMPRESSION_MIN_BYTES = MEBIBYTE;
@@ -11,7 +17,7 @@ const COMPRESSIBLE_IMAGE_TYPES = new Set([
   'image/heif',
 ]);
 
-export type TimelineMediaCompressionKind = 'photo' | 'video';
+export type TimelineMediaCompressionKind = MediaCompressionKind;
 
 export interface PreparedTimelineMedia {
   blob: Blob;
@@ -24,6 +30,11 @@ interface PrepareTimelineMediaOptions {
   kind: TimelineMediaCompressionKind;
   name: string;
   onProgress?: (progress: number) => void;
+}
+
+interface CompressionWorkerRequest {
+  blob: Blob;
+  preset: MediaCompressionPreset;
 }
 
 type CompressionWorkerMessage =
@@ -75,7 +86,7 @@ function isCompressionWorkerMessage(value: unknown): value is CompressionWorkerM
 
 function runCompressionWorker(
   workerUrl: URL,
-  blob: Blob,
+  request: CompressionWorkerRequest,
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return new Promise<Blob>((resolve, reject) => {
@@ -111,28 +122,30 @@ function runCompressionWorker(
     worker.onerror = (event) => {
       finish(() => reject(new Error(event.message || 'Media compression worker failed.')));
     };
-    worker.postMessage({ blob });
+    worker.postMessage(request);
   });
 }
 
 async function compressTimelineImage(
   blob: Blob,
+  preset: MediaCompressionPreset,
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return runCompressionWorker(
     new URL('./imageCompression.worker.ts', import.meta.url),
-    blob,
+    { blob, preset },
     onProgress,
   );
 }
 
 async function compressTimelineVideo(
   blob: Blob,
+  preset: MediaCompressionPreset,
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return runCompressionWorker(
     new URL('./videoCompression.worker.ts', import.meta.url),
-    blob,
+    { blob, preset },
     onProgress,
   );
 }
@@ -153,11 +166,12 @@ export async function prepareTimelineMediaForDrive(
     : shouldCompressTimelineVideo(blob);
   if (!shouldCompress) return original;
 
+  const preset = getMediaCompressionSettings()[options.kind];
   try {
     options.onProgress?.(0);
     const compressedBlob = options.kind === 'photo'
-      ? await compressTimelineImage(blob, options.onProgress)
-      : await compressTimelineVideo(blob, options.onProgress);
+      ? await compressTimelineImage(blob, preset, options.onProgress)
+      : await compressTimelineVideo(blob, preset, options.onProgress);
     options.onProgress?.(100);
 
     if (!isCompressionWorthwhile(blob.size, compressedBlob.size)) return original;

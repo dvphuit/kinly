@@ -1,14 +1,12 @@
-import {
-  IMAGE_JPEG_QUALITY_CANDIDATES,
-  IMAGE_QUALITY_SAMPLE_MAX_DIMENSION,
-  selectSmallestAcceptableImageCandidate,
-  type ImageCompressionCandidate,
-} from './mediaCompressionQuality';
+import { getImageCompressionProfile } from './mediaCompressionProfiles';
+import { selectSmallestAcceptableImageCandidate, type ImageCompressionCandidate } from './mediaCompressionQuality';
+import type { MediaCompressionPreset } from './mediaCompressionSettings';
 
-const MAX_IMAGE_DIMENSION = 2560;
+const IMAGE_QUALITY_SAMPLE_MAX_DIMENSION = 256;
 
 interface CompressionRequest {
   blob: Blob;
+  preset: MediaCompressionPreset;
 }
 
 type CompressionResponse =
@@ -80,11 +78,12 @@ async function measureCandidate(
 workerScope.onmessage = async (event) => {
   let bitmap: ImageBitmap | null = null;
   try {
+    const profile = getImageCompressionProfile(event.data.preset);
     workerScope.postMessage({ type: 'progress', progress: 5 });
     bitmap = await createImageBitmap(event.data.blob);
     workerScope.postMessage({ type: 'progress', progress: 15 });
 
-    const dimensions = scaledDimensions(bitmap.width, bitmap.height, MAX_IMAGE_DIMENSION);
+    const dimensions = scaledDimensions(bitmap.width, bitmap.height, profile.maxDimension);
     const canvas = new OffscreenCanvas(dimensions.width, dimensions.height);
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) throw new Error('Unable to create image compression canvas.');
@@ -92,18 +91,18 @@ workerScope.onmessage = async (event) => {
 
     const reference = createSampleReference(bitmap);
     const candidates: ImageCompressionCandidate[] = [];
-    for (let index = 0; index < IMAGE_JPEG_QUALITY_CANDIDATES.length; index += 1) {
-      const quality = IMAGE_JPEG_QUALITY_CANDIDATES[index];
+    for (let index = 0; index < profile.qualityCandidates.length; index += 1) {
+      const quality = profile.qualityCandidates[index];
       const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
       const meanLumaError = await measureCandidate(blob, reference);
       candidates.push({ blob, quality, meanLumaError });
       workerScope.postMessage({
         type: 'progress',
-        progress: 25 + Math.round(((index + 1) / IMAGE_JPEG_QUALITY_CANDIDATES.length) * 65),
+        progress: 25 + Math.round(((index + 1) / profile.qualityCandidates.length) * 65),
       });
     }
 
-    const selected = selectSmallestAcceptableImageCandidate(candidates);
+    const selected = selectSmallestAcceptableImageCandidate(candidates, profile.maxMeanLumaError);
     workerScope.postMessage({ type: 'progress', progress: 95 });
     workerScope.postMessage({ type: 'result', blob: selected?.blob ?? event.data.blob });
   } catch (error) {
