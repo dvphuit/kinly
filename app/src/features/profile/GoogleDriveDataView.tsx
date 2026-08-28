@@ -52,6 +52,7 @@ import {
   readNormalizedDataStats,
   replaceTimelineItems,
 } from '@/data/normalizedRepositories';
+import { useLiveQuery } from 'dexie-react-hooks';
 import './data-management.css';
 
 interface GoogleDriveDataViewProps {
@@ -544,10 +545,10 @@ function LocalMediaTile({
     </article>
   );
 }
-
 export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDriveDataViewProps) {
   const navigate = useNavigate();
   const visibleTimelineItems = useTimelineStore((state) => state.timelineItems);
+  const dexieTimelineItems = useLiveQuery(() => readAllJournalData().then((journal) => journal.timelineItems), []);
   const [timelineItems, setTimelineItems] = useState(visibleTimelineItems);
   const [activeSegment, setActiveSegment] = useState<DataSegment>('device');
   const [linked, setLinked] = useState(isGoogleLinked());
@@ -576,18 +577,15 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
 
   useEffect(() => subscribeDiagnosticLogs(setLogs), []);
   useEffect(() => {
-    let active = true;
-    void readAllJournalData().then((journal) => {
-      if (!active) return;
-      const items = hasIndexedDb()
-        ? journal.timelineItems
-        : journal.timelineItems.length > 0
-          ? journal.timelineItems
-          : useTimelineStore.getState().timelineItems;
-      setTimelineItems(items);
-    });
-    return () => { active = false; };
-  }, []);
+    if (dexieTimelineItems !== undefined) {
+      setTimelineItems(dexieTimelineItems);
+    }
+  }, [dexieTimelineItems]);
+  useEffect(() => {
+    if (dexieTimelineItems === undefined && visibleTimelineItems.length > 0) {
+      setTimelineItems(visibleTimelineItems);
+    }
+  }, [dexieTimelineItems, visibleTimelineItems]);
   useEffect(() => subscribeSyncState(() => {
     setLinked(isGoogleLinked());
     setSessionActive(isGoogleSessionActive());
