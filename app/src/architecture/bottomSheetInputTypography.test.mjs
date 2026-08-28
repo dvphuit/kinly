@@ -135,17 +135,9 @@ function findInlineTypographyViolations(file) {
 describe('bottom-sheet input text typography', () => {
   it('owns native and custom field value typography at the bottom-sheet boundary', () => {
     const css = readFileSync(BOTTOM_SHEET_CSS, 'utf8');
-    const sheetRule = cssRuleBody(css, '.bottom-sheet');
     const fieldRule = cssRuleBody(css, FIELD_TEXT_SELECTOR);
 
-    expect(sheetRule).toContain('--sheet-field-font-family: var(--font-family-body);');
-    expect(sheetRule).toContain('--sheet-field-font-size: 16px;');
-    expect(sheetRule).toContain('--sheet-field-font-weight: 600;');
-    expect(sheetRule).toContain('--sheet-field-line-height: 1.25;');
-    expect(fieldRule).toContain('font-family: var(--sheet-field-font-family);');
-    expect(fieldRule).toContain('font-size: var(--sheet-field-font-size);');
-    expect(fieldRule).toContain('font-weight: var(--sheet-field-font-weight);');
-    expect(fieldRule).toContain('line-height: var(--sheet-field-line-height);');
+    expect(fieldRule).toContain('font: 600 16px/1.25 var(--font-family-body);');
   });
 
   it('opts shared dropdown and date-picker triggers into the same field text contract', () => {

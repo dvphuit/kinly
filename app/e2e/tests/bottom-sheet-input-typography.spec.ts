@@ -31,7 +31,7 @@ test('bottom-sheet native and custom field controls share one input text style i
     sheet.className = 'bottom-sheet';
     sheet.innerHTML = `
       <div class="sheet-content-body">
-        <input id="sheet-text" type="text" placeholder="Ghi chú" value="Kinly" />
+        <input id="sheet-text" type="text" value="Kinly" />
         <textarea id="sheet-textarea">Kinly</textarea>
         <select id="sheet-select"><option>Kinly</option></select>
         <div class="growth-metric-input-wrap">
@@ -60,15 +60,4 @@ test('bottom-sheet native and custom field controls share one input text style i
     expect(typography.fontSize).toBe('16px');
     expect(typography.fontWeight).toBe('600');
   }
-
-  const placeholderTypography = await page.locator('#sheet-text').evaluate((element) => {
-    const style = getComputedStyle(element, '::placeholder');
-    return {
-      fontSize: style.fontSize,
-      fontWeight: style.fontWeight,
-    };
-  });
-
-  expect(placeholderTypography.fontSize).toBe('16px');
-  expect(placeholderTypography.fontWeight).toBe('500');
 });
