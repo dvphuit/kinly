@@ -24,6 +24,12 @@ test('bottom-sheet native and custom field controls share one input text style i
         font-size: 15px;
         font-weight: 800;
       }
+      .journal-edit-form label > span {
+        font: 700 9px var(--font-family-body);
+      }
+      .journal-care-note > span {
+        font: 760 9.5px/1.3 var(--font-family-body);
+      }
     `;
     document.head.append(featureOverride);
 
@@ -39,6 +45,16 @@ test('bottom-sheet native and custom field controls share one input text style i
         </div>
         <button id="sheet-dropdown" type="button" data-field-control="input-text">Mốc 8m</button>
         <button id="sheet-date" type="button" data-field-control="input-text">28/08/2026</button>
+        <div class="journal-edit-form">
+          <label class="journal-edit-wide">
+            <span id="sheet-note-label">Ghi chú</span>
+            <textarea id="sheet-note" rows="3">Kinly</textarea>
+          </label>
+        </div>
+        <label class="journal-care-note">
+          <span id="sheet-care-note-label">Ghi chú</span>
+          <textarea id="sheet-care-note" rows="2">Kinly</textarea>
+        </label>
       </div>
     `;
     document.body.append(sheet);
@@ -52,6 +68,8 @@ test('bottom-sheet native and custom field controls share one input text style i
     '#sheet-growth',
     '#sheet-dropdown',
     '#sheet-date',
+    '#sheet-note',
+    '#sheet-care-note',
   ];
 
   for (const selector of selectors) {
@@ -59,5 +77,12 @@ test('bottom-sheet native and custom field controls share one input text style i
     expect(typography.fontFamily).toBe(bodyFontFamily);
     expect(typography.fontSize).toBe('16px');
     expect(typography.fontWeight).toBe('600');
+  }
+
+  for (const selector of ['#sheet-note-label', '#sheet-care-note-label']) {
+    const typography = await readFieldTypography(page.locator(selector));
+    expect(typography.fontFamily).toBe(bodyFontFamily);
+    expect(typography.fontSize).toBe('11px');
+    expect(typography.fontWeight).toBe('700');
   }
 });
