@@ -11,7 +11,15 @@ import { useReminderStore } from '@/features/reminders/store/useReminderStore';
 import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import { useUIStore } from '@/store/useUIStore';
 import { clearLocalMedia, waitForLocalRecordWrites } from '@/data/localDb';
+import { hasIndexedDb } from '@/data/appDatabase';
+import { readAllJournalData } from '@/data/normalizedRepositories';
+import type { TimelineItem } from '@/features/timeline';
 
+async function getEffectiveTimelineItems(): Promise<TimelineItem[]> {
+  const journal = await readAllJournalData();
+  if (hasIndexedDb()) return journal.timelineItems;
+  return journal.timelineItems.length > 0 ? journal.timelineItems : useTimelineStore.getState().timelineItems;
+}
 const TRACKING_STORE_KEYS = [...SYNC_KEYS, 'babygrowth_v4_expenses'] as const;
 
 export type TrackingDataResetResult =
@@ -45,7 +53,9 @@ async function waitForTrackingStoresHydrated(): Promise<void> {
 export async function resetTrackingData(): Promise<TrackingDataResetResult> {
   return runWithAutoSyncPaused(async ({ overwriteDriveBackupWithLocalData }) => {
     await waitForTrackingStoresHydrated();
-    const driveMediaIds = useTimelineStore.getState().timelineItems.flatMap((item) =>
+    await waitForLocalRecordWrites(TRACKING_STORE_KEYS);
+    const allTimelineItems = await getEffectiveTimelineItems();
+    const driveMediaIds = allTimelineItems.flatMap((item) =>
       (item.mediaItems ?? []).flatMap((media) => media.driveFileId ? [media.driveFileId] : []));
 
     useGrowthStore.getState().resetTrackingData(useProfileStore.getState().familyData);

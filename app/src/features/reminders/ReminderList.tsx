@@ -1,8 +1,9 @@
 import { Check, Clock3, Edit3 } from 'lucide-react';
 import { getReminderOccurrences } from '@/features/reminders/domain/reminderScheduler';
-import { useActivityStore } from '@/features/activities/store/useActivityStore';
 import { useReminderStore } from '@/features/reminders/store/useReminderStore';
 import type { ReminderOccurrence } from '@/types/reminder';
+import { useReminderActivitySources } from '@/data/useNormalizedData';
+import { useReminderOccurrenceStates } from '@/features/reminders/hooks/useReminderOccurrenceStates';
 
 interface ReminderListProps {
   onQuickLog?: (action: string) => void;
@@ -17,11 +18,10 @@ function statusLabel(occurrence: ReminderOccurrence, now: Date): string {
 
 export function ReminderList({ onQuickLog }: ReminderListProps) {
   const reminders = useReminderStore((state) => state.reminders);
-  const occurrenceStates = useReminderStore((state) => state.occurrenceStates);
+  const occurrenceStates = useReminderOccurrenceStates();
   const completeOccurrence = useReminderStore((state) => state.completeOccurrence);
   const snoozeOccurrence = useReminderStore((state) => state.snoozeOccurrence);
-  const babyActivities = useActivityStore((state) => state.babyActivities);
-  const momActivities = useActivityStore((state) => state.momActivities);
+  const { babyActivities, momActivities } = useReminderActivitySources();
   const now = new Date();
   const occurrences = getReminderOccurrences({ reminders, babyActivities, momActivities, occurrenceStates, now });
 

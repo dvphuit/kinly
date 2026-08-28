@@ -14,6 +14,10 @@ export function formatClockTime(date: Date): string {
   return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
 }
 
+export function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export function formatLocalDay(date: Date): string {
   const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'long' }).format(date);
   const calendarDate = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit' }).format(date);

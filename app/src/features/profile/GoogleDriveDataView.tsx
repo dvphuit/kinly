@@ -46,6 +46,12 @@ import {
   type MomentMediaPreviewState,
 } from '@/features/timeline/components/MomentMediaPreview';
 import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
+import { hasIndexedDb } from '@/data/appDatabase';
+import {
+  readAllJournalData,
+  readNormalizedDataStats,
+  replaceTimelineItems,
+} from '@/data/normalizedRepositories';
 import './data-management.css';
 
 interface GoogleDriveDataViewProps {
@@ -541,7 +547,8 @@ function LocalMediaTile({
 
 export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDriveDataViewProps) {
   const navigate = useNavigate();
-  const timelineItems = useTimelineStore((state) => state.timelineItems);
+  const visibleTimelineItems = useTimelineStore((state) => state.timelineItems);
+  const [timelineItems, setTimelineItems] = useState(visibleTimelineItems);
   const [activeSegment, setActiveSegment] = useState<DataSegment>('device');
   const [linked, setLinked] = useState(isGoogleLinked());
   const [sessionActive, setSessionActive] = useState(isGoogleSessionActive());
@@ -568,6 +575,19 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   const driveStreamUrl = useRef<string | null>(null);
 
   useEffect(() => subscribeDiagnosticLogs(setLogs), []);
+  useEffect(() => {
+    let active = true;
+    void readAllJournalData().then((journal) => {
+      if (!active) return;
+      const items = hasIndexedDb()
+        ? journal.timelineItems
+        : journal.timelineItems.length > 0
+          ? journal.timelineItems
+          : useTimelineStore.getState().timelineItems;
+      setTimelineItems(items);
+    });
+    return () => { active = false; };
+  }, []);
   useEffect(() => subscribeSyncState(() => {
     setLinked(isGoogleLinked());
     setSessionActive(isGoogleSessionActive());
@@ -730,19 +750,22 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     setLocalLoading(true);
     try {
       const recordKeys = [...SYNC_KEYS, 'babygrowth_v4_sync_meta'];
-      const [nextFiles, records, nextStorageEstimate] = await Promise.all([
+      const [nextFiles, records, normalizedStats, nextStorageEstimate] = await Promise.all([
         listLocalMedia(),
         getAllLocalRecords(recordKeys),
+        readNormalizedDataStats(),
         navigator.storage?.estimate?.() ?? Promise.resolve({}),
       ]);
       setLocalFiles(nextFiles);
-      setLocalRecordCount(Object.keys(records).length);
-      setLocalRecordSize(Object.values(records).reduce((sum, value) => sum + getTextSize(value), 0));
+      setLocalRecordCount(Object.keys(records).length + normalizedStats.count);
+      setLocalRecordSize(
+        Object.values(records).reduce((sum, value) => sum + getTextSize(value), 0) + normalizedStats.size,
+      );
       setStorageEstimate(nextStorageEstimate);
       logDiagnostic('local-data', 'info', 'Local data refresh completed', {
         mediaCount: nextFiles.length,
         mediaBytes: nextFiles.reduce((sum, file) => sum + file.size, 0),
-        recordCount: Object.keys(records).length,
+        recordCount: Object.keys(records).length + normalizedStats.count,
       });
     } catch (loadError) {
       logDiagnostic('local-data', 'error', 'Local data refresh failed', loadError);
@@ -815,6 +838,33 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
     }
   };
 
+  const updateTimelineMedia = async (
+    transform: (items: TimelineMediaItem[]) => TimelineMediaItem[],
+  ) => {
+    await waitForLocalRecordWrites(['babygrowth_v4_timeline']);
+    const journal = await readAllJournalData();
+    const sourceItems = hasIndexedDb()
+      ? journal.timelineItems
+      : journal.timelineItems.length > 0
+        ? journal.timelineItems
+        : useTimelineStore.getState().timelineItems;
+    const nextItems = sourceItems.map((item) => {
+      const mediaItems = transform(item.mediaItems ?? []);
+      if (mediaItems.length === (item.mediaItems ?? []).length) return item;
+      return {
+        ...item,
+        mediaItems,
+        mediaUrl: mediaItems[0]?.url ?? null,
+        mediaType: mediaItems[0]?.type ?? null,
+      };
+    });
+    await replaceTimelineItems(nextItems);
+    setTimelineItems(nextItems);
+    useTimelineStore.setState((state) => ({
+      timelineItems: state.timelineItems.map((item) => nextItems.find((candidate) => candidate.id === item.id) ?? item),
+    }));
+  };
+
   const deleteFile = async () => {
     const target = deleteTarget;
     if (!target) return;
@@ -826,19 +876,7 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
       const linkedMediaItems = linkedMedia.get(target.id)?.media ?? [];
       await Promise.all(linkedMediaItems.flatMap((media) => media.blobId ? [removeLocalMedia(media.blobId)] : []));
       if (linkedMediaItems.length > 0) {
-        useTimelineStore.setState((state) => ({
-          timelineItems: state.timelineItems.map((item) => {
-            const mediaItems = (item.mediaItems ?? []).filter((media) => media.driveFileId !== target.id);
-            if (mediaItems.length === (item.mediaItems ?? []).length) return item;
-            return {
-              ...item,
-              mediaItems,
-              mediaUrl: mediaItems[0]?.url ?? null,
-              mediaType: mediaItems[0]?.type ?? null,
-            };
-          }),
-        }));
-        await waitForLocalRecordWrites(['babygrowth_v4_timeline']);
+        await updateTimelineMedia((mediaItems) => mediaItems.filter((media) => media.driveFileId !== target.id));
       }
       setFiles((current) => current.filter((file) => file.id !== target.id));
       await loadLocalData();
@@ -853,19 +891,9 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
   };
 
   const removeMediaFromTimeline = async (blobIds: Set<string>) => {
-    useTimelineStore.setState((state) => ({
-      timelineItems: state.timelineItems.map((item) => {
-        const mediaItems = (item.mediaItems ?? []).filter((media) => !media.blobId || !blobIds.has(media.blobId));
-        if (mediaItems.length === (item.mediaItems ?? []).length) return item;
-        return {
-          ...item,
-          mediaItems,
-          mediaUrl: mediaItems[0]?.url ?? null,
-          mediaType: mediaItems[0]?.type ?? null,
-        };
-      }),
-    }));
-    await waitForLocalRecordWrites(['babygrowth_v4_timeline']);
+    await updateTimelineMedia((mediaItems) => (
+      mediaItems.filter((media) => !media.blobId || !blobIds.has(media.blobId))
+    ));
   };
 
   const deleteLocalFile = async () => {

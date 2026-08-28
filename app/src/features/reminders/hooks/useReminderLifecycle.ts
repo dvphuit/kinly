@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { getDueOccurrences, getReminderOccurrences } from '@/features/reminders/domain/reminderScheduler';
 import { showReminderNotification } from '@/features/reminders/services/notificationService';
-import { useActivityStore } from '@/features/activities/store/useActivityStore';
 import { useReminderStore } from '@/features/reminders/store/useReminderStore';
+import { useReminderActivitySources } from '@/data/useNormalizedData';
+import { useReminderOccurrenceStates } from '@/features/reminders/hooks/useReminderOccurrenceStates';
 
 interface ReminderLifecycleOptions {
   onQuickLog?: (action: string) => void;
@@ -11,10 +12,9 @@ interface ReminderLifecycleOptions {
 
 export function useReminderLifecycle({ onQuickLog, onOpenNotifications }: ReminderLifecycleOptions = {}) {
   const reminders = useReminderStore((state) => state.reminders);
-  const occurrenceStates = useReminderStore((state) => state.occurrenceStates);
+  const occurrenceStates = useReminderOccurrenceStates();
   const systemNotificationsEnabled = useReminderStore((state) => state.systemNotificationsEnabled);
-  const babyActivities = useActivityStore((state) => state.babyActivities);
-  const momActivities = useActivityStore((state) => state.momActivities);
+  const { babyActivities, momActivities } = useReminderActivitySources();
   const runningRef = useRef(false);
 
   const checkDue = useCallback(async () => {

@@ -3,12 +3,21 @@ import {
   type AppSnapshot,
 } from './appSnapshotSchema';
 
-export { APP_SNAPSHOT_GENERATION, isAppSnapshot, parseAppSnapshot } from './appSnapshotSchema';
+export {
+  APP_SNAPSHOT_GENERATION,
+  isAppSnapshot,
+  isBabyActivity,
+  isExpenseRecord,
+  isMomActivity,
+  isReminderOccurrenceState,
+  isTimelineItem,
+  parseAppSnapshot,
+} from './appSnapshotSchema';
 export type { AppSnapshot } from './appSnapshotSchema';
 
 export interface AppSnapshotRuntime {
-  exportSnapshot: (now: Date) => AppSnapshot;
-  applySnapshot: (snapshot: AppSnapshot) => void;
+  exportSnapshot: (now: Date) => Promise<AppSnapshot>;
+  applySnapshot: (snapshot: AppSnapshot) => Promise<void>;
   subscribeChanges: (listener: () => void) => () => void;
 }
 
@@ -59,12 +68,12 @@ function requireAppSnapshotRuntime(): AppSnapshotRuntime {
   return appSnapshotRuntime;
 }
 
-export function exportAppSnapshot(now = new Date()): AppSnapshot {
+export function exportAppSnapshot(now = new Date()): Promise<AppSnapshot> {
   return requireAppSnapshotRuntime().exportSnapshot(now);
 }
 
-export function applyAppSnapshot(snapshot: AppSnapshot): void {
-  requireAppSnapshotRuntime().applySnapshot(parseAppSnapshot(snapshot));
+export function applyAppSnapshot(snapshot: AppSnapshot): Promise<void> {
+  return requireAppSnapshotRuntime().applySnapshot(parseAppSnapshot(snapshot));
 }
 
 export function subscribeAppSnapshotChanges(listener: () => void): () => void {

@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { Clock3, Milk, Moon, Plus, Smile, Sparkles, UserRound } from 'lucide-react';
 import { getMomActivitiesForDay, selectMomTodayMetrics } from '@/features/activities/domain/activitySelectors';
-import { useActivityStore } from '@/features/activities/store/useActivityStore';
 import { useLocalDayReference } from '@/shared/hooks/useLocalDayReference';
-import { formatDurationMinutes, formatLocalDay, formatTimeOfDay } from '@/shared/lib/time';
+import { formatDurationMinutes, formatLocalDay, formatTimeOfDay, localDateKey } from '@/shared/lib/time';
 import { IdleHomeTimelinePreview } from './IdleHomeTimelinePreview';
 import { LiveSegmentClock } from './SegmentClock';
+import { useJournalRange } from '@/data/useNormalizedData';
 
 export interface MomHomeViewProps {
   onOpenPumping: () => void;
@@ -23,8 +23,14 @@ function moodLabel(value: string | undefined): string {
 }
 
 export const MomHomeView: React.FC<MomHomeViewProps> = ({ onOpenPumping }) => {
-  const records = useActivityStore((state) => state.momActivities);
   const dayReference = useLocalDayReference();
+  const dayKey = localDateKey(dayReference);
+  const { momActivities: records } = useJournalRange({
+    owner: 'mom',
+    startDate: dayKey,
+    endDate: dayKey,
+    limit: 256,
+  });
   const metrics = useMemo(() => selectMomTodayMetrics(records, dayReference), [records, dayReference]);
   const dayActivityCount = useMemo(() => getMomActivitiesForDay(records, dayReference).length, [records, dayReference]);
   const latestMood = metrics.latestMood?.type === 'mood' ? metrics.latestMood.mood : undefined;

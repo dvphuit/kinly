@@ -25,7 +25,7 @@ describe('appSnapshot', () => {
     useUIStore.setState({ profileMode: 'baby' });
   });
 
-  it('exports semantic generation-2 data instead of Zustand storage keys', () => {
+  it('exports semantic generation-2 data instead of Zustand storage keys', async () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2026-08-01' });
     useUIStore.setState({ profileMode: 'mom' });
     useActivityStore.getState().addMomActivity({
@@ -42,7 +42,7 @@ describe('appSnapshot', () => {
       note: 'Tã',
     });
 
-    const snapshot = exportAppSnapshot(new Date('2026-08-20T09:00:00.000Z'));
+    const snapshot = await exportAppSnapshot(new Date('2026-08-20T09:00:00.000Z'));
 
     expect(snapshot.generation).toBe(APP_SNAPSHOT_GENERATION);
     expect(snapshot.exportedAt).toBe('2026-08-20T09:00:00.000Z');
@@ -55,7 +55,7 @@ describe('appSnapshot', () => {
     expect(JSON.stringify(snapshot).toLowerCase()).not.toContain('chat');
   });
 
-  it('round-trips domain state through the snapshot boundary', () => {
+  it('round-trips domain state through the snapshot boundary', async () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2026-08-01' });
     useActivityStore.getState().addBabyActivity({
       owner: 'baby',
@@ -69,14 +69,14 @@ describe('appSnapshot', () => {
       category: 'Khác',
       occurredAt: '2026-08-20T07:30:00.000Z',
     });
-    const snapshot = exportAppSnapshot(new Date('2026-08-20T09:00:00.000Z'));
+    const snapshot = await exportAppSnapshot(new Date('2026-08-20T09:00:00.000Z'));
 
     expect(parseAppSnapshot(snapshot)).toEqual(snapshot);
 
     resetChildStoresToDefaults();
     useActivityStore.getState().resetTrackingData();
     useExpenseStore.getState().resetTrackingData();
-    applyAppSnapshot(snapshot);
+    await applyAppSnapshot(snapshot);
 
     expect(useProfileStore.getState().familyData.childName).toBe('Bé Bơ');
     expect(useActivityStore.getState().babyActivities).toHaveLength(1);
@@ -85,9 +85,9 @@ describe('appSnapshot', () => {
     expect(useExpenseStore.getState().expenses).toHaveLength(1);
   });
 
-  it('rejects invalid nested domain records before they reach feature stores', () => {
+  it('rejects invalid nested domain records before they reach feature stores', async () => {
     initializeChildProfile({ childName: 'Bé Bơ', birthDate: '2026-08-01' });
-    const valid = exportAppSnapshot(new Date('2026-08-20T09:00:00.000Z'));
+    const valid = await exportAppSnapshot(new Date('2026-08-20T09:00:00.000Z'));
     const malformedSnapshots: unknown[] = [
       {
         ...valid,

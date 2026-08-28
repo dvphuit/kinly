@@ -28,6 +28,7 @@ import { useExpenseStore } from '@/features/expenses/store/useExpenseStore';
 import type { ExpenseRecord } from '@/types/expense';
 import { AddExpenseModal } from './AddExpenseModal';
 import { ExpenseCategoryIcon } from './ExpenseCategoryIcon';
+import { useExpensesByMonth } from '@/data/useNormalizedData';
 
 interface ExpensesViewProps {
   onOpenAddExpense: () => void;
@@ -74,7 +75,6 @@ function formatGroupDateLabel(dateKey: string): string {
 }
 
 export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense, onShowToast }) => {
-  const expenses = useExpenseStore((state) => state.expenses);
   const deleteExpense = useExpenseStore((state) => state.deleteExpense);
   const monthlyBudget = useExpenseStore((state) => state.monthlyBudget);
   const setMonthlyBudget = useExpenseStore((state) => state.setMonthlyBudget);
@@ -84,6 +84,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense, on
   const [editingExpense, setEditingExpense] = useState<ExpenseRecord | null>(null);
   const [isEditingBudget, setIsEditingBudget] = useState(false);
   const [budgetInputK, setBudgetInputK] = useState('5000');
+  const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const expenses = useExpensesByMonth(monthKey);
 
   const realNow = useMemo(() => new Date(), []);
   const isViewingCurrentMonth = currentDate.getFullYear() === realNow.getFullYear()

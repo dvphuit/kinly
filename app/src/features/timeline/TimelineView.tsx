@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays, ChevronDown, ChevronUp,
   NotebookPen,
@@ -19,12 +19,11 @@ import { entryMeta } from '@/features/timeline/components/timelineEntryPresentat
 import { getRealGrowthHistory } from '@/features/growth/domain/growthSelectors';
 import { getTimelineMediaItems } from '@/features/timeline/domain/timelineMedia';
 import { buildTimelineEntries, filterTimelineByLocalDateRange } from '@/features/timeline/domain/timelineSelectors';
-import { useActivityStore } from '@/features/activities/store/useActivityStore';
 import { useGrowthStore } from '@/features/growth/store/useGrowthStore';
 import { useProfileStore } from '@/features/profile/store/useProfileStore';
-import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import { useUIStore } from '@/store/useUIStore';
 import type { TimelineItem } from '@/features/timeline/domain/types';
+import { useJournalDates, useJournalRange } from '@/data/useNormalizedData';
 
 interface TimelineViewProps {
   onOpenLightbox: (src: string, isVideo?: boolean) => void;
@@ -124,17 +123,23 @@ function momentEntry(item: TimelineItem): JournalTimelineEntry {
 }
 
 export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) => {
-  const babyActivities = useActivityStore((state) => state.babyActivities);
-  const momActivities = useActivityStore((state) => state.momActivities);
   const rawGrowthHistory = useGrowthStore((state) => state.currentStageData().growthHistory);
   const birthDate = useProfileStore((state) => state.familyData.birthDate);
-  const timelineItems = useTimelineStore((state) => state.timelineItems);
   const ownerFilter = useUIStore((state) => state.profileMode);
   const growthHistory = useMemo(() => getRealGrowthHistory(rawGrowthHistory), [rawGrowthHistory]);
   const [selectedRange, setSelectedRange] = useState<HavenDateRange>(() => {
     const today = localDateKey();
     return { start: today, end: today };
   });
+  const [queryLimit, setQueryLimit] = useState(250);
+  const journal = useJournalRange({
+    owner: ownerFilter,
+    startDate: selectedRange.start,
+    endDate: selectedRange.end ?? selectedRange.start,
+    limit: queryLimit,
+  });
+  const indexedJournalDates = useJournalDates(ownerFilter);
+  const { babyActivities, momActivities, timelineItems } = journal;
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [weekSettling, setWeekSettling] = useState(false);
   const weekPagerRef = useRef<HTMLDivElement>(null);
@@ -148,15 +153,19 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
   const [momentPreview, setMomentPreview] = useState<MomentMediaPreviewState | null>(null);
   const selectedDate = selectedRange.end ?? selectedRange.start;
 
+  useEffect(() => {
+    setQueryLimit(250);
+  }, [ownerFilter, selectedRange.end, selectedRange.start]);
+
   const entries = useMemo<JournalTimelineEntry[]>(() => [
     ...buildTimelineEntries({ babyActivities, momActivities, growthHistory }),
     ...timelineItems.map(momentEntry),
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()), [babyActivities, growthHistory, momActivities, timelineItems]);
   const ownerEntries = useMemo(() => entries.filter((entry) => entry.owner === ownerFilter), [entries, ownerFilter]);
-  const highlightedDates = useMemo(
-    () => [...new Set(ownerEntries.map((entry) => localDateKey(new Date(entry.occurredAt))))],
-    [ownerEntries],
-  );
+  const highlightedDates = useMemo(() => [...new Set([
+    ...(indexedJournalDates ?? []),
+    ...(ownerFilter === 'baby' ? growthHistory.map((record) => dateInputValue(record.date)) : []),
+  ])].sort(), [growthHistory, indexedJournalDates, ownerFilter]);
   const highlightedDateSet = useMemo(() => new Set(highlightedDates), [highlightedDates]);
   const visibleEntries = useMemo(
     () => filterTimelineByLocalDateRange(ownerEntries, selectedRange.start, selectedRange.end ?? selectedRange.start),
@@ -178,15 +187,14 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
   });
   const renderedEntryGroups = entryGroups.slice(0, timelineWindow.visibleCount);
   const calendarBounds = useMemo(() => {
-    const entryDates = ownerEntries.map((entry) => localDateKey(new Date(entry.occurredAt)));
     const normalizedBirthDate = dateInputValue(birthDate);
-    const minimumCandidates = [normalizedBirthDate, ...entryDates].filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
-    const maximumCandidates = [localDateKey(), ...entryDates];
+    const minimumCandidates = [normalizedBirthDate, ...highlightedDates].filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value));
+    const maximumCandidates = [localDateKey(), ...highlightedDates];
     return {
       min: minimumCandidates.sort()[0] ?? '2000-01-01',
       max: maximumCandidates.sort().at(-1) ?? localDateKey(),
     };
-  }, [birthDate, ownerEntries]);
+  }, [birthDate, highlightedDates]);
   const isRange = Boolean(selectedRange.end && selectedRange.end !== selectedRange.start);
   const selectedDateLabel = isRange
     ? `${formatFullDate(selectedRange.start)} – ${formatFullDate(selectedRange.end ?? selectedRange.start)}`
@@ -429,10 +437,13 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
           </section>
         ))}
         <ProgressiveListBoundary
-          autoLoadAvailable={timelineWindow.autoLoadAvailable}
+          autoLoadAvailable={timelineWindow.autoLoadAvailable && timelineWindow.hasMore}
           fallbackLabel="Xem thêm nhật ký"
-          hasMore={timelineWindow.hasMore}
-          onLoadMore={timelineWindow.revealMore}
+          hasMore={timelineWindow.hasMore || journal.hasMore}
+          onLoadMore={() => {
+            if (timelineWindow.hasMore) timelineWindow.revealMore();
+            else setQueryLimit((current) => current + 250);
+          }}
           sentinelRef={timelineWindow.sentinelRef}
         />
       </section>

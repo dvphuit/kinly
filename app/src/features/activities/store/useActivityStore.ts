@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { indexedDbStorage } from '@/data/localDb';
+import {
+  clearActivityRecords,
+  deleteActivityRecord,
+  saveActivity,
+} from '@/data/normalizedRepositories';
+import { logDiagnostic } from '@/app/diagnostics/diagnosticLog';
 import type { ActivityRecord, BabyActivity, MomActivity } from '@/features/activities/domain/types';
 import {
   createDefaultMedicationCatalog,
@@ -20,6 +26,12 @@ function createId(): string {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function reportPersistenceFailure(operation: Promise<void>, action: string, id?: string): void {
+  void operation.catch((error: unknown) => {
+    logDiagnostic('database', 'error', `Không thể ${action} hoạt động`, { id, error });
+  });
 }
 
 export interface ActivityStoreState {
@@ -45,12 +57,14 @@ export const useActivityStore = create<ActivityStoreState>()(
       addBabyActivity: (input) => {
         const record = { ...input, id: createId(), createdAt: nowIso() } as BabyActivity;
         set((state) => ({ babyActivities: [record, ...state.babyActivities] }));
+        reportPersistenceFailure(saveActivity(record), 'lưu', record.id);
         return record;
       },
 
       addMomActivity: (input) => {
         const record = { ...input, id: createId(), createdAt: nowIso() } as MomActivity;
         set((state) => ({ momActivities: [record, ...state.momActivities] }));
+        reportPersistenceFailure(saveActivity(record), 'lưu', record.id);
         return record;
       },
 
@@ -97,6 +111,8 @@ export const useActivityStore = create<ActivityStoreState>()(
             record.id === id ? ({ ...record, ...patch, id: record.id, owner: 'mom' } as MomActivity) : record
           ),
         }));
+        const updated = [...get().babyActivities, ...get().momActivities].find((record) => record.id === id);
+        if (updated) reportPersistenceFailure(saveActivity(updated), 'cập nhật', id);
       },
 
       deleteActivity: (id) => {
@@ -104,20 +120,22 @@ export const useActivityStore = create<ActivityStoreState>()(
           babyActivities: state.babyActivities.filter((record) => record.id !== id),
           momActivities: state.momActivities.filter((record) => record.id !== id),
         }));
+        reportPersistenceFailure(deleteActivityRecord(id), 'xóa', id);
       },
 
-      resetTrackingData: () => set({
-        babyActivities: [],
-        momActivities: [],
-        medicationCatalog: createDefaultMedicationCatalog(),
-      }),
+      resetTrackingData: () => {
+        set({
+          babyActivities: [],
+          momActivities: [],
+          medicationCatalog: createDefaultMedicationCatalog(),
+        });
+        reportPersistenceFailure(clearActivityRecords(), 'xóa toàn bộ');
+      },
     }),
     {
       name: 'babygrowth_v4_activities',
       storage: createJSONStorage(() => indexedDbStorage),
       partialize: (state) => ({
-        babyActivities: state.babyActivities,
-        momActivities: state.momActivities,
         medicationCatalog: state.medicationCatalog,
       }),
       merge: (persistedState, currentState) => {

@@ -228,8 +228,8 @@ function syncSnapshotFromInput(
   };
 }
 
-export function createSyncSnapshot(data: AppSnapshot = exportAppSnapshot()): SyncSnapshot {
-  const input = createSyncSnapshotInput(data);
+export async function createSyncSnapshot(data?: AppSnapshot): Promise<SyncSnapshot> {
+  const input = createSyncSnapshotInput(data ?? await exportAppSnapshot());
   const serialized = serializeSyncSnapshotPayload(input);
   return syncSnapshotFromInput(input, serialized.fingerprint);
 }
@@ -804,7 +804,7 @@ async function writeRemoteSnapshot(payload: Blob, file: DriveFile | null, intera
 }
 
 async function getLocalSnapshot(): Promise<PreparedSyncSnapshot> {
-  const input = createSyncSnapshotInput(exportAppSnapshot());
+  const input = createSyncSnapshotInput(await exportAppSnapshot());
   const serialized = await serializeSyncSnapshotOffMainThread(input);
   return {
     snapshot: syncSnapshotFromInput(input, serialized.fingerprint),
@@ -885,7 +885,7 @@ export async function runWithAutoSyncPaused<T>(
 
 export async function applyRemoteSnapshot(snapshot: SyncSnapshot): Promise<void> {
   await runWithAutoSyncSuppressed(async () => {
-    applyAppSnapshot(parseSyncSnapshot(snapshot).data);
+    await applyAppSnapshot(parseSyncSnapshot(snapshot).data);
   });
 }
 

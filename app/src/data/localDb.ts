@@ -1,19 +1,16 @@
 import type { StateStorage } from 'zustand/middleware';
+import {
+  appDatabase,
+  ensureNormalizedDataMigration,
+  hasIndexedDb,
+} from '@/data/appDatabase';
+import { runTrackedLocalWrite, waitForTrackedLocalWrites } from '@/data/localWriteTracker';
 
-const DB_NAME = 'babygrowth-local';
-const STORE_NAME = 'zustand';
-const MEDIA_STORE_NAME = 'media';
-const DB_VERSION = 2;
+export { runTrackedLocalWrite } from '@/data/localWriteTracker';
 
-function currentPersistenceKey(name: string): string {
-  return name;
-}
 
 type LocalRecordChangeListener = (key: string) => void;
 const localRecordChangeListeners = new Set<LocalRecordChangeListener>();
-const pendingRecordWrites = new Map<string, Promise<void>>();
-
-let dbPromise: Promise<IDBDatabase> | null = null;
 
 const memoryFallback = new Map<string, string>();
 const memoryMediaFallback = new Map<string, Blob>();
@@ -25,97 +22,46 @@ export interface LocalMediaRecord {
   mimeType: string;
 }
 
-function hasIndexedDb(): boolean {
-  return typeof indexedDB !== 'undefined';
-}
-
-function openDb(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-
-  dbPromise = new Promise((resolve, reject) => {
-    if (!hasIndexedDb()) {
-      reject(new Error('IndexedDB is not available'));
-      return;
-    }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
-      if (!db.objectStoreNames.contains(MEDIA_STORE_NAME)) db.createObjectStore(MEDIA_STORE_NAME);
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('Không thể mở IndexedDB'));
-  });
-
-  return dbPromise;
+function localStorageValue(key: string): string | null {
+  return typeof window !== 'undefined' && window.localStorage
+    ? window.localStorage.getItem(key)
+    : null;
 }
 
 async function readValue(key: string): Promise<string | null> {
-  if (!hasIndexedDb()) {
-    return memoryFallback.get(key) ?? (typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(key) : null);
-  }
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key);
-    request.onsuccess = () => resolve(typeof request.result === 'string' ? request.result : null);
-    request.onerror = () => reject(request.error ?? new Error('Không thể đọc IndexedDB'));
-  });
-}
-
-async function trackRecordWrite(key: string, operation: () => Promise<void>): Promise<void> {
-  const pendingWrite = operation();
-  pendingRecordWrites.set(key, pendingWrite);
-  try {
-    await pendingWrite;
-  } finally {
-    if (pendingRecordWrites.get(key) === pendingWrite) pendingRecordWrites.delete(key);
-  }
-}
-
-async function commitRecordMutation(
-  db: IDBDatabase,
-  storeName: string,
-  mutate: (store: IDBObjectStore) => void,
-  failureMessage: string,
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(storeName, 'readwrite');
-    const rejectTransaction = () => reject(transaction.error ?? new Error(failureMessage));
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = rejectTransaction;
-    transaction.onabort = rejectTransaction;
-    mutate(transaction.objectStore(storeName));
-  });
+  if (!hasIndexedDb()) return memoryFallback.get(key) ?? localStorageValue(key);
+  await ensureNormalizedDataMigration();
+  return (await appDatabase.zustand.get(key)) ?? null;
 }
 
 async function writeValue(key: string, value: string): Promise<void> {
-  await trackRecordWrite(key, async () => {
+  await runTrackedLocalWrite(key, async () => {
     if (!hasIndexedDb()) {
       memoryFallback.set(key, value);
       if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(key, value);
       return;
     }
-    const db = await openDb();
-    await commitRecordMutation(db, STORE_NAME, (store) => { store.put(value, key); }, 'Không thể ghi IndexedDB');
+    await ensureNormalizedDataMigration();
+    await appDatabase.zustand.put(value, key);
     if (typeof window !== 'undefined' && window.localStorage) window.localStorage.removeItem(key);
   });
 }
 
 async function removeValue(key: string): Promise<void> {
-  await trackRecordWrite(key, async () => {
+  await runTrackedLocalWrite(key, async () => {
+    memoryFallback.delete(key);
     if (!hasIndexedDb()) {
-      memoryFallback.delete(key);
       if (typeof window !== 'undefined' && window.localStorage) window.localStorage.removeItem(key);
       return;
     }
-    const db = await openDb();
-    await commitRecordMutation(db, STORE_NAME, (store) => { store.delete(key); }, 'Không thể xóa IndexedDB');
+    await ensureNormalizedDataMigration();
+    await appDatabase.zustand.delete(key);
     if (typeof window !== 'undefined' && window.localStorage) window.localStorage.removeItem(key);
   });
 }
 
 export async function waitForLocalRecordWrites(keys: readonly string[]): Promise<void> {
-  await Promise.all(keys.map((key) => pendingRecordWrites.get(currentPersistenceKey(key)) ?? Promise.resolve()));
+  await waitForTrackedLocalWrites(keys);
 }
 
 export function subscribeLocalRecordChanges(listener: LocalRecordChangeListener): () => void {
@@ -128,14 +74,13 @@ function notifyLocalRecordChanged(key: string): void {
 }
 
 export const indexedDbStorage: StateStorage = {
-  getItem: async (name) => readValue(currentPersistenceKey(name)),
+  getItem: async (name) => readValue(name),
   setItem: async (name, value) => {
-    const key = currentPersistenceKey(name);
-    await writeValue(key, value);
-    notifyLocalRecordChanged(key);
+    await writeValue(name, value);
+    notifyLocalRecordChanged(name);
   },
   removeItem: async (name) => {
-    await removeValue(currentPersistenceKey(name));
+    await removeValue(name);
   },
 };
 
@@ -162,18 +107,14 @@ export async function setLocalMedia(id: string, blob: Blob): Promise<void> {
     memoryMediaFallback.set(id, blob);
     return;
   }
-  const db = await openDb();
-  await commitRecordMutation(db, MEDIA_STORE_NAME, (store) => { store.put(blob, id); }, 'Không thể lưu media cục bộ');
+  await ensureNormalizedDataMigration();
+  await appDatabase.media.put(blob, id);
 }
 
 export async function getLocalMedia(id: string): Promise<Blob | null> {
   if (!hasIndexedDb()) return memoryMediaFallback.get(id) ?? null;
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(MEDIA_STORE_NAME, 'readonly').objectStore(MEDIA_STORE_NAME).get(id);
-    request.onsuccess = () => resolve(request.result instanceof Blob ? request.result : null);
-    request.onerror = () => reject(request.error ?? new Error('Không thể đọc media cục bộ'));
-  });
+  await ensureNormalizedDataMigration();
+  return (await appDatabase.media.get(id)) ?? null;
 }
 
 export async function listLocalMedia(): Promise<LocalMediaRecord[]> {
@@ -181,39 +122,25 @@ export async function listLocalMedia(): Promise<LocalMediaRecord[]> {
     return [...memoryMediaFallback.entries()].map(([id, blob]) => ({ id, blob, size: blob.size, mimeType: blob.type }));
   }
 
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(MEDIA_STORE_NAME, 'readonly');
-    const store = transaction.objectStore(MEDIA_STORE_NAME);
-    const keysRequest = store.getAllKeys();
-    const valuesRequest = store.getAll();
-    const rejectTransaction = () => reject(transaction.error ?? new Error('Không thể đọc kho media cục bộ'));
-
-    transaction.oncomplete = () => {
-      const records = keysRequest.result.flatMap((key, index) => {
-        const blob = valuesRequest.result[index];
-        if (typeof key !== 'string' || !(blob instanceof Blob)) return [];
-        return [{ id: key, blob, size: blob.size, mimeType: blob.type }];
-      });
-      resolve(records);
-    };
-    transaction.onerror = rejectTransaction;
-    transaction.onabort = rejectTransaction;
+  await ensureNormalizedDataMigration();
+  const records: LocalMediaRecord[] = [];
+  await appDatabase.media.each((blob, cursor) => {
+    if (typeof cursor.primaryKey !== 'string') return;
+    records.push({ id: cursor.primaryKey, blob, size: blob.size, mimeType: blob.type });
   });
+  return records;
 }
 
 export async function removeLocalMedia(id: string): Promise<void> {
-  if (!hasIndexedDb()) {
-    memoryMediaFallback.delete(id);
-    return;
-  }
-  const db = await openDb();
-  await commitRecordMutation(db, MEDIA_STORE_NAME, (store) => { store.delete(id); }, 'Không thể xóa media cục bộ');
+  memoryMediaFallback.delete(id);
+  if (!hasIndexedDb()) return;
+  await ensureNormalizedDataMigration();
+  await appDatabase.media.delete(id);
 }
 
 export async function clearLocalMedia(): Promise<void> {
   memoryMediaFallback.clear();
   if (!hasIndexedDb()) return;
-  const db = await openDb();
-  await commitRecordMutation(db, MEDIA_STORE_NAME, (store) => { store.clear(); }, 'Không thể xóa kho media cục bộ');
+  await ensureNormalizedDataMigration();
+  await appDatabase.media.clear();
 }

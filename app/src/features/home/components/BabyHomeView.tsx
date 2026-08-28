@@ -2,14 +2,14 @@ import { useMemo } from 'react';
 import { Clock3, Layers, Milk, Moon, Plus } from 'lucide-react';
 import { selectBabyTodayMetrics } from '@/features/activities/domain/activitySelectors';
 import { getMilkTarget, getSleepTarget } from '@/features/activities/domain/dailyCareTargets';
-import { useActivityStore } from '@/features/activities/store/useActivityStore';
 import { getRealGrowthHistory } from '@/features/growth/domain/growthSelectors';
 import { useGrowthStore } from '@/features/growth/store/useGrowthStore';
 import { useFamily } from '@/features/profile/hooks/useFamily';
 import { useLocalDayReference } from '@/shared/hooks/useLocalDayReference';
-import { formatDurationMinutes, formatTimeOfDay } from '@/shared/lib/time';
+import { formatDurationMinutes, formatTimeOfDay, localDateKey } from '@/shared/lib/time';
 import { IdleHomeTimelinePreview } from './IdleHomeTimelinePreview';
 import { LiveSegmentClock } from './SegmentClock';
+import { useJournalRange } from '@/data/useNormalizedData';
 
 export interface BabyHomeViewProps {
   onOpenQuickLog: () => void;
@@ -21,10 +21,16 @@ function progressPercent(value: number, target: number | null): number {
 }
 
 export const BabyHomeView: React.FC<BabyHomeViewProps> = ({ onOpenQuickLog }) => {
-  const records = useActivityStore((state) => state.babyActivities);
   const currentStageData = useGrowthStore((state) => state.currentStageData());
   const family = useFamily();
   const dayReference = useLocalDayReference();
+  const dayKey = localDateKey(dayReference);
+  const { babyActivities: records } = useJournalRange({
+    owner: 'baby',
+    startDate: dayKey,
+    endDate: dayKey,
+    limit: 256,
+  });
   const metrics = useMemo(() => selectBabyTodayMetrics(records, dayReference), [records, dayReference]);
   const latestGrowth = useMemo(
     () => getRealGrowthHistory(currentStageData.growthHistory)[0] ?? null,

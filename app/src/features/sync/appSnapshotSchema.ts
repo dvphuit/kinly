@@ -109,7 +109,7 @@ function hasActivityBase(value: Record<string, unknown>): boolean {
     && isOptionalString(value.note);
 }
 
-function isBabyActivity(value: unknown): value is BabyActivity {
+export function isBabyActivity(value: unknown): value is BabyActivity {
   if (!isRecord(value) || !hasActivityBase(value) || value.owner !== 'baby' || !isString(value.type)) return false;
 
   switch (value.type) {
@@ -143,7 +143,7 @@ function isBabyActivity(value: unknown): value is BabyActivity {
   }
 }
 
-function isMomActivity(value: unknown): value is MomActivity {
+export function isMomActivity(value: unknown): value is MomActivity {
   if (!isRecord(value) || !hasActivityBase(value) || value.owner !== 'mom' || !isString(value.type)) return false;
 
   switch (value.type) {
@@ -238,7 +238,7 @@ function isTimelineMediaItem(value: unknown): value is TimelineMediaItem {
     && (value.focalY === undefined || isFiniteNumber(value.focalY));
 }
 
-function isTimelineItem(value: unknown): value is TimelineItem {
+export function isTimelineItem(value: unknown): value is TimelineItem {
   return isRecord(value)
     && isString(value.id)
     && isOptionalOneOf(value.owner, ['baby', 'mom'])
@@ -262,7 +262,7 @@ function isTimelineItem(value: unknown): value is TimelineItem {
     && isOptionalOneOf(value.type, TIMELINE_TYPES);
 }
 
-function isExpenseRecord(value: unknown): value is ExpenseRecord {
+export function isExpenseRecord(value: unknown): value is ExpenseRecord {
   return isRecord(value)
     && isString(value.id)
     && isNonNegativeNumber(value.amount)
@@ -289,7 +289,7 @@ function isReminder(value: unknown): value is Reminder {
     && isString(value.updatedAt);
 }
 
-function isReminderOccurrenceState(value: unknown): value is ReminderOccurrenceState {
+export function isReminderOccurrenceState(value: unknown): value is ReminderOccurrenceState {
   return isRecord(value)
     && isString(value.occurrenceId)
     && isString(value.reminderId)
