@@ -1,7 +1,3 @@
-export const IMAGE_JPEG_QUALITY_CANDIDATES = [0.92, 0.88, 0.84, 0.8] as const;
-export const IMAGE_QUALITY_SAMPLE_MAX_DIMENSION = 256;
-export const IMAGE_MAX_MEAN_LUMA_ERROR = 4;
-
 export interface ImageCompressionCandidate {
   blob: Blob;
   quality: number;
@@ -10,7 +6,7 @@ export interface ImageCompressionCandidate {
 
 export function selectSmallestAcceptableImageCandidate(
   candidates: readonly ImageCompressionCandidate[],
-  maxMeanLumaError = IMAGE_MAX_MEAN_LUMA_ERROR,
+  maxMeanLumaError: number,
 ): ImageCompressionCandidate | null {
   let selected: ImageCompressionCandidate | null = null;
   for (const candidate of candidates) {

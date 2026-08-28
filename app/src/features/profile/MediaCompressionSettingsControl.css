@@ -1,0 +1,111 @@
+.profile-sync-compression-trigger {
+  margin-top: 8px;
+  padding-top: 10px;
+  padding-bottom: 4px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.profile-sync-compression-trigger small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-compression-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.media-compression-intro {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.media-compression-row {
+  padding: 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  background: var(--color-card-bg);
+}
+
+.media-compression-row-heading {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+
+.media-compression-row-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--color-sage-dark);
+  background: var(--color-sage-light);
+}
+
+.media-compression-row-heading strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 11px;
+}
+
+.media-compression-row-heading small {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.media-compression-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 10px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--color-card-warm);
+}
+
+.media-compression-presets button {
+  min-height: 34px;
+  padding: 5px 6px;
+  border-radius: 10px;
+  color: var(--color-text-secondary);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.media-compression-presets button.is-selected {
+  color: var(--color-sage-dark);
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(57, 38, 29, 0.08);
+}
+
+.media-compression-note {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 7px;
+  padding: 10px 11px;
+  border-radius: 13px;
+  color: var(--color-sage-dark);
+  background: var(--color-sage-light);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.media-compression-note svg {
+  margin-top: 1px;
+}
+
+@media (max-width: 360px) {
+  .media-compression-presets button {
+    padding-inline: 3px;
+    font-size: 8.5px;
+  }
+}

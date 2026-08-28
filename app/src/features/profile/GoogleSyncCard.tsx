@@ -17,6 +17,7 @@ import {
   type SyncResult,
   type SyncState,
 } from '@/features/sync';
+import { MediaCompressionSettingsControl } from './MediaCompressionSettingsControl';
 
 interface GoogleSyncCardProps {
   onShowToast?: (message: string, icon?: string) => void;
@@ -237,6 +238,8 @@ export const GoogleSyncCard: React.FC<GoogleSyncCardProps> = ({ onShowToast }) =
           {syncState.autoSyncEnabled ? 'Bật' : 'Tắt'}
         </button>
       </div>
+
+      <MediaCompressionSettingsControl />
 
       {conflict && (
         <div className="profile-sync-alert" role="alert">

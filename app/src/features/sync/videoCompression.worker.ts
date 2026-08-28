@@ -8,12 +8,12 @@ import {
   Output,
   Quality,
 } from 'mediabunny';
-
-const MAX_VIDEO_HEIGHT = 1080;
-const TARGET_FRAME_RATE = 30;
+import { getVideoCompressionProfile } from './mediaCompressionProfiles';
+import type { MediaCompressionPreset } from './mediaCompressionSettings';
 
 interface CompressionRequest {
   blob: Blob;
+  preset: MediaCompressionPreset;
 }
 
 type CompressionResponse =
@@ -34,6 +34,7 @@ function errorMessage(error: unknown): string {
 
 workerScope.onmessage = async (event) => {
   try {
+    const profile = getVideoCompressionProfile(event.data.preset);
     workerScope.postMessage({ type: 'progress', progress: 2 });
     const input = new Input({
       source: new BlobSource(event.data.blob),
@@ -46,7 +47,7 @@ workerScope.onmessage = async (event) => {
       format: new Mp4OutputFormat(),
       target: new BufferTarget(),
     });
-    const height = Math.min(MAX_VIDEO_HEIGHT, await primaryVideoTrack.getDisplayHeight());
+    const height = Math.min(profile.maxHeight, await primaryVideoTrack.getDisplayHeight());
     const conversion = await Conversion.init({
       input,
       output,
@@ -54,8 +55,8 @@ workerScope.onmessage = async (event) => {
       video: {
         codec: 'avc',
         height,
-        frameRate: TARGET_FRAME_RATE,
-        quality: new Quality('high'),
+        frameRate: profile.frameRate,
+        quality: new Quality(profile.quality),
       },
     });
     if (!conversion.isValid) {
