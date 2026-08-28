@@ -142,7 +142,6 @@ export function HavenDatePicker({
         id={effectiveId}
         type="button"
         className={`haven-date-picker-trigger ${triggerClassName}`.trim()}
-        data-field-control="input-text"
         aria-label={`${label}: ${displayLabel}`}
         aria-haspopup="dialog"
         aria-expanded={open}
