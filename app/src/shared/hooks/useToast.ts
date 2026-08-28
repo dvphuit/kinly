@@ -2,52 +2,29 @@
  * Toast notification hook.
  * Extracted from App.tsx to be reusable across the app.
  */
-import { useCallback, useState } from 'react';
-
-export interface ToastAction {
-  label: string;
-  onAction: () => void;
-}
+import { useState, useCallback } from 'react';
 
 export interface ToastMessage {
   id: string;
   message: string;
   icon: string;
-  action?: ToastAction;
 }
-
-export interface ToastOptions {
-  actionLabel?: string;
-  onAction?: () => void;
-  durationMs?: number;
-}
-
-export type AddToast = (message: string, icon?: string, options?: ToastOptions) => void;
 
 export function useToast() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
-
-  const addToast: AddToast = useCallback((message, icon = '🌿', options) => {
-    const id = `t_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const action = options?.actionLabel && options.onAction
-      ? {
-          label: options.actionLabel,
-          onAction: () => {
-            setToasts((prev) => prev.filter((toast) => toast.id !== id));
-            options.onAction?.();
-          },
-        }
-      : undefined;
-    const newToast: ToastMessage = { id, message, icon, action };
+  const addToast = useCallback((message: string, icon = '🌿') => {
+    const id = 't_' + Date.now();
+    const newToast: ToastMessage = { id, message, icon };
     setToasts((prev) => [...prev, newToast]);
 
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
-    }, options?.durationMs ?? (action ? 5000 : 2800));
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 2800);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   return { toasts, addToast, dismissToast };
