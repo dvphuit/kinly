@@ -46,7 +46,6 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
       isOpen={isOpen}
       onClose={onClose}
       title="Ghi Nhận Cữ Hút Sữa Mẹ"
-      touchOptimized
       footer={
         <button type="submit" form={formId} className="log-btn-primary">
           <span>Lưu Cữ Hút Sữa</span>
@@ -63,9 +62,6 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
             type="number"
             required
             min="1"
-            inputMode="numeric"
-            enterKeyHint="done"
-            aria-label="Lượng sữa hút được (ml)"
             className="log-input-control"
             style={{ textAlign: 'center', fontFamily: 'var(--font-family-display)', fontSize: '18px', fontWeight: 800 }}
             value={amount}
