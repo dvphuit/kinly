@@ -1,6 +1,1 @@
-.journal-activity-dialog .haven-dialog-header h2{font-size:17px;letter-spacing:-.02em}
-.journal-activity-dialog :is(.journal-edit-form label>span,.journal-edit-form .log-form-label,.journal-care-heading>span,.journal-care-label,.journal-care-note>span,.journal-care-section>label>span,.journal-care-datetime-grid label>span){font-size:11px}
-.journal-activity-dialog .journal-edit-form :is(input,select,textarea){font-size:12.5px}
-.journal-activity-dialog :is(.journal-feeding-choice-copy strong,.haven-medication-heading strong,.haven-medication-dose-heading>span){font-size:11px}
-.journal-activity-dialog :is(.journal-care-heading small,.journal-feeding-choice-copy small,.haven-medication-heading small,.haven-medication-dose-note,.haven-medication-dose>p){font-size:9.5px}
-.journal-activity-dialog .haven-dialog-footer button{font-size:12.5px}
+.journal-activity-dialog :is(label>span,input,select,textarea,button,strong,small){font-size:12px!important}.journal-activity-dialog h2{font-size:17px!important}
