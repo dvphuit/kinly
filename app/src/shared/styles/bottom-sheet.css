@@ -19,15 +19,6 @@
   transform-origin: 50% 100%;
 }
 
-/* Keep bottom-sheet field values aligned with the installed iOS anti-zoom floor. */
-.bottom-sheet .sheet-content-body :is(input, textarea, select, [data-field-control='input-text']) {
-  font: 600 16px/1.25 var(--font-family-body);
-}
-
-.bottom-sheet .sheet-content-body label:has(> textarea) > span {
-  font: 700 11px/1.35 var(--font-family-body);
-}
-
 .sheet-drag-handle-area {
   flex-shrink: 0;
   width: 100%;
@@ -44,9 +35,11 @@
   height: 5px;
   background: var(--color-border-subtle, #E8DDD5);
   border-radius: var(--radius-pill, 9999px);
-  margin: 0 auto 12px;
+  margin: 0 auto 12px auto;
   cursor: pointer;
+  touch-action: none;
   transition: background-color 160ms ease;
+  transform-origin: center;
 }
 
 .sheet-handle-bar:hover {
@@ -67,9 +60,11 @@
   font-size: 15px;
   font-weight: 700;
   color: var(--color-primary-dark, #39261D);
+  white-space: nowrap;
 }
 
 .sheet-close-btn {
+  border: none;
   background: var(--color-canvas, #FBF7F2);
   width: 28px;
   height: 28px;
@@ -79,6 +74,7 @@
   justify-content: center;
   font-size: 13px;
   color: var(--color-text-secondary, #846E62);
+  cursor: pointer;
   flex-shrink: 0;
   transition: background-color 160ms ease, color 160ms ease;
 }
@@ -94,7 +90,7 @@
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 0 18px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding: 0 18px calc(24px + env(safe-area-inset-bottom, 0px)) 18px;
 }
 
 .bottom-sheet:has(.sheet-footer) .sheet-content-body {
@@ -103,7 +99,7 @@
 
 .sheet-footer {
   flex-shrink: 0;
-  padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px)) 18px;
   border-top: 1px solid var(--color-border-subtle, #E8DDD5);
   background: #fff;
   z-index: 1;

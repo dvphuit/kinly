@@ -63,7 +63,7 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
             required
             min="1"
             className="log-input-control"
-            style={{ textAlign: 'center' }}
+            style={{ textAlign: 'center', fontFamily: 'var(--font-family-display)', fontSize: '18px', fontWeight: 800 }}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="180"

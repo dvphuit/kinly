@@ -50,7 +50,6 @@ export function HavenDropdown<T extends string | number = string>({
           id={id}
           type="button"
           className={`haven-dropdown-trigger ${triggerClassName}`.trim()}
-          data-field-control="input-text"
           aria-label={`${label}: ${selected?.label ?? ''}`}
           disabled={disabled}
           {...triggerProps}
