@@ -2,10 +2,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './app/App';
+import { AppRouteError } from '@/app/AppRouteError';
 import { initializeNativeExperience } from '@/app/lifecycle/nativeExperience';
+import { installPreloadErrorRecovery } from '@/app/lifecycle/preloadErrorRecovery';
 import './index.css';
 
 initializeNativeExperience();
+installPreloadErrorRecovery();
 
 document.documentElement.classList.toggle(
   'has-vt',
@@ -43,7 +46,7 @@ async function handleResetRequest(): Promise<boolean> {
 function renderApp(): void {
   const root = document.getElementById('root');
   if (!root) throw new Error('Missing #root application element.');
-  const router = createBrowserRouter([{ path: '*', element: <App /> }]);
+  const router = createBrowserRouter([{ path: '*', element: <App />, errorElement: <AppRouteError /> }]);
 
   createRoot(root).render(
     <StrictMode>
