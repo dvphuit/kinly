@@ -14,7 +14,7 @@ import {
   type MediaCompressionKind,
   type MediaCompressionPreset,
   type MediaCompressionSettings,
-} from '@/features/sync/mediaCompressionSettings';
+} from '@/features/sync';
 import './MediaCompressionSettingsControl.css';
 
 const PRESET_LABELS: Record<MediaCompressionPreset, string> = {

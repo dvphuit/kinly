@@ -17,8 +17,15 @@ vi.mock('@/features/sync', () => {
     emailAddress: 'parent@example.com',
     displayName: 'Parent',
   };
+  const compressionSettings = {
+    photo: 'balanced' as const,
+    video: 'balanced' as const,
+  };
 
   return {
+    MEDIA_COMPRESSION_PRESETS: ['quality', 'balanced', 'compact'],
+    getMediaCompressionSettings: vi.fn(() => ({ ...compressionSettings })),
+    setMediaCompressionPreset: vi.fn(() => ({ ...compressionSettings })),
     getGoogleLinkedAccount: vi.fn(() => account),
     getLastSyncedAt: vi.fn().mockResolvedValue(null),
     getSyncState: vi.fn(() => state),
@@ -51,6 +58,7 @@ describe('GoogleSyncCard', () => {
     expect(screen.getByRole('button', { name: 'Xác thực lại & đồng bộ' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đổi tài khoản Google' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tắt tự động đồng bộ' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Cấu hình nén media' })).toBeInTheDocument();
     expect(screen.queryByText('Cần xác thực lại Google để tiếp tục tự động đồng bộ.')).not.toBeInTheDocument();
   });
 

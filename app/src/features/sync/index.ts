@@ -8,6 +8,16 @@ import {
 export * from './appSnapshot';
 export { SyncSnapshotIntegrityError } from './syncSnapshotEnvelope';
 export { isGoogleOAuthBrokerConfigured } from './googleOAuthBroker';
+export {
+  MEDIA_COMPRESSION_PRESETS,
+  getMediaCompressionSettings,
+  setMediaCompressionPreset,
+} from './mediaCompressionSettings';
+export type {
+  MediaCompressionKind,
+  MediaCompressionPreset,
+  MediaCompressionSettings,
+} from './mediaCompressionSettings';
 export type SyncSnapshot = import('./syncSnapshotEnvelope').SyncSnapshot;
 export type SyncSnapshotIntegrityReason = import('./syncSnapshotEnvelope').SyncSnapshotIntegrityReason;
 
