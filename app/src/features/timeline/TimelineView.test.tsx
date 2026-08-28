@@ -102,10 +102,10 @@ describe('TimelineView', () => {
     fireEvent.click(feedingTimelineButton);
     const feedingDetail = screen.getByRole('dialog', { name: 'Cữ bú' });
     expect(feedingDetail).toHaveAttribute('aria-modal', 'true');
-    expect(feedingDetail).toHaveClass('journal-activity-dialog', 'tone-apricot');
+    expect(feedingDetail).toHaveClass('journal-entry-sheet', 'tone-apricot');
     expect(within(feedingDetail).getByText('Bú sáng')).toBeInTheDocument();
 
-    const backdrop = document.querySelector('.haven-dialog-backdrop');
+    const backdrop = document.querySelector('.modal-backdrop');
     expect(backdrop).toBeInTheDocument();
     fireEvent.pointerDown(backdrop!);
     expect(screen.getByRole('dialog', { name: 'Cữ bú' })).toBeInTheDocument();
@@ -115,7 +115,7 @@ describe('TimelineView', () => {
     fireEvent.click(screen.getByRole('button', { name: /Thay tã/ }));
     const diaperDetail = screen.getByRole('dialog', { name: 'Thay tã' });
     expect(diaperDetail).toBeInTheDocument();
-    expect(diaperDetail).toHaveClass('journal-activity-dialog', 'tone-sage');
+    expect(diaperDetail).toHaveClass('journal-entry-sheet', 'tone-sage');
     expect(within(diaperDetail).getByText('Tã sáng')).toBeInTheDocument();
 
     fireEvent.click(within(diaperDetail).getByRole('button', { name: 'Đóng' }));

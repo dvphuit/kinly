@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { acquireBodyScrollLock } from '@/shared/lib/bodyScrollLock';
 import { useNativePresence } from '@/shared/hooks/useNativePresence';
 
 interface HavenDialogProps {
@@ -25,8 +26,7 @@ export function HavenDialog({ open, onClose, title, description, children, foote
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const originalOverflow = document.body.style.overflow;
-    if (modal) document.body.style.overflow = 'hidden';
+    const releaseBodyScrollLock = modal ? acquireBodyScrollLock() : null;
 
     const frame = modal
       ? requestAnimationFrame(() => {
@@ -63,10 +63,8 @@ export function HavenDialog({ open, onClose, title, description, children, foote
     return () => {
       if (frame !== null) cancelAnimationFrame(frame);
       window.removeEventListener('keydown', handleKeyDown);
-      if (modal) {
-        document.body.style.overflow = originalOverflow;
-        if (previous?.isConnected) previous.focus();
-      }
+      releaseBodyScrollLock?.();
+      if (modal && previous?.isConnected) previous.focus();
     };
   }, [modal, onClose, open]);
 

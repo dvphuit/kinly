@@ -28,7 +28,7 @@ describe('EditProfileModal', () => {
     render(<EditProfileModal isOpen onClose={() => {}} />);
 
     const dialog = screen.getByRole('dialog', { name: 'Chỉnh sửa hồ sơ bé' });
-    expect(dialog).toHaveClass('kinly-themed-sheet', 'edit-profile-bottom-sheet');
+    expect(dialog).toHaveClass('bottom-sheet');
     expect(screen.getByText('HỒ SƠ CỦA BÉ')).toBeInTheDocument();
     expect(screen.getByText('Ảnh đại diện')).toBeInTheDocument();
     expect(screen.getByText('Thông tin cơ bản')).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe('EditProfileModal', () => {
     expect(screen.getByText('Y tế & ghi chú')).toBeInTheDocument();
 
     const saveButton = screen.getByRole('button', { name: 'Lưu thay đổi' });
-    expect(saveButton).toHaveClass('sheet-primary-action');
+    expect(saveButton).toHaveClass('sheet-action', 'sheet-action-primary');
     expect(saveButton.parentElement).toHaveClass('sheet-footer');
   });
 

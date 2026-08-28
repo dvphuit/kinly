@@ -411,6 +411,8 @@ describe('GoogleDriveDataView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mở logs chẩn đoán' }));
 
     expect(screen.getByRole('dialog', { name: 'Logs chẩn đoán' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sao chép' })).toHaveClass('sheet-action', 'sheet-action-secondary');
+    expect(screen.getByRole('button', { name: 'Xóa logs' })).toHaveClass('sheet-action', 'sheet-action-danger');
     expect(screen.getByText('Drive management refresh completed')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Sao chép' }));
 

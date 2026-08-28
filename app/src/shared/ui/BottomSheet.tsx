@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { acquireBodyScrollLock } from '@/shared/lib/bodyScrollLock';
 import { animateElement, cancelElementAnimations } from '@/shared/lib/nativeAnimation';
 import { useNativePresence } from '@/shared/hooks/useNativePresence';
 
@@ -8,6 +9,7 @@ interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  description?: string;
   dismissible?: boolean;
   className?: string;
   children: React.ReactNode;
@@ -34,11 +36,18 @@ const FOCUSABLE_SELECTOR = [
 
 const DRAG_DISMISS_DISTANCE = 80;
 const DRAG_DISMISS_VELOCITY = 450;
+const MOBILE_SHEET_QUERY = '(max-width: 520px)';
+
+function isMobileSheet(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+  return window.matchMedia(MOBILE_SHEET_QUERY).matches;
+}
 
 export const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen,
   onClose,
   title,
+  description,
   dismissible = true,
   className = '',
   children,
@@ -51,7 +60,13 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   const dragRef = useRef<DragState | null>(null);
   const dragDismissedRef = useRef(false);
   const titleId = useId();
+  const descriptionId = useId();
   const presence = useNativePresence(isOpen, 180);
+
+  useEffect(() => {
+    if (!presence.mounted || typeof document === 'undefined') return;
+    return acquireBodyScrollLock();
+  }, [presence.mounted]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -166,7 +181,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dismissible || !isOpen || (contentRef.current?.scrollTop ?? 0) > 0) return;
+    if (!dismissible || !isOpen || !isMobileSheet() || (contentRef.current?.scrollTop ?? 0) > 0) return;
     cancelElementAnimations(sheetRef.current);
     cancelElementAnimations(backdropRef.current);
     const now = performance.now();
@@ -229,19 +244,21 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-describedby={description ? descriptionId : undefined}
         aria-label={title ? undefined : 'Hộp thoại'}
         tabIndex={-1}
         className={`bottom-sheet ${sheetPhaseClass} ${className}`.trim()}
         onClick={(event) => event.stopPropagation()}
       >
         <div
-          className="sheet-drag-handle-area"
+          className={`sheet-drag-handle-area ${dismissible ? 'is-dismissible' : ''}`.trim()}
+          data-dismissible={dismissible ? 'true' : undefined}
           tabIndex={-1}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerEnd}
           onPointerCancel={handlePointerCancel}
-          style={{ touchAction: 'none', cursor: dismissible ? 'grab' : 'default' }}
+          style={{ touchAction: 'none' }}
         >
           <div
             className="sheet-handle-bar"
@@ -249,26 +266,31 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             tabIndex={-1}
             title={dismissible ? 'Kéo xuống hoặc chạm để đóng' : undefined}
             onClick={() => {
-              if (dismissible) onClose();
+              if (dismissible && isMobileSheet()) onClose();
             }}
           />
 
-          {title && (
+          {(title || description) && (
             <div className="sheet-header-row">
-              <h3 className="sheet-title" id={titleId}>{title}</h3>
-              <button
-                type="button"
-                className="sheet-close-btn"
-                onClick={() => {
-                  if (dismissible) onClose();
-                }}
-                title="Đóng"
-                aria-label="Đóng"
-                disabled={!dismissible}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <X size={14} />
-              </button>
+              <div className="sheet-header-copy">
+                {title && <h3 className="sheet-title" id={titleId}>{title}</h3>}
+                {description && <p className="sheet-description" id={descriptionId}>{description}</p>}
+              </div>
+              {title && (
+                <button
+                  type="button"
+                  className="sheet-close-btn"
+                  onClick={() => {
+                    if (dismissible) onClose();
+                  }}
+                  title="Đóng"
+                  aria-label="Đóng"
+                  disabled={!dismissible}
+                  onPointerDown={(event) => event.stopPropagation()}
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
           )}
         </div>

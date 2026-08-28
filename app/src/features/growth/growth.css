@@ -199,43 +199,6 @@
   transform: translateY(-50%);
 }
 
-.growth-measurement-sheet .sheet-footer {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: 8px;
-}
-
-.growth-measurement-sheet .sheet-footer button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: 0;
-  border-radius: 14px;
-  font-family: var(--font-family-body);
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.growth-sheet-secondary-action {
-  border: 1px solid #cfe0dc;
-  background: #fff;
-  color: #4f6f6b;
-}
-
-.growth-sheet-danger-action {
-  border: 1px solid #efd3ce;
-  background: #fff5f2;
-  color: #a94f43;
-}
-
-.growth-sheet-danger-action.is-confirming {
-  border-color: #b65245;
-  background: #b65245;
-  color: #fff;
-}
 
 .growth-preview {
   display: grid;

@@ -222,7 +222,7 @@ export const PWAInstallPrompt: React.FC = () => {
         title="Hướng Dẫn Cài Đặt PWA"
         footer={
           <button
-            className="log-btn-primary"
+            className="sheet-action sheet-action-primary"
             onClick={() => setShowGuide(false)}
           >
             <span>Đã Hiểu</span>

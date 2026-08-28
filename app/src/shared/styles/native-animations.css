@@ -8,7 +8,6 @@
 @keyframes slideDownSheet { from { transform: translate3d(0, 0, 0); opacity: 1; } to { transform: translate3d(0, 100%, 0); opacity: 0; } }
 @keyframes nativeDialogIn { from { opacity: 0; transform: translate3d(0, 12px, 0) scale(0.98); } to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } }
 @keyframes nativeDialogOut { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(0, 8px, 0) scale(0.99); } }
-@keyframes nativeDialogMobileOut { from { opacity: 1; transform: translate3d(0, 0, 0); } to { opacity: 0; transform: translate3d(0, 100%, 0); } }
 @keyframes nativePopupBelowOut { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(0, -2px, 0) scale(0.995); } }
 @keyframes nativePopupAboveOut { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(0, 2px, 0) scale(0.995); } }
 @keyframes nativePreviewIn { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }
@@ -77,9 +76,6 @@
 .moment-media-preview-nav:active,
 .moment-media-preview-indicator button:active { transform: scale(0.94); }
 
-@media (max-width: 480px) {
-  .haven-dialog.native-closing { animation-name: nativeDialogMobileOut; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

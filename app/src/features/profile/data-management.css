@@ -342,8 +342,6 @@
 .drive-data-state > span { max-width: 270px; color: var(--color-text-muted); font-size: 9.5px; line-height: 1.5; }
 .drive-data-error { box-shadow: 0 8px 18px -16px rgba(159, 72, 42, 0.7); }
 
-.drive-debug-sheet-actions { width: 100%; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.drive-debug-sheet-actions button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border-radius: var(--radius-pill); background: #fff; font-size: 9px; font-weight: 800; }
 
 @media (min-width: 460px) {
   .drive-data-page { gap: 17px; }

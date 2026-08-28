@@ -23,7 +23,7 @@ describe('AddPostModal', () => {
     render(<AddPostModal isOpen onClose={onClose} onSuccessToast={onSuccessToast} />);
 
     expect(screen.getByRole('dialog', { name: 'Khoảnh khắc' })).toHaveClass(
-      'journal-activity-dialog', 'tone-moment',
+      'journal-entry-sheet', 'tone-moment',
     );
     expect(screen.getByRole('button', { name: 'Lưu ghi nhận' })).toHaveAttribute(
       'form', 'timeline-edit-form',

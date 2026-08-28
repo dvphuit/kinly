@@ -23,7 +23,7 @@ describe('QuickLogModal', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'Ghi nhanh cho Bé' }))
-      .toHaveClass('kinly-themed-sheet', 'quick-log-bottom-sheet');
+      .toHaveClass('bottom-sheet', 'quick-log-bottom-sheet');
 
     const growthAction = screen.getByRole('button', { name: 'Cân đo' });
     expect(growthAction).toHaveClass('tone-meadow');

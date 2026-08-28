@@ -27,7 +27,7 @@ describe('ActivityLogModal', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'Cữ bú' })).toHaveClass(
-      'journal-activity-dialog', 'tone-apricot', 'journal-feeding-editor-dialog',
+      'journal-entry-sheet', 'tone-apricot',
     );
     expect(screen.getByLabelText('Lượng sữa (ml)')).toBeInTheDocument();
     expect(screen.queryByLabelText(/Thời lượng bú/i)).not.toBeInTheDocument();
@@ -111,7 +111,7 @@ describe('ActivityLogModal', () => {
       />
     );
 
-    expect(screen.getByRole('dialog', { name: 'Thay tã' })).toHaveClass('journal-activity-dialog', 'tone-sage');
+    expect(screen.getByRole('dialog', { name: 'Thay tã' })).toHaveClass('journal-entry-sheet', 'tone-sage');
     expect(screen.getByRole('radio', { name: /Tã ướt/i })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Tã bẩn/i })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Cả hai/i })).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe('ActivityLogModal', () => {
   ] as const)('uses the shared activity editor dialog for %s', (mode, title, tone) => {
     render(<ActivityLogModal isOpen mode={mode} onClose={vi.fn()} onSaved={vi.fn()} />);
 
-    expect(screen.getByRole('dialog', { name: title })).toHaveClass('journal-activity-dialog', tone);
+    expect(screen.getByRole('dialog', { name: title })).toHaveClass('journal-entry-sheet', tone);
     expect(screen.getByRole('button', { name: 'Lưu ghi nhận' })).toHaveAttribute('form', 'timeline-edit-form');
   });
 

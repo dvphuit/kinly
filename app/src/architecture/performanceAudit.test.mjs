@@ -122,8 +122,8 @@ describe('interaction performance audit', () => {
     expect(main).toContain("typeof document.startViewTransition === 'function'");
     expect(nativeTransitions).toContain('view-transition-name: none;');
     expect(nativeAnimations).toContain('@media (prefers-reduced-motion: reduce)');
-    expect(bottomSheetCss).toContain('box-shadow: none;');
-    expect(bottomSheetCss).not.toContain('box-shadow: 0 -12px 48px');
+    expect(bottomSheetCss).toContain('box-shadow: 0 28px 70px rgba(57, 38, 29, 0.27);');
+    expect(bottomSheetCss).toMatch(/@media \(max-width: 520px\)[\s\S]*\.bottom-sheet\s*\{[\s\S]*box-shadow: none;/);
     expect(bottomSheet).toContain('onPointerMove={handlePointerMove}');
     expect(bottomSheet).toContain('animateElement(');
     expect(dialog).toContain('useNativePresence');

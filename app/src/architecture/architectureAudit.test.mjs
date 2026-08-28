@@ -116,14 +116,15 @@ describe('architecture acceptance guard', () => {
     expect(findMissingFeaturePublicApis(SRC)).toEqual([]);
   });
 
-  it('keeps the timeline dialog shell separate from editor runtime', () => {
+  it('keeps the timeline dialog on the shared adaptive sheet shell', () => {
     const dialog = readFileSync(join(SRC, 'features/timeline/components/TimelineEntryDialog.tsx'), 'utf8');
     const editor = readFileSync(join(SRC, 'features/timeline/components/TimelineEntryEditor.tsx'), 'utf8');
 
-    expect(dialog).toContain("from './TimelineEntryEditor'");
-    expect(dialog).not.toContain('journal-feeding-edit-form');
-    expect(dialog).not.toContain('HavenMedicationPicker');
-    expect(dialog).not.toContain('assessBabySleep');
+    expect(dialog).toContain("from '@/shared/ui/BottomSheet'");
+    expect(dialog).toContain('<BottomSheet');
+    expect(dialog).not.toContain('HavenDialog');
+    expect(dialog).not.toContain('journal-activity-dialog');
+    expect(dialog).not.toContain('journal-feeding-editor-dialog');
     expect(editor).toContain('id="timeline-edit-form"');
     expect(editor).not.toContain('<HavenDialog');
     expect(editor).not.toContain("@/features/activities/");

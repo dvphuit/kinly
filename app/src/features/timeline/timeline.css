@@ -69,14 +69,14 @@
 .journal-story-signs strong { margin-right: 2px; font-weight: 850; }
 .journal-story-detail { width: fit-content; max-width: 100%; box-sizing: border-box; display: -webkit-box; overflow: hidden; padding: 6px 9px; border: 1px dashed color-mix(in srgb, var(--journal-accent) 36%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--journal-soft) 68%, white 32%); color: var(--color-text-secondary); font: 640 9.5px/1.5 var(--font-family-body); -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 
-.journal-story-item.tone-apricot, .journal-detail.tone-apricot, .journal-activity-dialog.tone-apricot { --journal-accent: #bd7132; --journal-soft: #fff0df; }
-.journal-story-item.tone-lavender, .journal-detail.tone-lavender, .journal-activity-dialog.tone-lavender { --journal-accent: #7561aa; --journal-soft: #f0ecfb; }
-.journal-story-item.tone-sage, .journal-detail.tone-sage, .journal-activity-dialog.tone-sage { --journal-accent: #607a41; --journal-soft: #e8f0dc; }
-.journal-story-item.tone-rose, .journal-detail.tone-rose, .journal-activity-dialog.tone-rose { --journal-accent: #a05566; --journal-soft: #f8e3e8; }
-.journal-story-item.tone-coral, .journal-detail.tone-coral, .journal-activity-dialog.tone-coral { --journal-accent: #c76234; --journal-soft: #fef0e7; }
-.journal-story-item.tone-blue, .journal-detail.tone-blue, .journal-activity-dialog.tone-blue { --journal-accent: #4f8195; --journal-soft: #e8f2f6; }
-.journal-story-item.tone-moment, .journal-detail.tone-moment, .journal-activity-dialog.tone-moment { --journal-accent: #9b5c36; --journal-soft: #f8e9dd; }
-.journal-story-item.tone-neutral, .journal-detail.tone-neutral, .journal-activity-dialog.tone-neutral { --journal-accent: #806651; --journal-soft: #f4ece6; }
+.journal-story-item.tone-apricot, .journal-detail.tone-apricot, .journal-entry-sheet.tone-apricot { --journal-accent: #bd7132; --journal-soft: #fff0df; --sheet-accent: #bd7132; --sheet-soft: #fff0df; }
+.journal-story-item.tone-lavender, .journal-detail.tone-lavender, .journal-entry-sheet.tone-lavender { --journal-accent: #7561aa; --journal-soft: #f0ecfb; --sheet-accent: #7561aa; --sheet-soft: #f0ecfb; }
+.journal-story-item.tone-sage, .journal-detail.tone-sage, .journal-entry-sheet.tone-sage { --journal-accent: #607a41; --journal-soft: #e8f0dc; --sheet-accent: #607a41; --sheet-soft: #e8f0dc; }
+.journal-story-item.tone-rose, .journal-detail.tone-rose, .journal-entry-sheet.tone-rose { --journal-accent: #a05566; --journal-soft: #f8e3e8; --sheet-accent: #a05566; --sheet-soft: #f8e3e8; }
+.journal-story-item.tone-coral, .journal-detail.tone-coral, .journal-entry-sheet.tone-coral { --journal-accent: #c76234; --journal-soft: #fef0e7; --sheet-accent: #c76234; --sheet-soft: #fef0e7; }
+.journal-story-item.tone-blue, .journal-detail.tone-blue, .journal-entry-sheet.tone-blue { --journal-accent: #4f8195; --journal-soft: #e8f2f6; --sheet-accent: #4f8195; --sheet-soft: #e8f2f6; }
+.journal-story-item.tone-moment, .journal-detail.tone-moment, .journal-entry-sheet.tone-moment { --journal-accent: #9b5c36; --journal-soft: #f8e9dd; --sheet-accent: #9b5c36; --sheet-soft: #f8e9dd; }
+.journal-story-item.tone-neutral, .journal-detail.tone-neutral, .journal-entry-sheet.tone-neutral { --journal-accent: #806651; --journal-soft: #f4ece6; --sheet-accent: #806651; --sheet-soft: #f4ece6; }
 
 .journal-story-media-bento { min-width: 0; width: min(100%, 286px); aspect-ratio: 4 / 3; box-sizing: border-box; margin: 8px 0 10px; padding: 4px; display: grid; gap: 4px; border-radius: 16px; background: #fff; overflow: hidden; }
 .journal-story-media-bento.count-1 { grid-template: 1fr / 1fr; }
@@ -119,70 +119,7 @@
 .journal-detail-signs { margin: 0; padding: 9px 11px; border: 1px solid rgba(187, 80, 58, 0.18); border-radius: 12px; background: #fff1eb; color: #914130; font: 650 10px/1.55 var(--font-family-body); overflow-wrap: anywhere; }
 .journal-detail-signs strong { font-weight: 850; }
 
-.haven-dialog.journal-activity-dialog {
-  width: min(420px, 100%);
-  border-color: color-mix(in srgb, var(--journal-accent) 18%, white);
-  background: color-mix(in srgb, var(--journal-soft) 44%, #fbf8f3);
-}
-.journal-activity-dialog .haven-dialog-header {
-  position: relative;
-  overflow: hidden;
-  padding: 18px 20px 14px;
-  border-bottom-color: color-mix(in srgb, var(--journal-accent) 13%, transparent);
-  background:
-    radial-gradient(circle at 90% -18%, color-mix(in srgb, var(--journal-accent) 18%, transparent) 0 25%, transparent 26%),
-    linear-gradient(135deg, #fff 0%, color-mix(in srgb, var(--journal-soft) 82%, white) 100%);
-}
-.journal-activity-dialog .haven-dialog-header > * { position: relative; z-index: 1; }
-.journal-activity-dialog .haven-dialog-header h2 { font-size: 21px; letter-spacing: -0.025em; }
-.journal-activity-dialog .haven-dialog-header p { color: color-mix(in srgb, var(--journal-accent) 58%, #776d66); }
-.journal-activity-dialog .haven-dialog-close {
-  border: 1px solid color-mix(in srgb, var(--journal-accent) 12%, transparent);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--journal-accent);
-}
-.journal-activity-dialog .haven-dialog-body {
-  padding: 12px;
-  background:
-    radial-gradient(circle at 102% 5%, color-mix(in srgb, var(--journal-soft) 72%, transparent) 0 18%, transparent 19%),
-    color-mix(in srgb, var(--journal-soft) 34%, #fbf8f3);
-}
-.journal-activity-dialog .haven-dialog-footer {
-  padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
-  border-top-color: color-mix(in srgb, var(--journal-accent) 11%, transparent);
-  background: rgba(255, 253, 249, 0.96);
-  box-shadow: 0 -10px 30px rgba(83, 52, 34, 0.06);
-}
-.journal-activity-dialog .haven-dialog-footer button { min-height: 42px; border-radius: 14px; }
-.journal-activity-dialog .haven-dialog-footer .haven-dialog-primary {
-  flex: 1;
-  border-color: var(--journal-accent);
-  background: var(--journal-accent);
-}
-.journal-activity-dialog .haven-dialog-footer .haven-dialog-secondary {
-  border-color: color-mix(in srgb, var(--journal-accent) 18%, #e8ddd5);
-  color: color-mix(in srgb, var(--journal-accent) 70%, #5c5048);
-}
-.journal-activity-dialog .haven-dialog-footer .haven-dialog-danger {
-  min-width: 92px;
-  padding-inline: 13px;
-  border: 1px solid #efc9c2;
-  background: #fff4f1;
-  color: #b54736;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  font-weight: 780;
-  cursor: pointer;
-}
-.journal-activity-dialog .haven-dialog-footer .haven-dialog-danger.is-confirming {
-  flex: 1;
-  border-color: #b54736;
-  background: #b54736;
-  color: #fff;
-}
-.journal-activity-dialog .journal-detail {
+.journal-entry-sheet .journal-detail {
   gap: 10px;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--journal-accent) 13%, transparent);
@@ -190,27 +127,27 @@
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 12px 30px -26px color-mix(in srgb, var(--journal-accent) 72%, #3d2a20);
 }
-.journal-activity-dialog .journal-detail-overview {
+.journal-entry-sheet .journal-detail-overview {
   padding: 11px;
   border: 1px solid color-mix(in srgb, var(--journal-accent) 12%, transparent);
   border-radius: 15px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--journal-soft) 76%, white) 0%, #fff 100%);
 }
-.journal-activity-dialog .journal-detail-icon {
+.journal-entry-sheet .journal-detail-icon {
   background: var(--journal-accent);
   color: #fff;
   box-shadow: 0 6px 14px -10px color-mix(in srgb, var(--journal-accent) 78%, #3d2a20);
 }
-.journal-activity-dialog .journal-detail-overview small {
+.journal-entry-sheet .journal-detail-overview small {
   border: 1px solid color-mix(in srgb, var(--journal-accent) 18%, transparent);
   background: #fff;
 }
-.journal-activity-dialog .journal-detail-stats span {
+.journal-entry-sheet .journal-detail-stats span {
   border: 1px solid color-mix(in srgb, var(--journal-accent) 18%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--journal-soft) 78%, white);
 }
-.journal-activity-dialog .journal-detail-copy {
+.journal-entry-sheet .journal-detail-copy {
   padding: 10px 11px;
   border-color: color-mix(in srgb, var(--journal-accent) 12%, transparent);
   background: color-mix(in srgb, var(--journal-soft) 42%, white);
@@ -237,23 +174,24 @@
 .journal-edit-media-row button, .journal-edit-add-media { border: 1px dashed rgba(111, 139, 74, 0.38); border-radius: 11px; background: var(--color-sage-subtle); color: var(--color-sage-dark); font: 750 9px var(--font-family-body); cursor: pointer; }
 .journal-edit-add-media { min-height: 36px; }
 
-.journal-activity-dialog .journal-edit-form:not(.journal-moment-edit-form):not(.journal-feeding-edit-form):not(.journal-sleep-edit-form):not(.journal-diaper-edit-form):not(.journal-temperature-edit-form) {
+.journal-entry-sheet .journal-edit-form:not(.journal-moment-edit-form):not(.journal-feeding-edit-form):not(.journal-sleep-edit-form):not(.journal-diaper-edit-form):not(.journal-temperature-edit-form) {
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--journal-accent) 13%, transparent);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 12px 30px -26px color-mix(in srgb, var(--journal-accent) 72%, #3d2a20);
 }
-.journal-activity-dialog .journal-edit-form:not(.journal-moment-edit-form):not(.journal-feeding-edit-form):not(.journal-sleep-edit-form):not(.journal-diaper-edit-form):not(.journal-temperature-edit-form) label > span,
-.journal-activity-dialog .journal-edit-form:not(.journal-moment-edit-form):not(.journal-feeding-edit-form):not(.journal-sleep-edit-form):not(.journal-diaper-edit-form):not(.journal-temperature-edit-form) .log-form-label {
+.journal-entry-sheet .journal-edit-form:not(.journal-moment-edit-form):not(.journal-feeding-edit-form):not(.journal-sleep-edit-form):not(.journal-diaper-edit-form):not(.journal-temperature-edit-form) label > span,
+.journal-entry-sheet .journal-edit-form:not(.journal-moment-edit-form):not(.journal-feeding-edit-form):not(.journal-sleep-edit-form):not(.journal-diaper-edit-form):not(.journal-temperature-edit-form) .log-form-label {
   color: color-mix(in srgb, var(--journal-accent) 72%, #75685f);
 }
-.journal-activity-dialog .journal-edit-form input:focus,
-.journal-activity-dialog .journal-edit-form select:focus,
-.journal-activity-dialog .journal-edit-form textarea:focus {
+.journal-entry-sheet .journal-edit-form input:focus,
+.journal-entry-sheet .journal-edit-form select:focus,
+.journal-entry-sheet .journal-edit-form textarea:focus {
   border-color: color-mix(in srgb, var(--journal-accent) 66%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--journal-accent) 12%, transparent);
 }
+
 
 .journal-care-editor { grid-column: 1 / -1; min-width: 0; }
 .journal-care-card {
@@ -523,39 +461,6 @@
 .journal-temperature-edit-form .haven-temp-theme-crimson .haven-milk-chip.is-active { border-color: #b82f2f; background: #b82f2f; }
 .journal-temperature-edit-form .haven-temp-theme-cool .haven-milk-chip.is-active { border-color: #3978bb; background: #3978bb; }
 
-/* Compact feeding editor with warm, decorative surfaces. */
-.haven-dialog.journal-feeding-editor-dialog {
-  width: min(420px, 100%);
-  max-height: min(700px, calc(100vh - 32px));
-  border-color: rgba(208, 160, 102, 0.28);
-  background: #fbf7f1;
-}
-.journal-feeding-editor-dialog .haven-dialog-header {
-  position: relative;
-  overflow: hidden;
-  padding: 18px 20px 14px;
-  border-bottom-color: rgba(167, 111, 56, 0.12);
-  background:
-    radial-gradient(circle at 88% -15%, rgba(223, 174, 111, 0.26) 0 24%, transparent 25%),
-    linear-gradient(135deg, #fffdf8 0%, #f9ecdc 100%);
-}
-.journal-feeding-editor-dialog .haven-dialog-header > * { position: relative; z-index: 1; }
-.journal-feeding-editor-dialog .haven-dialog-header h2 { font-size: 21px; letter-spacing: -0.025em; }
-.journal-feeding-editor-dialog .haven-dialog-header p { color: #8b6955; }
-.journal-feeding-editor-dialog .haven-dialog-close {
-  border: 1px solid rgba(111, 74, 51, 0.08);
-  background: rgba(255, 255, 255, 0.72);
-}
-.journal-feeding-editor-dialog .haven-dialog-body { padding: 12px; background: #fbf7f1; }
-.journal-feeding-editor-dialog .haven-dialog-footer {
-  padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
-  border-top-color: rgba(111, 74, 51, 0.09);
-  background: rgba(255, 253, 249, 0.96);
-  box-shadow: 0 -10px 30px rgba(83, 52, 34, 0.06);
-}
-.journal-feeding-editor-dialog .haven-dialog-footer button { min-height: 42px; border-radius: 14px; }
-.journal-feeding-editor-dialog .haven-dialog-footer .haven-dialog-primary { flex: 1; }
-
 .journal-edit-form.journal-feeding-edit-form { display: block; }
 .journal-feeding-editor { display: block; }
 
@@ -735,18 +640,6 @@
   background: #fff4f1;
 }
 
-@media (max-width: 520px) {
-  .haven-dialog-backdrop:has(> .journal-activity-dialog) { align-items: end; padding: 12px 0 0; }
-  .haven-dialog.journal-activity-dialog {
-    width: 100%;
-    max-height: min(92dvh, 790px);
-    border-width: 1px 0 0;
-    border-radius: 28px 28px 0 0;
-  }
-  .journal-activity-dialog .haven-dialog-header { padding: 17px 17px 13px; }
-  .journal-activity-dialog .haven-dialog-body { padding: 10px; }
-  .journal-activity-dialog .haven-dialog-footer { padding-inline: 12px; }
-}
 
 @media (max-width: 370px) {
   .journal-feeding-choice-copy small { display: none; }

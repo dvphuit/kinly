@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { acquireBodyScrollLock } from '@/shared/lib/bodyScrollLock';
 import { animateElement, cancelElementAnimations, prefersReducedMotion } from '@/shared/lib/nativeAnimation';
 import { useNativePresence } from '@/shared/hooks/useNativePresence';
 import { TimelineMediaSyncBadge } from '@/features/timeline/components/TimelineMediaSyncBadge';
@@ -16,6 +17,7 @@ import { MomentVideoPlayer } from '@/features/timeline/components/MomentVideoPla
 import { useTimelineMediaUrl } from '@/features/timeline/hooks/useTimelineMediaUrl';
 import type { TimelineMediaItem } from '@/features/timeline/domain/types';
 import './moment-media-preview.css';
+
 
 export type MomentMediaPreviewLoadingState =
   | { kind: 'indeterminate'; previewSrc: string | null }
@@ -326,8 +328,7 @@ function MomentMediaPreviewContent({
   }, [safeInitialIndex, setTrackX, stageWidth]);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const releaseBodyScrollLock = acquireBodyScrollLock();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         requestClose();
@@ -339,7 +340,7 @@ function MomentMediaPreviewContent({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      releaseBodyScrollLock();
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [goTo, items.length, requestClose]);

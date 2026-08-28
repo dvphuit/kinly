@@ -59,9 +59,11 @@ Cards use the white or warm card surface, soft borders, and restrained elevation
 
 ### Dialogs and bottom sheets
 
-Dialogs and sheets share the same focus, dismissal, backdrop, and motion behavior. Feature code provides content and domain actions.
+Dialogs and sheets share the same focus, dismissal, backdrop, body-scroll lock, and motion behavior. Feature code provides content and domain actions.
 
-Bottom sheets use large top radii and enough bottom padding for device safe areas.
+`BottomSheet` is the shared adaptive shell. Above 520px it is a centered dialog with four rounded corners, desktop elevation, and no visible drag indicator. At or below 520px it is bottom-attached and full width with a large top radius, a visible indicator, and drag-down dismissal from the header.
+
+Sheet content is the only scrolling region; fixed actions stay outside it in the footer and use the shared primary, secondary, or destructive action styles. Sheets retain enough footer padding for device safe areas. Compact confirmations remain centered dialogs without the sheet indicator or drag dismissal, as do dedicated date pickers, popups, media viewers, and page overlays.
 
 ### Fields
 

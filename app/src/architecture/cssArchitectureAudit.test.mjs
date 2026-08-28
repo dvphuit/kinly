@@ -153,6 +153,20 @@ describe('stylesheet architecture audit', () => {
 
     expect(bottomSheetCss).toMatch(/\.sheet-content-body\s*\{[^}]*min-height:\s*0\s*;/s);
   });
+  it('keeps the timeline entry sheet chrome on the shared base', () => {
+    const bottomSheetCss = readFileSync(join(SRC, 'shared', 'styles', 'bottom-sheet.css'), 'utf8');
+    const timelineCss = readFileSync(join(SRC, 'features', 'timeline', 'timeline.css'), 'utf8');
+    const modalsCss = readFileSync(join(SRC, 'shared', 'styles', 'modals.css'), 'utf8');
+
+    expect(bottomSheetCss).toContain('--sheet-accent: #6f8b4a;');
+    expect(bottomSheetCss).toContain('.sheet-action-primary');
+    expect(bottomSheetCss).toContain('@media (max-width: 520px)');
+    expect(modalsCss).toContain('justify-content: center;');
+    expect(timelineCss).toContain('.journal-entry-sheet.tone-apricot');
+    expect(timelineCss).not.toMatch(/\.journal-(activity|feeding-editor)-dialog/);
+    expect(timelineCss).not.toMatch(/\.haven-dialog-(header|body|footer)/);
+    expect(timelineCss).not.toContain('.haven-dialog-backdrop');
+  });
 
   it('keeps primary route top spacing owned by the shared page shell', () => {
     const primaryRouteStyles = [

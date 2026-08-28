@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Check, Clock3, Pencil, Trash2 } from 'lucide-react';
 import { useActivityStore, type ActivityRecord } from '@/features/activities';
 import { useGrowthStore } from '@/features/growth';
-import { HavenDialog } from '@/shared/ui/HavenDialog';
+import { BottomSheet } from '@/shared/ui/BottomSheet';
 import { getTimelineMediaItems } from '../domain/timelineMedia';
+
 import type { TimelineMediaItem } from '../domain/types';
 import { buildBabyTimelineEntry } from '../domain/timelineSelectors';
 import { useTimelineStore } from '../store/useTimelineStore';
@@ -182,13 +183,10 @@ export function TimelineEntryDialog({
   const item = entry.moment;
   const mediaItems = item ? getTimelineMediaItems(item) : [];
   const activitySource = source?.kind === 'activity' ? source : null;
-  const isActivityDialog = source !== null;
   const isFeedingEditor =
     editing && activitySource?.record.type === 'feeding';
-  const dialogClassName = [
-    isActivityDialog ? `journal-activity-dialog tone-${meta.tone}` : '',
-    isFeedingEditor ? 'journal-feeding-editor-dialog' : '',
-  ].filter(Boolean).join(' ');
+  const dialogClassName = `journal-entry-sheet tone-${meta.tone}`;
+
 
   const deleteEntry = () => {
     if (!source) return;
@@ -206,18 +204,18 @@ export function TimelineEntryDialog({
   };
 
   return (
-    <HavenDialog
-      open={open}
+    <BottomSheet
+      isOpen={open}
       onClose={onClose}
       title={titleOverride || entry.title || 'Chi tiết ghi nhận'}
       description={`${ownerLabel(entry.owner)} · ${formatFullDate(new Date(entry.occurredAt))}`}
-      className={dialogClassName || undefined}
+      className={dialogClassName}
       footer={
         editing && source ? (
           <>
             <button
               type="button"
-              className="haven-dialog-secondary"
+              className="sheet-action sheet-action-secondary"
               onClick={() => {
                 if (creating) {
                   onClose();
@@ -231,7 +229,7 @@ export function TimelineEntryDialog({
             <button
               type="submit"
               form="timeline-edit-form"
-              className="haven-dialog-primary"
+              className="sheet-action sheet-action-primary"
             >
               {isFeedingEditor && <Check size={15} />}
               {creating ? 'Lưu ghi nhận' : 'Lưu thay đổi'}
@@ -241,14 +239,14 @@ export function TimelineEntryDialog({
           <>
             <button
               type="button"
-              className="haven-dialog-secondary"
+              className="sheet-action sheet-action-secondary"
               onClick={() => setConfirmingDelete(false)}
             >
               Hủy
             </button>
             <button
               type="button"
-              className="haven-dialog-danger is-confirming"
+              className="sheet-action sheet-action-danger is-confirming"
               onClick={deleteEntry}
             >
               <Trash2 size={15} /> Xóa ghi nhận
@@ -258,14 +256,14 @@ export function TimelineEntryDialog({
           <>
             <button
               type="button"
-              className="haven-dialog-primary"
+              className="sheet-action sheet-action-primary"
               onClick={() => setEditing(true)}
             >
               <Pencil size={15} /> Chỉnh sửa
             </button>
             <button
               type="button"
-              className="haven-dialog-danger"
+              className="sheet-action sheet-action-danger"
               onClick={() => setConfirmingDelete(true)}
             >
               <Trash2 size={15} /> Xóa
@@ -351,6 +349,6 @@ export function TimelineEntryDialog({
           {entry.detail && <p className="journal-detail-copy">{entry.detail}</p>}
         </div>
       )}
-    </HavenDialog>
+    </BottomSheet>
   );
 }

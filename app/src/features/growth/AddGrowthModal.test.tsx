@@ -20,7 +20,7 @@ describe('AddGrowthModal', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'Cân đo tăng trưởng' }))
-      .toHaveClass('kinly-themed-sheet', 'growth-bottom-sheet');
+      .toHaveClass('bottom-sheet', 'growth-bottom-sheet');
 
     const weightInput = screen.getByRole('spinbutton', { name: 'Cân nặng (kg)' });
     const weightCard = weightInput.closest('.growth-metric-card');

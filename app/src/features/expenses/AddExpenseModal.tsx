@@ -120,12 +120,12 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={editingExpense ? 'Sửa khoản chi' : 'Chi tiêu'}
-      className="kinly-themed-sheet expense-bottom-sheet"
+      className="expense-bottom-sheet"
       footer={
         <button
           type="submit"
           form={formId}
-          className="log-btn-primary sheet-primary-action"
+          className="sheet-action sheet-action-primary"
           disabled={finalVndAmount <= 0}
         >
           {editingExpense ? 'Lưu thay đổi' : 'Lưu khoản chi'}

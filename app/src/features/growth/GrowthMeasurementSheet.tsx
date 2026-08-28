@@ -50,21 +50,21 @@ export function GrowthMeasurementSheet({
 
   const footer = editing ? (
     <Fragment key="editing-actions">
-      <button type="button" className="growth-sheet-secondary-action" onClick={() => setEditing(false)}>
+      <button type="button" className="sheet-action sheet-action-secondary" onClick={() => setEditing(false)}>
         Hủy
       </button>
-      <button type="submit" form={formId} className="log-btn-primary sheet-primary-action">
+      <button type="submit" form={formId} className="sheet-action sheet-action-primary">
         <Check size={15} /> Lưu thay đổi
       </button>
     </Fragment>
   ) : confirmingDelete ? (
     <Fragment key="delete-confirmation-actions">
-      <button type="button" className="growth-sheet-secondary-action" onClick={() => setConfirmingDelete(false)}>
+      <button type="button" className="sheet-action sheet-action-secondary" onClick={() => setConfirmingDelete(false)}>
         Giữ lại
       </button>
       <button
         type="button"
-        className="growth-sheet-danger-action is-confirming"
+        className="sheet-action sheet-action-danger is-confirming"
         onClick={() => {
           deleteGrowthMeasurement(record.id);
           onSuccessToast?.('Đã xóa bản ghi cân đo');
@@ -76,10 +76,10 @@ export function GrowthMeasurementSheet({
     </Fragment>
   ) : (
     <Fragment key="preview-actions">
-      <button type="button" className="growth-sheet-danger-action" onClick={() => setConfirmingDelete(true)}>
+      <button type="button" className="sheet-action sheet-action-danger" onClick={() => setConfirmingDelete(true)}>
         <Trash2 size={15} /> Xóa
       </button>
-      <button type="button" className="log-btn-primary sheet-primary-action" onClick={() => setEditing(true)}>
+      <button type="button" className="sheet-action sheet-action-primary" onClick={() => setEditing(true)}>
         <Pencil size={15} /> Chỉnh sửa
       </button>
     </Fragment>
@@ -90,7 +90,7 @@ export function GrowthMeasurementSheet({
       isOpen={isOpen}
       onClose={onClose}
       title={editing ? 'Chỉnh sửa số đo' : 'Chi tiết cân đo'}
-      className="kinly-themed-sheet growth-bottom-sheet growth-measurement-sheet"
+      className="growth-bottom-sheet growth-measurement-sheet"
       footer={footer}
     >
       {editing ? (

@@ -32,8 +32,10 @@
   -webkit-backdrop-filter: blur(6px);
   z-index: 80;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
   opacity: 0;
   pointer-events: none;
   will-change: opacity;
@@ -47,47 +49,12 @@
   pointer-events: none;
 }
 
-.kinly-themed-sheet {
-  --sheet-accent: var(--color-sage-dark);
-  --sheet-soft: var(--color-sage-subtle);
-  background:
-    radial-gradient(circle at 92% 2%, color-mix(in srgb, var(--sheet-accent) 12%, transparent) 0 72px, transparent 73px),
-    linear-gradient(180deg, var(--sheet-soft) 0, #FFFFFF 170px);
-}
-
-.kinly-themed-sheet .sheet-drag-handle-area {
-  background: transparent;
-}
-
-.kinly-themed-sheet .sheet-handle-bar {
-  background: color-mix(in srgb, var(--sheet-accent) 24%, white);
-}
-
-.kinly-themed-sheet .sheet-title {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.kinly-themed-sheet .sheet-close-btn {
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--sheet-accent);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--sheet-accent) 10%, transparent);
-}
-
-.kinly-themed-sheet .sheet-footer {
-  border-top-color: color-mix(in srgb, var(--sheet-accent) 12%, white);
-  background: color-mix(in srgb, var(--sheet-soft) 42%, white);
-}
-
-.kinly-themed-sheet .sheet-primary-action {
-  background: var(--sheet-accent);
-  box-shadow: 0 5px 16px color-mix(in srgb, var(--sheet-accent) 28%, transparent);
-}
-
-.kinly-themed-sheet .sheet-primary-action:hover:not(:disabled),
-.kinly-themed-sheet .sheet-primary-action:focus-visible:not(:disabled) {
-  background: color-mix(in srgb, var(--sheet-accent) 88%, black);
+@media (max-width: 520px) {
+  .modal-backdrop {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
 }
 
 /* Shared bottom-sheet composition. Feature-specific controls can live inside these sections. */
@@ -212,9 +179,6 @@
   gap: 5px;
 }
 
-.sheet-primary-action {
-  margin-top: 0;
-}
 
 .log-btn-primary:disabled {
   cursor: not-allowed;
@@ -245,9 +209,6 @@
   --quick-action-soft: #e8f0dc;
   --quick-action-icon-soft: #f4f8ef;
   position: relative;
-  overflow: hidden;
-  min-width: 0;
-  min-height: 72px;
   background: linear-gradient(145deg, #FFFFFF 20%, var(--quick-action-soft) 150%);
   border: 1px solid color-mix(in srgb, var(--quick-action-accent) 18%, var(--color-border-subtle));
   border-radius: 19px;

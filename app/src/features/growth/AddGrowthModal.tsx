@@ -21,9 +21,9 @@ export const AddGrowthModal: React.FC<AddGrowthModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Cân đo tăng trưởng"
-      className="kinly-themed-sheet growth-bottom-sheet"
+      className="growth-bottom-sheet"
       footer={
-        <button type="submit" form={formId} className="log-btn-primary sheet-primary-action">
+        <button type="submit" form={formId} className="sheet-action sheet-action-primary">
           <span>Lưu số đo</span>
           <ArrowRight size={14} />
         </button>

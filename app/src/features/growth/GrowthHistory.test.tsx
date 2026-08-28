@@ -61,14 +61,21 @@ describe('GrowthHistory', () => {
     expect(within(preview).getAllByText('8.8 kg').length).toBeGreaterThanOrEqual(1);
     expect(within(preview).getByText('Khám định kỳ')).toBeInTheDocument();
 
-    await user.click(within(preview).getByRole('button', { name: 'Chỉnh sửa' }));
+    const editButton = within(preview).getByRole('button', { name: 'Chỉnh sửa' });
+    expect(editButton).toHaveClass('sheet-action', 'sheet-action-primary');
+    const deleteButton = within(preview).getByRole('button', { name: 'Xóa' });
+    expect(deleteButton).toHaveClass('sheet-action', 'sheet-action-danger');
+    await user.click(editButton);
     expect(onSuccessToast).not.toHaveBeenCalled();
     const editor = screen.getByRole('dialog', { name: 'Chỉnh sửa số đo' });
     const weightInput = within(editor).getByRole('spinbutton', { name: 'Cân nặng (kg)' });
     fireEvent.change(weightInput, { target: { value: '9.1' } });
     await user.click(within(editor).getByRole('button', { name: /Cột mốc tháng: Mốc 8m/i }));
     await user.click(screen.getByRole('option', { name: 'Mốc 10m' }));
-    await user.click(within(editor).getByRole('button', { name: 'Lưu thay đổi' }));
+    const saveButton = within(editor).getByRole('button', { name: 'Lưu thay đổi' });
+    expect(saveButton).toHaveClass('sheet-action', 'sheet-action-primary');
+    expect(within(editor).getByRole('button', { name: 'Hủy' })).toHaveClass('sheet-action', 'sheet-action-secondary');
+    await user.click(saveButton);
 
     const updatedPreview = screen.getByRole('dialog', { name: 'Chi tiết cân đo' });
     expect(within(updatedPreview).getByText('9.1 kg')).toBeInTheDocument();
@@ -78,8 +85,15 @@ describe('GrowthHistory', () => {
     expect(updatedStage.growthChart.weight.child[5]).toBe(9.1);
     expect(onSuccessToast).toHaveBeenCalledWith(expect.stringContaining('Đã cập nhật số đo'));
 
-    fireEvent.click(within(updatedPreview).getByRole('button', { name: 'Xóa' }));
-    expect(within(updatedPreview).getByRole('alert')).toHaveTextContent('Bản ghi sẽ bị xóa');
+    const previewDeleteButton = within(updatedPreview).getByRole('button', { name: 'Xóa' });
+    expect(previewDeleteButton).toHaveClass('sheet-action', 'sheet-action-danger');
+    fireEvent.click(previewDeleteButton);
+    expect(within(updatedPreview).getByRole('button', { name: 'Xóa bản ghi' })).toHaveClass(
+      'sheet-action', 'sheet-action-danger', 'is-confirming',
+    );
+    expect(within(updatedPreview).getByRole('button', { name: 'Giữ lại' })).toHaveClass(
+      'sheet-action', 'sheet-action-secondary',
+    );
     fireEvent.click(within(updatedPreview).getByRole('button', { name: 'Xóa bản ghi' }));
 
     expect(screen.queryByText('8 tháng 25 ngày')).not.toBeInTheDocument();

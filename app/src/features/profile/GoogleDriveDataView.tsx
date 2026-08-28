@@ -1182,15 +1182,14 @@ export function GoogleDriveDataView({ onOpenLightbox, onShowToast }: GoogleDrive
         isOpen={debugSheetOpen}
         onClose={() => setDebugSheetOpen(false)}
         title="Logs chẩn đoán"
-        className="drive-debug-sheet"
         footer={(
-          <div className="drive-debug-sheet-actions">
-            <button type="button" onClick={() => void copyLogs()} disabled={logs.length === 0}><ClipboardCopy size={14} /> Sao chép</button>
-            <button type="button" className="danger" onClick={clearDiagnosticLogs} disabled={logs.length === 0}><Trash2 size={14} /> Xóa logs</button>
-          </div>
+          <>
+            <button type="button" className="sheet-action sheet-action-secondary" onClick={() => void copyLogs()} disabled={logs.length === 0}><ClipboardCopy size={14} /> Sao chép</button>
+            <button type="button" className="sheet-action sheet-action-danger" onClick={clearDiagnosticLogs} disabled={logs.length === 0}><Trash2 size={14} /> Xóa logs</button>
+          </>
         )}
       >
-        <div className="drive-debug-sheet-intro">
+        <div className="drive-log-sheet-intro">
           <span className="drive-log-icon"><Terminal size={17} /></span>
           <div><strong>{logs.length} sự kiện gần nhất</strong><small>Chỉ lưu trên thiết bị này. Không bao gồm access token.</small></div>
         </div>

@@ -63,15 +63,14 @@ export function ResetTrackingDataSection({ onShowToast }: ResetTrackingDataSecti
         isOpen={isOpen}
         onClose={closeConfirmation}
         title="Xác nhận đặt lại dữ liệu"
-        className="kinly-themed-sheet"
         dismissible={!isResetting}
         footer={
-          <div className="profile-sync-conflict-actions">
-            <button type="button" onClick={closeConfirmation} disabled={isResetting}>Hủy</button>
-            <button type="button" className="log-btn-primary sheet-primary-action" onClick={handleConfirm} disabled={isResetting}>
+          <>
+            <button type="button" className="sheet-action sheet-action-secondary" onClick={closeConfirmation} disabled={isResetting}>Hủy</button>
+            <button type="button" className="sheet-action sheet-action-primary" onClick={handleConfirm} disabled={isResetting}>
               {isResetting ? 'Đang đặt lại dữ liệu…' : 'Xác nhận đặt lại'}
             </button>
-          </div>
+          </>
         }
       >
         <div className="tracker-sheet-form" aria-busy={isResetting}>

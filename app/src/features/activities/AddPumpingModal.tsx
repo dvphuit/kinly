@@ -47,7 +47,7 @@ export const AddPumpingModal: React.FC<AddPumpingModalProps> = ({ isOpen, onClos
       onClose={onClose}
       title="Ghi Nhận Cữ Hút Sữa Mẹ"
       footer={
-        <button type="submit" form={formId} className="log-btn-primary">
+        <button type="submit" form={formId} className="sheet-action sheet-action-primary">
           <span>Lưu Cữ Hút Sữa</span>
           <ArrowRight size={14} />
         </button>

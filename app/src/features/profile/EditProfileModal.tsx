@@ -110,9 +110,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Chỉnh sửa hồ sơ bé"
-      className="kinly-themed-sheet edit-profile-bottom-sheet"
       footer={
-        <button type="submit" form={formId} className="log-btn-primary sheet-primary-action">
+        <button type="submit" form={formId} className="sheet-action sheet-action-primary">
           <Save size={15} />
           <span>Lưu thay đổi</span>
         </button>

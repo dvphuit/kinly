@@ -290,6 +290,48 @@ test.describe('critical browser journeys', () => {
     await expect(page.getByRole('spinbutton', { name: 'Lượng sữa (ml)' })).toHaveValue('90');
   });
 
+  test('shared overlay is a bottom sheet on mobile and a centered dialog on desktop', async ({ page }) => {
+    await completeOfflineOnboarding(page);
+
+    await page.locator('#fabCenterBtn').click();
+    const quickSheet = page.getByRole('dialog', { name: 'Ghi nhanh cho Bé' });
+    await expect(quickSheet).toBeVisible();
+    await expect(quickSheet.locator('.sheet-handle-bar')).toBeVisible();
+    await quickSheet.getByRole('button', { name: 'Cữ bú' }).click();
+
+    const feedingSheet = page.getByRole('dialog', { name: 'Cữ bú' });
+    await expect(feedingSheet).toBeVisible();
+    await expect(feedingSheet.locator('.sheet-handle-bar')).toBeVisible();
+    await page.waitForTimeout(220);
+    const dragHandle = feedingSheet.locator('.sheet-handle-bar');
+    const handleBox = await dragHandle.boundingBox();
+    if (!handleBox) throw new Error('Mobile sheet handle must be visible.');
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2 + 120, { steps: 4 });
+    await page.mouse.up();
+    await expect(feedingSheet).toHaveCount(0);
+
+    await page.locator('#fabCenterBtn').click();
+    await page.getByRole('dialog', { name: 'Ghi nhanh cho Bé' }).getByRole('button', { name: 'Cữ bú' }).click();
+    await page.getByRole('dialog', { name: 'Cữ bú' }).getByRole('button', { name: 'Lưu ghi nhận' }).click();
+    await expect(page.getByText('Đã lưu cữ bú.', { exact: true })).toBeVisible();
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.locator('#fabCenterBtn').click();
+    const desktopSheet = page.getByRole('dialog', { name: 'Ghi nhanh cho Bé' });
+    await expect(desktopSheet).toBeVisible();
+    await expect(desktopSheet.locator('.sheet-handle-bar')).toBeHidden();
+    await page.waitForTimeout(220);
+    const desktopBox = await desktopSheet.boundingBox();
+    if (!desktopBox) throw new Error('Desktop sheet dialog must be visible.');
+    expect(desktopBox.x).toBeGreaterThan(0);
+    expect(desktopBox.y).toBeGreaterThan(0);
+    expect(desktopBox.y + desktopBox.height).toBeLessThan(800);
+    await page.keyboard.press('Escape');
+    await expect(desktopSheet).toHaveCount(0);
+  });
+
   test('growth preview keeps its edit action visible above the mobile viewport edge', async ({ page }) => {
     await completeOfflineOnboarding(page);
 
