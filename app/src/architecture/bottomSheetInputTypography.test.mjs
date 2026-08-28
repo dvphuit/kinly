@@ -65,9 +65,8 @@ function hasInputTextMarker(file, triggerClassName) {
   function visit(node) {
     if (found) return;
     if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText(source) === 'button') {
-      const className = jsxAttribute(node, source, 'className');
       const marker = jsxAttribute(node, source, 'data-field-control');
-      if (className && classNameText(className).includes(triggerClassName) && attributeText(marker) === 'input-text') {
+      if (node.getText(source).includes(triggerClassName) && attributeText(marker) === 'input-text') {
         found = true;
         return;
       }
