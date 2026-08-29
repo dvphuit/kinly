@@ -153,6 +153,15 @@ describe('stylesheet architecture audit', () => {
 
     expect(bottomSheetCss).toMatch(/\.sheet-content-body\s*\{[^}]*min-height:\s*0\s*;/s);
   });
+
+  it('keeps sheet placeholders visually subordinate without weakening the iOS focus-zoom guard', () => {
+    const baseCss = readFileSync(join(SRC, 'shared', 'styles', 'base.css'), 'utf8');
+    const bottomSheetCss = readFileSync(join(SRC, 'shared', 'styles', 'bottom-sheet.css'), 'utf8');
+
+    expect(baseCss).toMatch(/html\.is-standalone\s+:is\(input, textarea, select\)[^{]*\{[^}]*font-size:\s*max\(16px, 1em\)\s*!important\s*;/s);
+    expect(bottomSheetCss).toMatch(/\.bottom-sheet\s+:is\(input, textarea\)::placeholder\s*\{[^}]*font:\s*500 10\.5px\/1\.45/s);
+  });
+
   it('keeps the timeline entry sheet chrome on the shared base', () => {
     const bottomSheetCss = readFileSync(join(SRC, 'shared', 'styles', 'bottom-sheet.css'), 'utf8');
     const timelineCss = readFileSync(join(SRC, 'features', 'timeline', 'timeline.css'), 'utf8');

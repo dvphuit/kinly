@@ -22,7 +22,9 @@ interface DragState {
   lastY: number;
   lastAt: number;
   offsetY: number;
+  travelY: number;
   velocityY: number;
+  startedOnIndicator: boolean;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -36,6 +38,7 @@ const FOCUSABLE_SELECTOR = [
 
 const DRAG_DISMISS_DISTANCE = 80;
 const DRAG_DISMISS_VELOCITY = 450;
+const INDICATOR_TAP_SLOP = 6;
 const MOBILE_SHEET_QUERY = '(max-width: 520px)';
 
 function isMobileSheet(): boolean {
@@ -59,6 +62,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const dragDismissedRef = useRef(false);
+  const suppressIndicatorClickRef = useRef(false);
   const titleId = useId();
   const descriptionId = useId();
   const presence = useNativePresence(isOpen, 180);
@@ -191,7 +195,10 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       lastY: event.clientY,
       lastAt: now,
       offsetY: 0,
+      travelY: 0,
       velocityY: 0,
+      startedOnIndicator: event.target instanceof HTMLElement
+        && event.target.closest('.sheet-handle-bar') !== null,
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -206,6 +213,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     drag.lastY = event.clientY;
     drag.lastAt = now;
     drag.offsetY = nextOffset;
+    drag.travelY = Math.max(drag.travelY, Math.abs(event.clientY - drag.startY));
     applyDrag(nextOffset);
   };
 
@@ -213,14 +221,23 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
+    const travelY = Math.max(drag.travelY, Math.abs(event.clientY - drag.startY));
     const shouldDismiss = drag.offsetY > DRAG_DISMISS_DISTANCE
       || (drag.velocityY > DRAG_DISMISS_VELOCITY && drag.offsetY > 20);
-    if (shouldDismiss) dismissFromDrag();
-    else settleDrag();
+    if (shouldDismiss) {
+      suppressIndicatorClickRef.current = drag.startedOnIndicator;
+      dismissFromDrag();
+    } else if (drag.startedOnIndicator && travelY <= INDICATOR_TAP_SLOP) {
+      dragRef.current = null;
+    } else {
+      suppressIndicatorClickRef.current = drag.startedOnIndicator;
+      settleDrag();
+    }
   };
 
   const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
     if (dragRef.current?.pointerId !== event.pointerId) return;
+    suppressIndicatorClickRef.current = dragRef.current.startedOnIndicator;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     settleDrag();
   };
@@ -265,7 +282,14 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             data-native-pressable={dismissible ? '' : undefined}
             tabIndex={-1}
             title={dismissible ? 'Kéo xuống hoặc chạm để đóng' : undefined}
+            onPointerDown={() => {
+              suppressIndicatorClickRef.current = false;
+            }}
             onClick={() => {
+              if (suppressIndicatorClickRef.current) {
+                suppressIndicatorClickRef.current = false;
+                return;
+              }
               if (dismissible && isMobileSheet()) onClose();
             }}
           />

@@ -109,6 +109,39 @@ describe('BottomSheet accessibility and dismissal', () => {
     expect(onClose).toHaveBeenCalledTimes(3);
   });
 
+  it('closes an indicator tap without starting a competing settle animation', () => {
+    const onClose = vi.fn();
+    render(<BottomSheet isOpen onClose={onClose} title="Tap sheet"><p>Content</p></BottomSheet>);
+    const dialog = screen.getByRole('dialog', { name: 'Tap sheet' });
+    const handle = document.querySelector('.sheet-handle-bar')!;
+    const backdrop = document.querySelector<HTMLElement>('.modal-backdrop')!;
+
+    fireEvent.pointerDown(handle, { pointerId: 6, clientY: 12 });
+    fireEvent.pointerUp(handle, { pointerId: 6, clientY: 12 });
+    fireEvent.click(handle);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialog.style.transform).toBe('');
+    expect(backdrop.style.opacity).toBe('');
+  });
+
+  it('settles an indicator drag without treating its generated click as a tap', () => {
+    const onClose = vi.fn();
+    render(<BottomSheet isOpen onClose={onClose} title="Drag sheet"><p>Content</p></BottomSheet>);
+    const dialog = screen.getByRole('dialog', { name: 'Drag sheet' });
+    const handle = document.querySelector('.sheet-handle-bar')!;
+    const performanceNow = vi.spyOn(performance, 'now').mockReturnValueOnce(1000).mockReturnValueOnce(1300);
+
+    fireEvent.pointerDown(handle, { pointerId: 7, clientY: 0 });
+    fireEvent.pointerMove(handle, { pointerId: 7, clientY: 30 });
+    fireEvent.pointerUp(handle, { pointerId: 7, clientY: 30 });
+    fireEvent.click(handle);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialog).toHaveStyle({ transform: 'translate3d(0, 0, 0)' });
+    performanceNow.mockRestore();
+  });
+
   it('keeps the backdrop hidden during swipe dismissal', async () => {
     const onClose = vi.fn();
     render(<SwipeDismissHarness onClose={onClose} />);
