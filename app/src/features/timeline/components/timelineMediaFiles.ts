@@ -75,11 +75,12 @@ async function readTimelineMediaFile(file: File): Promise<TimelineMediaItem> {
   };
 }
 
-export async function readTimelineMediaFiles(files?: FileList | null): Promise<TimelineMediaItem[]> {
-  if (!files?.length) return [];
+export async function readTimelineMediaFiles(files?: Iterable<File> | null): Promise<TimelineMediaItem[]> {
+  const selectedFiles = files ? Array.from(files) : [];
+  if (selectedFiles.length === 0) return [];
   const mediaItems: TimelineMediaItem[] = [];
   try {
-    for (const file of files) mediaItems.push(await readTimelineMediaFile(file));
+    for (const file of selectedFiles) mediaItems.push(await readTimelineMediaFile(file));
     return mediaItems;
   } catch (error) {
     await removeTimelineMediaFiles(mediaItems);

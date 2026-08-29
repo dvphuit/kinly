@@ -37,6 +37,8 @@ interface CompressionWorkerRequest {
   preset: MediaCompressionPreset;
 }
 
+type CompressionWorkerFactory = () => Worker;
+
 type CompressionWorkerMessage =
   | { type: 'progress'; progress: number }
   | { type: 'result'; blob: Blob }
@@ -85,14 +87,14 @@ function isCompressionWorkerMessage(value: unknown): value is CompressionWorkerM
 }
 
 function runCompressionWorker(
-  workerUrl: URL,
+  createWorker: CompressionWorkerFactory,
   request: CompressionWorkerRequest,
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return new Promise<Blob>((resolve, reject) => {
     let worker: Worker;
     try {
-      worker = new Worker(workerUrl, { type: 'module' });
+      worker = createWorker();
     } catch (error) {
       reject(error);
       return;
@@ -132,7 +134,10 @@ async function compressTimelineImage(
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return runCompressionWorker(
-    new URL('./imageCompression.worker.ts', import.meta.url),
+    () => new Worker(new URL('./imageCompression.worker.ts', import.meta.url), {
+      type: 'module',
+      name: 'kinly-image-compression',
+    }),
     { blob, preset },
     onProgress,
   );
@@ -144,7 +149,10 @@ async function compressTimelineVideo(
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return runCompressionWorker(
-    new URL('./videoCompression.worker.ts', import.meta.url),
+    () => new Worker(new URL('./videoCompression.worker.ts', import.meta.url), {
+      type: 'module',
+      name: 'kinly-video-compression',
+    }),
     { blob, preset },
     onProgress,
   );
