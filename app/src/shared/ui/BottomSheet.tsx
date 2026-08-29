@@ -16,7 +16,17 @@ interface BottomSheetProps {
   footer?: React.ReactNode;
 }
 
-interface DragState {
+interface PendingDragState {
+  kind: 'pending';
+  pointerId: number;
+  startY: number;
+  lastY: number;
+  lastAt: number;
+  startedOnIndicator: boolean;
+}
+
+interface ActiveDragState {
+  kind: 'active';
   pointerId: number;
   startY: number;
   lastY: number;
@@ -26,6 +36,8 @@ interface DragState {
   velocityY: number;
   startedOnIndicator: boolean;
 }
+
+type DragState = PendingDragState | ActiveDragState;
 
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
@@ -38,7 +50,7 @@ const FOCUSABLE_SELECTOR = [
 
 const DRAG_DISMISS_DISTANCE = 80;
 const DRAG_DISMISS_VELOCITY = 450;
-const INDICATOR_TAP_SLOP = 6;
+const DRAG_ACTIVATION_DISTANCE = 6;
 const MOBILE_SHEET_QUERY = '(max-width: 520px)';
 
 function isMobileSheet(): boolean {
@@ -147,8 +159,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     if (backdrop) backdrop.style.opacity = String(Math.max(0.35, 1 - Math.max(0, offsetY) / 360));
   };
 
-  const settleDrag = () => {
-    const current = dragRef.current?.offsetY ?? 0;
+  const settleDrag = (drag: ActiveDragState) => {
+    const current = drag.offsetY;
     dragRef.current = null;
     void Promise.all([
       animateElement(
@@ -164,8 +176,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     ]);
   };
 
-  const dismissFromDrag = () => {
-    const current = Math.max(0, dragRef.current?.offsetY ?? 0);
+  const dismissFromDrag = (drag: ActiveDragState) => {
+    const current = Math.max(0, drag.offsetY);
     dragRef.current = null;
     dragDismissedRef.current = true;
     const distance = Math.max(window.innerHeight, sheetRef.current?.clientHeight ?? 0) + 80;
@@ -186,21 +198,16 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!dismissible || !isOpen || !isMobileSheet() || (contentRef.current?.scrollTop ?? 0) > 0) return;
-    cancelElementAnimations(sheetRef.current);
-    cancelElementAnimations(backdropRef.current);
     const now = performance.now();
     dragRef.current = {
+      kind: 'pending',
       pointerId: event.pointerId,
       startY: event.clientY,
       lastY: event.clientY,
       lastAt: now,
-      offsetY: 0,
-      travelY: 0,
-      velocityY: 0,
       startedOnIndicator: event.target instanceof HTMLElement
         && event.target.closest('.sheet-handle-bar') !== null,
     };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -209,7 +216,27 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     const now = performance.now();
     const elapsed = Math.max(1, now - drag.lastAt);
     const nextOffset = Math.max(0, event.clientY - drag.startY);
-    drag.velocityY = ((event.clientY - drag.lastY) / elapsed) * 1000;
+    const velocityY = ((event.clientY - drag.lastY) / elapsed) * 1000;
+
+    if (drag.kind === 'pending') {
+      if (nextOffset < DRAG_ACTIVATION_DISTANCE) return;
+      cancelElementAnimations(sheetRef.current);
+      cancelElementAnimations(backdropRef.current);
+      dragRef.current = {
+        ...drag,
+        kind: 'active',
+        lastY: event.clientY,
+        lastAt: now,
+        offsetY: nextOffset,
+        travelY: Math.abs(event.clientY - drag.startY),
+        velocityY,
+      };
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      applyDrag(nextOffset);
+      return;
+    }
+
+    drag.velocityY = velocityY;
     drag.lastY = event.clientY;
     drag.lastAt = now;
     drag.offsetY = nextOffset;
@@ -220,26 +247,34 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   const handlePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.kind === 'pending') {
+      dragRef.current = null;
+      return;
+    }
+
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    const travelY = Math.max(drag.travelY, Math.abs(event.clientY - drag.startY));
     const shouldDismiss = drag.offsetY > DRAG_DISMISS_DISTANCE
       || (drag.velocityY > DRAG_DISMISS_VELOCITY && drag.offsetY > 20);
     if (shouldDismiss) {
       suppressIndicatorClickRef.current = drag.startedOnIndicator;
-      dismissFromDrag();
-    } else if (drag.startedOnIndicator && travelY <= INDICATOR_TAP_SLOP) {
-      dragRef.current = null;
+      dismissFromDrag(drag);
     } else {
       suppressIndicatorClickRef.current = drag.startedOnIndicator;
-      settleDrag();
+      settleDrag(drag);
     }
   };
 
   const handlePointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    suppressIndicatorClickRef.current = dragRef.current.startedOnIndicator;
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.kind === 'pending') {
+      dragRef.current = null;
+      return;
+    }
+
+    suppressIndicatorClickRef.current = drag.startedOnIndicator;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    settleDrag();
+    settleDrag(drag);
   };
 
   if (!presence.mounted || typeof document === 'undefined') return null;

@@ -110,19 +110,35 @@ describe('BottomSheet accessibility and dismissal', () => {
   });
 
   it('closes an indicator tap without starting a competing settle animation', () => {
+    const getAnimationsDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'getAnimations');
+    const getAnimations = vi.fn((): Animation[] => []);
+    Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+      configurable: true,
+      value: getAnimations,
+    });
     const onClose = vi.fn();
-    render(<BottomSheet isOpen onClose={onClose} title="Tap sheet"><p>Content</p></BottomSheet>);
-    const dialog = screen.getByRole('dialog', { name: 'Tap sheet' });
-    const handle = document.querySelector('.sheet-handle-bar')!;
-    const backdrop = document.querySelector<HTMLElement>('.modal-backdrop')!;
+    try {
+      render(<BottomSheet isOpen onClose={onClose} title="Tap sheet"><p>Content</p></BottomSheet>);
+      const dialog = screen.getByRole('dialog', { name: 'Tap sheet' });
+      const handle = document.querySelector('.sheet-handle-bar')!;
+      const backdrop = document.querySelector<HTMLElement>('.modal-backdrop')!;
 
-    fireEvent.pointerDown(handle, { pointerId: 6, clientY: 12 });
-    fireEvent.pointerUp(handle, { pointerId: 6, clientY: 12 });
-    fireEvent.click(handle);
+      fireEvent.pointerDown(handle, { pointerId: 6, clientY: 12 });
+      fireEvent.pointerUp(handle, { pointerId: 6, clientY: 12 });
 
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(dialog.style.transform).toBe('');
-    expect(backdrop.style.opacity).toBe('');
+      expect(getAnimations).not.toHaveBeenCalled();
+      expect(dialog.style.transform).toBe('');
+      expect(backdrop.style.opacity).toBe('');
+
+      fireEvent.click(handle);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      if (getAnimationsDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'getAnimations', getAnimationsDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations');
+      }
+    }
   });
 
   it('settles an indicator drag without treating its generated click as a tap', () => {
