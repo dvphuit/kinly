@@ -290,6 +290,23 @@ test.describe('critical browser journeys', () => {
     await expect(page.getByRole('spinbutton', { name: 'Lượng sữa (ml)' })).toHaveValue('90');
   });
 
+  test('gallery keeps every photo and video from one multi-file selection', async ({ page }) => {
+    await completeOfflineOnboarding(page);
+
+    await page.locator('#fabCenterBtn').click();
+    await page.getByRole('button', { name: 'Khoảnh khắc', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Khoảnh khắc' });
+    const galleryInput = dialog.getByLabel('Chọn từ thư viện');
+    await galleryInput.setInputFiles([
+      { name: 'first.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('first-photo') },
+      { name: 'second.mp4', mimeType: 'video/mp4', buffer: Buffer.from('second-video') },
+      { name: 'third.webp', mimeType: 'image/webp', buffer: Buffer.from('third-photo') },
+    ]);
+
+    await expect(dialog.getByText('3 mục · có thể thêm tiếp')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /Bỏ media/ })).toHaveCount(3);
+  });
+
   test('shared overlay is a bottom sheet on mobile and a centered dialog on desktop', async ({ page }) => {
     await completeOfflineOnboarding(page);
 

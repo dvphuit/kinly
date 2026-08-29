@@ -11,8 +11,9 @@ describe('media compression runtime contract', () => {
 
     expect(orchestrator).toContain('getMediaCompressionSettings()[options.kind]');
     expect(orchestrator).toContain('{ blob, preset }');
-    expect(orchestrator).toContain("new URL('./imageCompression.worker.ts', import.meta.url)");
-    expect(orchestrator).toContain("new URL('./videoCompression.worker.ts', import.meta.url)");
+    expect(orchestrator).toContain("new Worker(new URL('./imageCompression.worker.ts', import.meta.url)");
+    expect(orchestrator).toContain("new Worker(new URL('./videoCompression.worker.ts', import.meta.url)");
+    expect(orchestrator).not.toMatch(/runCompressionWorker\(\s*new URL/);
   });
 
   it('keeps image compression adaptive and driven by the selected profile', () => {

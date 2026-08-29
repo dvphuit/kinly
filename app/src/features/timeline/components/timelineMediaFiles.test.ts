@@ -35,6 +35,24 @@ describe('timelineMediaFiles', () => {
     expect(media.type).toBe('video');
   });
 
+  it('keeps every selected file when the live input FileList is cleared during async reads', async () => {
+    const first = new File(['one'], 'one.jpg', { type: 'image/jpeg' });
+    const second = new File(['two'], 'two.mp4', { type: 'video/mp4' });
+    const selectedFiles = [first, second];
+    const liveFiles: Iterable<File> = {
+      [Symbol.iterator]: () => selectedFiles.values(),
+    };
+    localMedia.setLocalMedia.mockImplementation(async () => {
+      selectedFiles.length = 0;
+    });
+
+    const media = await readTimelineMediaFiles(liveFiles);
+
+    expect(media).toHaveLength(2);
+    expect(media.map((item) => item.name)).toEqual(['one.jpg', 'two.mp4']);
+    expect(localMedia.setLocalMedia).toHaveBeenCalledTimes(2);
+  });
+
   it('detects photo and video types from MIME values or file extensions', () => {
     expect(detectTimelineMediaType('gallery-item', 'image/heic')).toBe('photo');
     expect(detectTimelineMediaType('gallery-item', 'video/quicktime')).toBe('video');
