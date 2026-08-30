@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays, ChevronDown, ChevronUp,
   NotebookPen,
@@ -38,6 +38,13 @@ interface TimelineViewProps {
   onOpenAddEntry: () => void;
 }
 
+const FULL_DATE_FORMATTER = new Intl.DateTimeFormat('vi-VN', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+});
+const MONTH_FORMATTER = new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' });
+const TIME_FORMATTER = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' });
+const WEEKDAY_FORMATTER = new Intl.DateTimeFormat('vi-VN', { weekday: 'short' });
+
 function localDateKey(date = new Date()): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -51,19 +58,17 @@ function dateFromKey(value: string): Date {
 }
 
 function formatFullDate(value: string): string {
-  const formatted = new Intl.DateTimeFormat('vi-VN', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  }).format(dateFromKey(value));
+  const formatted = FULL_DATE_FORMATTER.format(dateFromKey(value));
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
 function formatMonth(value: string): string {
-  const formatted = new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(dateFromKey(value));
+  const formatted = MONTH_FORMATTER.format(dateFromKey(value));
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return TIME_FORMATTER.format(new Date(value));
 }
 
 const DAY_PERIODS = [
@@ -71,17 +76,23 @@ const DAY_PERIODS = [
   { id: 'afternoon', start: 12, end: 18 },
   { id: 'evening', start: 18, end: 24 },
 ] as const;
+const DAY_PERIODS_NEWEST_FIRST = [...DAY_PERIODS].reverse();
+type DayPeriodId = (typeof DAY_PERIODS)[number]['id'];
 
 function entriesByPeriod(entries: JournalTimelineEntry[]) {
-  return [...DAY_PERIODS].reverse().map((period) => ({
-    ...period,
-    entries: entries
-      .filter((entry) => {
-        const hour = new Date(entry.occurredAt).getHours();
-        return hour >= period.start && hour < period.end;
-      })
-      .sort(compareTimelineEntriesNewestFirst),
-  })).filter((period) => period.entries.length > 0);
+  const buckets: Record<DayPeriodId, JournalTimelineEntry[]> = {
+    morning: [],
+    afternoon: [],
+    evening: [],
+  };
+  entries.forEach((entry) => {
+    const hour = new Date(entry.occurredAt).getHours();
+    const period: DayPeriodId = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    buckets[period].push(entry);
+  });
+  return DAY_PERIODS_NEWEST_FIRST.flatMap((period) => (
+    buckets[period.id].length > 0 ? [{ ...period, entries: buckets[period.id] }] : []
+  ));
 }
 
 function surroundingWeek(dateKey: string): Array<{ key: string; date: Date }> {
@@ -130,16 +141,122 @@ function momentEntry(item: TimelineItem): JournalTimelineEntry {
   };
 }
 
+interface TimelineDayGroupProps {
+  dateKey: string;
+  entries: JournalTimelineEntry[];
+  owner: 'baby' | 'mom';
+  onOpenEntry: (entry: JournalTimelineEntry) => void;
+  onOpenMomentMedia: (preview: MomentMediaPreviewState) => void;
+}
+
+const TimelineDayGroup = memo(function TimelineDayGroup({
+  dateKey,
+  entries,
+  owner,
+  onOpenEntry,
+  onOpenMomentMedia,
+}: TimelineDayGroupProps) {
+  const periods = useMemo(() => entriesByPeriod(entries), [entries]);
+
+  return (
+    <section className="journal-day-group">
+      <header className="journal-day-header">
+        <h2>{formatFullDate(dateKey)}</h2>
+        <span>{entries.length} ghi nhận</span>
+      </header>
+      <NotebookStory entries={entries} owner={owner}>
+        {periods.map((period) => (
+          <section className={`journal-period period-${period.id}`} key={period.id}>
+            <div className="journal-period-items">
+              {period.entries.map((entry) => {
+                const meta = entryMeta(entry);
+                const Icon = meta.icon;
+                const item = entry.moment;
+                const mediaItems = item ? getTimelineMediaItems(item) : [];
+                const visibleMediaItems = mediaItems.slice(0, 4);
+                const facts = !item ? entry.stats.join(' · ') : '';
+                const associatedSigns = !item ? entry.signs?.join(' · ') ?? '' : '';
+                const supportingDetail = entry.detail;
+                const entryTime = formatTime(entry.occurredAt);
+                return (
+                  <div
+                    id={item ? timelineEntryElementId(item.id) : undefined}
+                    className={`journal-story-item tone-${meta.tone} ${item ? 'is-moment' : ''}`}
+                    key={entry.id}
+                  >
+                    <time className="journal-story-time" dateTime={entry.occurredAt}>{entryTime}</time>
+                    <span className="journal-story-icon" aria-hidden="true"><Icon size={16} /></span>
+                    <article className="journal-story-content">
+                      <button type="button" className="journal-story-main" onClick={() => onOpenEntry(entry)} aria-label={`${entry.title}, ${entryTime}`}>
+                        <span className="journal-story-heading">
+                          <strong className="journal-story-title">{entry.title}</strong>
+                        </span>
+                        {(facts || associatedSigns) && (
+                          <span className="journal-story-facts">
+                            {facts && <span className="journal-story-facts-value">{facts}</span>}
+                            {associatedSigns && <span className="journal-story-signs"><strong>Dấu hiệu:</strong> {associatedSigns}</span>}
+                          </span>
+                        )}
+                        {supportingDetail && <span className="journal-story-detail">{supportingDetail}</span>}
+                      </button>
+                      {mediaItems.length > 0 && (
+                        <div className={`journal-story-media-bento count-${visibleMediaItems.length}`} aria-label={`${mediaItems.length} media của ${item?.title}`}>
+                          {visibleMediaItems.map((media, index) => (
+                            <TimelineMediaButton
+                              className="journal-story-media"
+                              key={media.id ?? media.blobId ?? `${media.url}-${index}`}
+                              media={media}
+                              layoutId={`moment-timeline-${entry.id}-${media.id ?? media.blobId ?? index}`}
+                              onOpen={(originSrc) => onOpenMomentMedia({
+                                items: mediaItems,
+                                initialIndex: index,
+                                title: item?.title ?? entry.title,
+                                layoutId: `moment-timeline-${entry.id}-${media.id ?? media.blobId ?? index}`,
+                                originSrc,
+                                getLayoutId: (idx) => {
+                                  const targetIdx = Math.min(idx, visibleMediaItems.length - 1);
+                                  const targetMedia = visibleMediaItems[targetIdx] ?? mediaItems[0];
+                                  return `moment-timeline-${entry.id}-${targetMedia?.id ?? targetMedia?.blobId ?? targetIdx}`;
+                                },
+                              })}
+                              ariaLabel={mediaItems.length === 1
+                                ? `Mở ${media.type === 'video' ? 'video' : 'ảnh'} ${item?.title}`
+                                : `Mở ${media.type === 'video' ? 'video' : 'ảnh'} ${index + 1} của ${item?.title}`}
+                              alt=""
+                              imageStyle={{ objectPosition: `${media.focalX ?? 50}% ${media.focalY ?? 38}%` }}
+                              playSize={19}
+                              moreCount={index === 3 && mediaItems.length > 4 ? mediaItems.length - 4 : 0}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </NotebookStory>
+    </section>
+  );
+});
+
 export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) => {
   useRecentlyAddedTimelineAnimation();
   const rawGrowthHistory = useGrowthStore((state) => state.currentStageData().growthHistory);
   const birthDate = useProfileStore((state) => state.familyData.birthDate);
   const ownerFilter = useUIStore((state) => state.profileMode);
+  const storedDateRange = useUIStore((state) => state.timelineDateRange);
+  const setSelectedRange = useUIStore((state) => state.setTimelineDateRange);
+  const calendarExpanded = useUIStore((state) => state.timelineCalendarExpanded);
+  const setCalendarExpanded = useUIStore((state) => state.setTimelineCalendarExpanded);
   const growthHistory = useMemo(() => getRealGrowthHistory(rawGrowthHistory), [rawGrowthHistory]);
-  const [selectedRange, setSelectedRange] = useState<HavenDateRange>(() => {
+  const defaultDateRange = useMemo<HavenDateRange>(() => {
     const today = localDateKey();
     return { start: today, end: today };
-  });
+  }, []);
+  const selectedRange = storedDateRange ?? defaultDateRange;
   const [queryLimit, setQueryLimit] = useState(250);
   const journal = useJournalRange({
     owner: ownerFilter,
@@ -149,7 +266,6 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
   });
   const indexedJournalDates = useJournalDates(ownerFilter);
   const { babyActivities, momActivities, timelineItems } = journal;
-  const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [weekSettling, setWeekSettling] = useState(false);
   const weekPagerRef = useRef<HTMLDivElement>(null);
   const weekTrackRef = useRef<HTMLDivElement>(null);
@@ -226,10 +342,13 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
     return record ? { kind: 'activity', record } : null;
   }, [babyActivities, growthHistory, momActivities, selectedEntry]);
 
-  const openEntry = (entry: JournalTimelineEntry) => {
+  const openEntry = useCallback((entry: JournalTimelineEntry) => {
     setSelectedEntryId(entry.id);
     setEditingEntry(false);
-  };
+  }, []);
+  const openMomentMedia = useCallback((preview: MomentMediaPreviewState) => {
+    setMomentPreview(preview);
+  }, []);
 
   const selectQuickDate = (dateKey: string) => {
     if (suppressWeekClick.current || dateKey < calendarBounds.min || dateKey > calendarBounds.max) return;
@@ -295,7 +414,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
           <div className="journal-calendar-title"><CalendarDays size={17} /><strong>{formatMonth(selectedDate)}</strong></div>
           <div className="journal-calendar-actions">
             <button type="button" className="journal-today-button" onClick={selectToday}>Hôm nay</button>
-            <button type="button" aria-expanded={calendarExpanded} onClick={() => setCalendarExpanded((expanded) => !expanded)}>
+            <button type="button" aria-expanded={calendarExpanded} onClick={() => setCalendarExpanded(!calendarExpanded)}>
               {calendarExpanded ? 'Thu gọn' : 'Mở lịch'}
               {calendarExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
@@ -340,7 +459,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
                             const disabled = key < calendarBounds.min || key > calendarBounds.max;
                             return (
                               <button type="button" key={key} disabled={disabled} className={`${date.getDay() === 0 || date.getDay() === 6 ? 'weekend' : ''} ${selected ? 'selected' : ''} ${inRange ? 'in-range' : ''}`.trim()} aria-pressed={currentPage ? selected || inRange : undefined} aria-label={formatFullDate(key)} tabIndex={currentPage && !calendarExpanded ? undefined : -1} onClick={() => selectQuickDate(key)}>
-                                <span>{new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(date).replace('.', '')}</span>
+                                <span>{WEEKDAY_FORMATTER.format(date).replace('.', '')}</span>
                                 <strong>{date.getDate()}</strong>
                                 <i className={highlightedDateSet.has(key) ? 'has-entry' : ''} aria-hidden="true" />
                               </button>
@@ -371,85 +490,14 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
             </HavenAlert>
           </>
         ) : renderedEntryGroups.map((group) => (
-          <section className="journal-day-group" key={group.key}>
-            <header className="journal-day-header">
-              <h2>{formatFullDate(group.key)}</h2>
-              <span>{group.entries.length} ghi nhận</span>
-            </header>
-            <NotebookStory entries={group.entries} owner={ownerFilter}>
-              {entriesByPeriod(group.entries).map((period) => (
-                  <section className={`journal-period period-${period.id}`} key={period.id}>
-                    <div className="journal-period-items">
-                      {period.entries.map((entry) => {
-                        const meta = entryMeta(entry);
-                        const Icon = meta.icon;
-                        const item = entry.moment;
-                        const mediaItems = item ? getTimelineMediaItems(item) : [];
-                        const visibleMediaItems = mediaItems.slice(0, 4);
-                        const facts = !item ? entry.stats.join(' · ') : '';
-                        const associatedSigns = !item ? entry.signs?.join(' · ') ?? '' : '';
-                        const supportingDetail = entry.detail;
-                        return (
-                          <div
-                            id={item ? timelineEntryElementId(item.id) : undefined}
-                            className={`journal-story-item tone-${meta.tone} ${item ? 'is-moment' : ''}`}
-                            key={entry.id}
-                          >
-                            <time className="journal-story-time" dateTime={entry.occurredAt}>{formatTime(entry.occurredAt)}</time>
-                            <span className="journal-story-icon" aria-hidden="true"><Icon size={16} /></span>
-                            <article className="journal-story-content">
-                              <button type="button" className="journal-story-main" onClick={() => openEntry(entry)} aria-label={`${entry.title}, ${formatTime(entry.occurredAt)}`}>
-                                <span className="journal-story-heading">
-                                  <strong className="journal-story-title">{entry.title}</strong>
-                                </span>
-                                {(facts || associatedSigns) && (
-                                  <span className="journal-story-facts">
-                                    {facts && <span className="journal-story-facts-value">{facts}</span>}
-                                    {associatedSigns && <span className="journal-story-signs"><strong>Dấu hiệu:</strong> {associatedSigns}</span>}
-                                  </span>
-                                )}
-                                {supportingDetail && <span className="journal-story-detail">{supportingDetail}</span>}
-                              </button>
-                              {mediaItems.length > 0 && (
-                                <div className={`journal-story-media-bento count-${visibleMediaItems.length}`} aria-label={`${mediaItems.length} media của ${item?.title}`}>
-                                  {visibleMediaItems.map((media, index) => (
-                                    <TimelineMediaButton
-                                      className="journal-story-media"
-                                      key={media.id ?? media.blobId ?? `${media.url}-${index}`}
-                                      media={media}
-                                      layoutId={`moment-timeline-${entry.id}-${media.id ?? media.blobId ?? index}`}
-                                      onOpen={(originSrc) => setMomentPreview({
-                                        items: mediaItems,
-                                        initialIndex: index,
-                                        title: item?.title ?? entry.title,
-                                        layoutId: `moment-timeline-${entry.id}-${media.id ?? media.blobId ?? index}`,
-                                        originSrc,
-                                        getLayoutId: (idx) => {
-                                          const targetIdx = Math.min(idx, visibleMediaItems.length - 1);
-                                          const targetMedia = visibleMediaItems[targetIdx] ?? mediaItems[0];
-                                          return `moment-timeline-${entry.id}-${targetMedia?.id ?? targetMedia?.blobId ?? targetIdx}`;
-                                        },
-                                      })}
-                                      ariaLabel={mediaItems.length === 1
-                                        ? `Mở ${media.type === 'video' ? 'video' : 'ảnh'} ${item?.title}`
-                                        : `Mở ${media.type === 'video' ? 'video' : 'ảnh'} ${index + 1} của ${item?.title}`}
-                                      alt=""
-                                      imageStyle={{ objectPosition: `${media.focalX ?? 50}% ${media.focalY ?? 38}%` }}
-                                      playSize={19}
-                                      moreCount={index === 3 && mediaItems.length > 4 ? mediaItems.length - 4 : 0}
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                            </article>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-              ))}
-            </NotebookStory>
-          </section>
+          <TimelineDayGroup
+            dateKey={group.key}
+            entries={group.entries}
+            owner={ownerFilter}
+            onOpenEntry={openEntry}
+            onOpenMomentMedia={openMomentMedia}
+            key={group.key}
+          />
         ))}
         <ProgressiveListBoundary
           autoLoadAvailable={timelineWindow.autoLoadAvailable && timelineWindow.hasMore}

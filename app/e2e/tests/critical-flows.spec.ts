@@ -187,6 +187,28 @@ test.describe('critical browser journeys', () => {
 
   });
 
+  test('primary tabs restore their last scroll position', async ({ page }) => {
+    await completeOfflineOnboarding(page);
+    await page.locator('#navTabTimeline').click();
+    await expect(page).toHaveURL(/\/timeline$/);
+    await expect(page.locator('.journal-calendar')).toBeVisible();
+    await page.addStyleTag({ content: '.journal-page { min-height: 2400px; }' });
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+
+    await page.evaluate(() => window.scrollTo(0, 900));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(900);
+
+    await page.locator('#navTabHome').click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+    await page.locator('#navTabTimeline').click();
+    await expect(page).toHaveURL(/\/timeline$/);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(900);
+  });
+
   test('primary tab transitions follow navigation direction without shifting vertically', async ({ page }) => {
     await completeOfflineOnboarding(page);
     await expect(page.locator('.haven-daily-summary-card')).toBeVisible();
