@@ -9,7 +9,9 @@ import {
 import { BottomSheet } from '@/shared/ui/BottomSheet';
 import {
   MEDIA_COMPRESSION_PRESETS,
+  MEDIA_INPUT_SIZE_LIMIT_RANGES_MB,
   getMediaCompressionSettings,
+  setMediaInputSizeLimitMb,
   setMediaCompressionPreset,
   type MediaCompressionKind,
   type MediaCompressionPreset,
@@ -18,21 +20,27 @@ import {
 import './MediaCompressionSettingsControl.css';
 
 const PRESET_LABELS: Record<MediaCompressionPreset, string> = {
+  original: 'Bản gốc',
   quality: 'Chất lượng',
   balanced: 'Cân bằng',
   compact: 'Tiết kiệm',
+  saver: 'Nhẹ nhất',
 };
 
 const PRESET_DESCRIPTIONS: Record<MediaCompressionKind, Record<MediaCompressionPreset, string>> = {
   photo: {
+    original: 'Không nén · upload đúng file gốc.',
     quality: 'Tối đa 3840px · ưu tiên giữ chi tiết.',
     balanced: 'Tối đa 2560px · tự chọn JPEG theo độ nét.',
     compact: 'Tối đa 2048px · ưu tiên giảm dung lượng.',
+    saver: 'Tối đa 1280px · nhẹ nhất khi upload lên Drive.',
   },
   video: {
+    original: 'Không nén · upload đúng file gốc.',
     quality: 'MP4 H.264 · 1080p/30 · chất lượng rất cao.',
     balanced: 'MP4 H.264 · 1080p/30 · chất lượng cao.',
     compact: 'MP4 H.264 · 720p/30 · dung lượng thấp hơn.',
+    saver: 'MP4 H.264 · 480p/24 · dung lượng thấp nhất.',
   },
 };
 
@@ -41,10 +49,13 @@ interface PresetRowProps {
   label: string;
   icon: ReactNode;
   value: MediaCompressionPreset;
+  maxInputSizeMb: number;
   onChange: (kind: MediaCompressionKind, preset: MediaCompressionPreset) => void;
+  onLimitChange: (kind: MediaCompressionKind, value: number) => number;
 }
 
-function PresetRow({ kind, label, icon, value, onChange }: PresetRowProps) {
+function PresetRow({ kind, label, icon, value, maxInputSizeMb, onChange, onLimitChange }: PresetRowProps) {
+  const limitRange = MEDIA_INPUT_SIZE_LIMIT_RANGES_MB[kind];
   return (
     <section className="media-compression-row" aria-labelledby={`media-compression-${kind}-label`}>
       <div className="media-compression-row-heading">
@@ -52,6 +63,28 @@ function PresetRow({ kind, label, icon, value, onChange }: PresetRowProps) {
         <div>
           <strong id={`media-compression-${kind}-label`}>{label}</strong>
           <small>{PRESET_DESCRIPTIONS[kind][value]}</small>
+          <small className="media-compression-limit">
+            <label>
+              Tệp đầu vào tối đa
+              <input
+                key={`${kind}-${maxInputSizeMb}`}
+                type="number"
+                inputMode="numeric"
+                aria-label={`Dung lượng ${label.toLowerCase()} tối đa (MB)`}
+                defaultValue={maxInputSizeMb}
+                min={limitRange.min}
+                max={limitRange.max}
+                step={1}
+                onBlur={(event) => {
+                  event.currentTarget.value = String(onLimitChange(kind, Number(event.currentTarget.value)));
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur();
+                }}
+              />
+              MB
+            </label>
+          </small>
         </div>
       </div>
       <div className="media-compression-presets" role="radiogroup" aria-label={`Mức nén ${label.toLowerCase()}`}>
@@ -83,6 +116,11 @@ export function MediaCompressionSettingsControl() {
 
   const handleChange = (kind: MediaCompressionKind, preset: MediaCompressionPreset) => {
     setSettings(setMediaCompressionPreset(kind, preset));
+  };
+  const handleLimitChange = (kind: MediaCompressionKind, value: number): number => {
+    const next = setMediaInputSizeLimitMb(kind, value);
+    setSettings(next);
+    return next.maxInputSizeMb[kind];
   };
 
   return (
@@ -118,19 +156,23 @@ export function MediaCompressionSettingsControl() {
             label="Ảnh"
             icon={<ImageIcon size={17} />}
             value={settings.photo}
+            maxInputSizeMb={settings.maxInputSizeMb.photo}
             onChange={handleChange}
+            onLimitChange={handleLimitChange}
           />
           <PresetRow
             kind="video"
             label="Video"
             icon={<Video size={17} />}
             value={settings.video}
+            maxInputSizeMb={settings.maxInputSizeMb.video}
             onChange={handleChange}
+            onLimitChange={handleLimitChange}
           />
 
           <div className="media-compression-note">
             <ShieldCheck size={16} aria-hidden="true" />
-            <span>Kinly chỉ dùng bản nén khi giảm được ít nhất 10%; nếu không, bản gốc sẽ được upload.</span>
+            <span>Tệp vượt giới hạn sẽ không được thêm. Bản nén chỉ được dùng khi giảm được ít nhất 10%.</span>
           </div>
         </div>
       </BottomSheet>

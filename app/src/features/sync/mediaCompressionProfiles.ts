@@ -1,4 +1,5 @@
-import type { MediaCompressionPreset } from './mediaCompressionSettings';
+import type { QualityLevel } from 'mediabunny';
+import type { CompressingMediaCompressionPreset } from './mediaCompressionSettings';
 
 export interface ImageCompressionProfile {
   maxDimension: number;
@@ -9,7 +10,7 @@ export interface ImageCompressionProfile {
 export interface VideoCompressionProfile {
   maxHeight: number;
   frameRate: number;
-  quality: 'medium' | 'high' | 'very-high';
+  quality: QualityLevel;
 }
 
 interface MediaCompressionProfile {
@@ -54,12 +55,24 @@ export const MEDIA_COMPRESSION_PROFILES = {
       quality: 'medium',
     },
   },
-} as const satisfies Record<MediaCompressionPreset, MediaCompressionProfile>;
+  saver: {
+    photo: {
+      maxDimension: 1280,
+      qualityCandidates: [0.8, 0.74, 0.68, 0.62],
+      maxMeanLumaError: 9,
+    },
+    video: {
+      maxHeight: 480,
+      frameRate: 24,
+      quality: 'low',
+    },
+  },
+} as const satisfies Record<CompressingMediaCompressionPreset, MediaCompressionProfile>;
 
-export function getImageCompressionProfile(preset: MediaCompressionPreset): ImageCompressionProfile {
+export function getImageCompressionProfile(preset: CompressingMediaCompressionPreset): ImageCompressionProfile {
   return MEDIA_COMPRESSION_PROFILES[preset].photo;
 }
 
-export function getVideoCompressionProfile(preset: MediaCompressionPreset): VideoCompressionProfile {
+export function getVideoCompressionProfile(preset: CompressingMediaCompressionPreset): VideoCompressionProfile {
   return MEDIA_COMPRESSION_PROFILES[preset].video;
 }

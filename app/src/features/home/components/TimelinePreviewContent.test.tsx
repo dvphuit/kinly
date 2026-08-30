@@ -137,6 +137,24 @@ describe('TimelinePreviewContent for mom', () => {
     expect(screen.getByRole('dialog', { name: 'Timeline entry detail' })).toHaveTextContent('pump-test');
   });
 
+  it('renders the newest moment at the top of the Home timeline', () => {
+    useTimelineStore.setState({
+      timelineItems: [
+        momMoment({ id: 'older', title: 'Cũ hơn', timeFormatted: '08:00', time: `${todayDateKey()} • 08:00` }),
+        momMoment({ id: 'newer', title: 'Mới nhất', timeFormatted: '18:00', time: `${todayDateKey()} • 18:00` }),
+      ],
+    });
+
+    const { container } = render(
+      <TimelinePreviewContent owner="mom" onAddActivity={vi.fn()} />,
+    );
+
+    expect([...container.querySelectorAll('.journal-story-title')].map((node) => node.textContent)).toEqual([
+      'Mới nhất',
+      'Cũ hơn',
+    ]);
+  });
+
   it('forwards the empty-state action to the mom activity flow', () => {
     const onAddActivity = vi.fn();
     render(<TimelinePreviewContent owner="mom" onAddActivity={onAddActivity} />);

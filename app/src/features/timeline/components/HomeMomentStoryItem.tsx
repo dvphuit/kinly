@@ -1,6 +1,7 @@
 import { Image as ImageIcon } from 'lucide-react';
 import { getTimelineMediaItems } from '@/features/timeline/domain/timelineMedia';
 import { TimelineMediaButton } from '@/features/timeline/components/TimelineMediaButton';
+import { timelineEntryElementId } from '@/features/timeline/hooks/useRecentlyAddedTimelineAnimation';
 import type { TimelineItem, TimelineMediaItem } from '@/features/timeline/domain/types';
 
 interface HomeMomentStoryItemProps {
@@ -29,7 +30,7 @@ export function HomeMomentStoryItem({
   const visibleMediaItems = mediaItems.slice(0, 4);
 
   return (
-    <article className="journal-story-item tone-moment is-moment">
+    <article id={timelineEntryElementId(item.id)} className="journal-story-item tone-moment is-moment">
       <time className="journal-story-time" dateTime={occurredAt}>{formattedTime}</time>
       <span className="journal-story-icon" aria-hidden="true"><ImageIcon size={16} /></span>
       <div className="journal-story-content">

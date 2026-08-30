@@ -1,14 +1,14 @@
 import {
   getMediaCompressionSettings,
   type MediaCompressionKind,
-  type MediaCompressionPreset,
+  type CompressingMediaCompressionPreset,
 } from './mediaCompressionSettings';
 
 const MEBIBYTE = 1024 * 1024;
 
 export const IMAGE_COMPRESSION_MIN_BYTES = MEBIBYTE;
 export const VIDEO_COMPRESSION_MIN_BYTES = 8 * MEBIBYTE;
-export const VIDEO_COMPRESSION_MAX_BYTES = 100 * MEBIBYTE;
+export const VIDEO_COMPRESSION_MAX_BYTES = 256 * MEBIBYTE;
 export const MIN_COMPRESSION_SAVINGS_RATIO = 0.1;
 
 const COMPRESSIBLE_IMAGE_TYPES = new Set([
@@ -34,7 +34,7 @@ interface PrepareTimelineMediaOptions {
 
 interface CompressionWorkerRequest {
   blob: Blob;
-  preset: MediaCompressionPreset;
+  preset: CompressingMediaCompressionPreset;
 }
 
 type CompressionWorkerFactory = () => Worker;
@@ -130,7 +130,7 @@ function runCompressionWorker(
 
 async function compressTimelineImage(
   blob: Blob,
-  preset: MediaCompressionPreset,
+  preset: CompressingMediaCompressionPreset,
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return runCompressionWorker(
@@ -145,7 +145,7 @@ async function compressTimelineImage(
 
 async function compressTimelineVideo(
   blob: Blob,
-  preset: MediaCompressionPreset,
+  preset: CompressingMediaCompressionPreset,
   onProgress?: (progress: number) => void,
 ): Promise<Blob> {
   return runCompressionWorker(
@@ -169,12 +169,14 @@ export async function prepareTimelineMediaForDrive(
     originalSize: blob.size,
   };
 
+  const preset = getMediaCompressionSettings()[options.kind];
+  if (preset === 'original') return original;
+
   const shouldCompress = options.kind === 'photo'
     ? shouldCompressTimelineImage(blob)
     : shouldCompressTimelineVideo(blob);
   if (!shouldCompress) return original;
 
-  const preset = getMediaCompressionSettings()[options.kind];
   try {
     options.onProgress?.(0);
     const compressedBlob = options.kind === 'photo'

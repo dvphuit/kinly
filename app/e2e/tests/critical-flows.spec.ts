@@ -320,12 +320,12 @@ test.describe('critical browser journeys', () => {
     await completeOfflineOnboarding(page);
 
     await addMomentFromQuickLog(page, 'Hiện ngay ở Trang chủ');
-    await expect(page.locator('.journal-story-title', { hasText: 'Hiện ngay ở Trang chủ' })).toBeVisible();
+    await expect(page.locator('.haven-home-notebook .journal-story-title').first()).toHaveText('Hiện ngay ở Trang chủ');
 
     await page.locator('#navTabTimeline').click();
     await expect(page).toHaveURL(/\/timeline$/);
     await addMomentFromQuickLog(page, 'Hiện ngay ở Nhật ký');
-    await expect(page.locator('.journal-story-title', { hasText: 'Hiện ngay ở Nhật ký' })).toBeVisible();
+    await expect(page.locator('.journal-page .journal-story-title').first()).toHaveText('Hiện ngay ở Nhật ký');
   });
 
   test('shared overlay is a bottom sheet on mobile and a centered dialog on desktop', async ({ page }) => {

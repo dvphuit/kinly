@@ -20,14 +20,29 @@ describe('MediaCompressionSettingsControl', () => {
 
     expect(within(photoGroup).getByRole('radio', { name: 'Cân bằng' })).toHaveAttribute('aria-checked', 'true');
     expect(within(videoGroup).getByRole('radio', { name: 'Cân bằng' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(photoGroup).getAllByRole('radio')).toHaveLength(5);
+    expect(within(videoGroup).getAllByRole('radio')).toHaveLength(5);
 
-    fireEvent.click(within(photoGroup).getByRole('radio', { name: 'Tiết kiệm' }));
-    fireEvent.click(within(videoGroup).getByRole('radio', { name: 'Chất lượng' }));
+    fireEvent.click(within(photoGroup).getByRole('radio', { name: 'Bản gốc' }));
+    fireEvent.click(within(videoGroup).getByRole('radio', { name: 'Nhẹ nhất' }));
 
-    expect(getMediaCompressionSettings()).toEqual({ photo: 'compact', video: 'quality' });
-    expect(screen.getByText('Ảnh Tiết kiệm · Video Chất lượng')).toBeInTheDocument();
-    expect(within(photoGroup).getByRole('radio', { name: 'Tiết kiệm' })).toHaveAttribute('aria-checked', 'true');
-    expect(within(videoGroup).getByRole('radio', { name: 'Chất lượng' })).toHaveAttribute('aria-checked', 'true');
+    expect(getMediaCompressionSettings()).toMatchObject({ photo: 'original', video: 'saver' });
+    expect(screen.getByText('Ảnh Bản gốc · Video Nhẹ nhất')).toBeInTheDocument();
+    expect(within(photoGroup).getByRole('radio', { name: 'Bản gốc' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(videoGroup).getByRole('radio', { name: 'Nhẹ nhất' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText(/Không nén · upload đúng file gốc/)).toBeInTheDocument();
+    expect(screen.getByText(/480p\/24/)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Dung lượng ảnh tối đa (MB)' }), {
+      target: { value: '12' },
+    });
+    fireEvent.blur(within(dialog).getByRole('spinbutton', { name: 'Dung lượng ảnh tối đa (MB)' }));
+    fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Dung lượng video tối đa (MB)' }), {
+      target: { value: '225' },
+    });
+    fireEvent.blur(within(dialog).getByRole('spinbutton', { name: 'Dung lượng video tối đa (MB)' }));
+
+    expect(getMediaCompressionSettings().maxInputSizeMb).toEqual({ photo: 12, video: 225 });
   });
 
   it('explains that local originals are preserved', () => {

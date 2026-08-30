@@ -9,7 +9,11 @@ import type { JournalTimelineEntry } from '@/features/timeline/components/Timeli
 import type { MomentMediaPreviewState } from '@/features/timeline/components/MomentMediaPreview';
 import type { ActivityRecord } from '@/features/activities';
 import type { ProfileMode } from '@/features/profile';
-import type { TimelineItem, TimelineMediaItem } from '@/features/timeline';
+import {
+  compareTimelineEntriesNewestFirst,
+  type TimelineItem,
+  type TimelineMediaItem,
+} from '@/features/timeline';
 
 type OwnerActivity<T extends ProfileMode> = Extract<ActivityRecord, { owner: T }>;
 
@@ -54,8 +58,7 @@ export function useHomeTimeline<T extends ProfileMode>({
       occurredAt: timelineMomentOccurredAt(item),
       item,
     }));
-    return [...activityEntries, ...momentEntries]
-      .sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+    return [...activityEntries, ...momentEntries].sort(compareTimelineEntriesNewestFirst);
   }, [dayActivities, dayMoments]);
 
   const selectedRecord = selectedRecordId

@@ -18,12 +18,20 @@ import {
 import { entryMeta } from '@/features/timeline/components/timelineEntryPresentation';
 import { getRealGrowthHistory } from '@/features/growth/domain/growthSelectors';
 import { getTimelineMediaItems } from '@/features/timeline/domain/timelineMedia';
-import { buildTimelineEntries, filterTimelineByLocalDateRange } from '@/features/timeline/domain/timelineSelectors';
+import {
+  buildTimelineEntries,
+  compareTimelineEntriesNewestFirst,
+  filterTimelineByLocalDateRange,
+} from '@/features/timeline/domain/timelineSelectors';
 import { useGrowthStore } from '@/features/growth/store/useGrowthStore';
 import { useProfileStore } from '@/features/profile/store/useProfileStore';
 import { useUIStore } from '@/store/useUIStore';
 import type { TimelineItem } from '@/features/timeline/domain/types';
 import { useJournalDates, useJournalRange } from '@/data/useNormalizedData';
+import {
+  timelineEntryElementId,
+  useRecentlyAddedTimelineAnimation,
+} from '@/features/timeline/hooks/useRecentlyAddedTimelineAnimation';
 
 interface TimelineViewProps {
   onOpenLightbox: (src: string, isVideo?: boolean) => void;
@@ -65,14 +73,14 @@ const DAY_PERIODS = [
 ] as const;
 
 function entriesByPeriod(entries: JournalTimelineEntry[]) {
-  return DAY_PERIODS.map((period) => ({
+  return [...DAY_PERIODS].reverse().map((period) => ({
     ...period,
     entries: entries
       .filter((entry) => {
         const hour = new Date(entry.occurredAt).getHours();
         return hour >= period.start && hour < period.end;
       })
-      .sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime()),
+      .sort(compareTimelineEntriesNewestFirst),
   })).filter((period) => period.entries.length > 0);
 }
 
@@ -123,6 +131,7 @@ function momentEntry(item: TimelineItem): JournalTimelineEntry {
 }
 
 export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) => {
+  useRecentlyAddedTimelineAnimation();
   const rawGrowthHistory = useGrowthStore((state) => state.currentStageData().growthHistory);
   const birthDate = useProfileStore((state) => state.familyData.birthDate);
   const ownerFilter = useUIStore((state) => state.profileMode);
@@ -160,7 +169,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
   const entries = useMemo<JournalTimelineEntry[]>(() => [
     ...buildTimelineEntries({ babyActivities, momActivities, growthHistory }),
     ...timelineItems.map(momentEntry),
-  ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()), [babyActivities, growthHistory, momActivities, timelineItems]);
+  ].sort(compareTimelineEntriesNewestFirst), [babyActivities, growthHistory, momActivities, timelineItems]);
   const ownerEntries = useMemo(() => entries.filter((entry) => entry.owner === ownerFilter), [entries, ownerFilter]);
   const highlightedDates = useMemo(() => [...new Set([
     ...(indexedJournalDates ?? []),
@@ -177,7 +186,9 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
       const key = localDateKey(new Date(entry.occurredAt));
       groups.set(key, [...(groups.get(key) ?? []), entry]);
     });
-    return [...groups.entries()].map(([key, groupEntries]) => ({ key, entries: groupEntries }));
+    return [...groups.entries()]
+      .map(([key, groupEntries]) => ({ key, entries: groupEntries.sort(compareTimelineEntriesNewestFirst) }))
+      .sort((left, right) => right.key.localeCompare(left.key));
   }, [visibleEntries]);
   const timelineWindow = useProgressiveList({
     totalCount: entryGroups.length,
@@ -379,7 +390,11 @@ export const TimelineView: React.FC<TimelineViewProps> = ({ onOpenLightbox }) =>
                         const associatedSigns = !item ? entry.signs?.join(' · ') ?? '' : '';
                         const supportingDetail = entry.detail;
                         return (
-                          <div className={`journal-story-item tone-${meta.tone} ${item ? 'is-moment' : ''}`} key={entry.id}>
+                          <div
+                            id={item ? timelineEntryElementId(item.id) : undefined}
+                            className={`journal-story-item tone-${meta.tone} ${item ? 'is-moment' : ''}`}
+                            key={entry.id}
+                          >
                             <time className="journal-story-time" dateTime={entry.occurredAt}>{formatTime(entry.occurredAt)}</time>
                             <span className="journal-story-icon" aria-hidden="true"><Icon size={16} /></span>
                             <article className="journal-story-content">

@@ -78,5 +78,9 @@ describe('useJournalRange', () => {
 
     expect(screen.getByText('Vừa thêm')).toBeInTheDocument();
     expect(screen.getByText('Đã lưu trước đó')).toBeInTheDocument();
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Vừa thêm',
+      'Đã lưu trước đó',
+    ]);
   });
 });

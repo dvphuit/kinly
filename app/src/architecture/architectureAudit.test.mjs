@@ -64,8 +64,6 @@ const LEGACY_FEATURE_BOUNDARY_VIOLATIONS = [
   'features/home/components/LazyTimelineEntryDialog.tsx -> @/features/timeline/components/TimelineEntryDialog',
   'features/home/components/MomHomeView.tsx -> @/features/activities/domain/activitySelectors',
   'features/home/components/TimelinePreviewContent.tsx -> @/features/activities/domain/activitySelectors',
-  'features/home/components/TimelinePreviewContent.tsx -> @/features/timeline/components/HomeMomentStoryItem',
-  'features/home/components/TimelinePreviewContent.tsx -> @/features/timeline/components/NotebookStory',
   'features/home/components/TimelinePreviewContent.tsx -> @/features/timeline/domain/timelineSelectors',
   'features/home/hooks/useHomeTimeline.ts -> @/features/timeline/components/MomentMediaPreview',
   'features/home/hooks/useHomeTimeline.ts -> @/features/timeline/components/TimelineEntryDialog',
