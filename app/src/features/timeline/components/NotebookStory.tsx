@@ -57,8 +57,7 @@ function stopPercentage(value: number): string {
 function timeGradient(entries: readonly NotebookTimeEntry[], anchorPercentages?: number[]): string {
   const timeline = [...entries]
     .map((entry) => ({ hour: entryHour(entry) }))
-    .filter(({ hour }) => Number.isFinite(hour))
-    .sort((a, b) => a.hour - b.hour);
+    .filter(({ hour }) => Number.isFinite(hour));
   if (timeline.length === 0) return 'linear-gradient(180deg, #fff7df, #e7ecf3)';
   if (timeline.length === 1) {
     const color = colorAtHour(timeline[0].hour);
@@ -77,9 +76,13 @@ function timeGradient(entries: readonly NotebookTimeEntry[], anchorPercentages?:
 
   points.slice(1).forEach((point, index) => {
     const previous = points[index];
-    if (point.hour > previous.hour && point.position > previous.position) {
+    if (point.hour !== previous.hour && point.position > previous.position) {
+      const ascending = point.hour > previous.hour;
       TIME_COLOR_STOPS
-        .filter((stop) => stop.hour > previous.hour && stop.hour < point.hour)
+        .filter((stop) => ascending
+          ? stop.hour > previous.hour && stop.hour < point.hour
+          : stop.hour < previous.hour && stop.hour > point.hour)
+        .sort((left, right) => ascending ? left.hour - right.hour : right.hour - left.hour)
         .forEach((stop) => {
           const timeRatio = (stop.hour - previous.hour) / (point.hour - previous.hour);
           const position = previous.position + (point.position - previous.position) * timeRatio;

@@ -9,11 +9,11 @@ import {
   Quality,
 } from 'mediabunny';
 import { getVideoCompressionProfile } from './mediaCompressionProfiles';
-import type { MediaCompressionPreset } from './mediaCompressionSettings';
+import type { CompressingMediaCompressionPreset } from './mediaCompressionSettings';
 
 interface CompressionRequest {
   blob: Blob;
-  preset: MediaCompressionPreset;
+  preset: CompressingMediaCompressionPreset;
 }
 
 type CompressionResponse =

@@ -37,4 +37,17 @@ describe('media compression profiles', () => {
       quality: 'medium',
     });
   });
+
+  it('adds a smallest profile for constrained connections and Drive storage', () => {
+    expect(getImageCompressionProfile('saver')).toEqual({
+      maxDimension: 1280,
+      qualityCandidates: [0.8, 0.74, 0.68, 0.62],
+      maxMeanLumaError: 9,
+    });
+    expect(getVideoCompressionProfile('saver')).toEqual({
+      maxHeight: 480,
+      frameRate: 24,
+      quality: 'low',
+    });
+  });
 });

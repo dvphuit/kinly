@@ -2,12 +2,27 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetChildStoresToDefaults } from '@/features/profile';
+import { setMediaInputSizeLimitMb } from '@/features/sync';
 import { useTimelineStore } from '@/features/timeline/store/useTimelineStore';
 import { useUIStore } from '@/store/useUIStore';
 import { AddPostModal } from './AddPostModal';
 
+class SizedFile extends File {
+  private readonly mockedSize: number;
+
+  constructor(name: string, type: string, mockedSize: number) {
+    super([], name, { type });
+    this.mockedSize = mockedSize;
+  }
+
+  override get size(): number {
+    return this.mockedSize;
+  }
+}
+
 describe('AddPostModal', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     useTimelineStore.getState().resetTrackingData();
     resetChildStoresToDefaults();
     useUIStore.setState({ profileMode: 'mom' });
@@ -80,6 +95,18 @@ describe('AddPostModal', () => {
     expect(screen.getByLabelText('Chọn từ thư viện')).toHaveAttribute('accept', 'image/*,video/*');
     expect(screen.getByLabelText('Chụp ảnh')).toHaveAttribute('capture', 'environment');
     expect(screen.getByLabelText('Chụp ảnh')).toHaveAttribute('accept', 'image/*');
+  });
+
+  it('shows the configured input limit before storing an oversized selection', async () => {
+    setMediaInputSizeLimitMb('video', 20);
+    render(<AddPostModal isOpen onClose={vi.fn()} onSuccessToast={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText('Chọn từ thư viện'), {
+      target: { files: [new SizedFile('long-memory.mp4', 'video/mp4', 21 * 1024 * 1024)] },
+    });
+
+    expect(await screen.findByText('long-memory.mp4 vượt giới hạn 20 MB cho video.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Bỏ media/ })).not.toBeInTheDocument();
   });
 
   it('shows a local gallery preview in development StrictMode', async () => {

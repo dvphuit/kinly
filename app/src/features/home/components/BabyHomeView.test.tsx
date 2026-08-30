@@ -95,7 +95,7 @@ describe('BabyHomeView', () => {
     expect(screen.queryByText(/Nội dung của hôm qua/i)).not.toBeInTheDocument();
   });
 
-  it('uses the shared notebook timeline in chronological order', async () => {
+  it('uses the shared notebook timeline in newest-first order', async () => {
     records = [feeding('late-feeding', 60, 11), feeding('early-feeding', 90, 7)];
 
     const { container } = render(<BabyHomeView onOpenQuickLog={vi.fn()} />);
@@ -103,7 +103,7 @@ describe('BabyHomeView', () => {
 
     expect(container.querySelector('.journal-story.owner-baby.haven-home-notebook')).toBeInTheDocument();
     expect(container.querySelector('.haven-activity-list')).not.toBeInTheDocument();
-    expect([...container.querySelectorAll('.journal-story-time')].map((node) => node.textContent)).toEqual(['07:00', '11:00']);
+    expect([...container.querySelectorAll('.journal-story-time')].map((node) => node.textContent)).toEqual(['11:00', '07:00']);
   });
 
   it('shows baby moments from today with media and opens their shared preview', async () => {

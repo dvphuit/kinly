@@ -64,7 +64,7 @@
 
 .media-compression-presets {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 4px;
   margin-top: 10px;
   padding: 4px;
@@ -73,6 +73,7 @@
 }
 
 .media-compression-presets button {
+  grid-column: span 2;
   min-height: 34px;
   padding: 5px 6px;
   border-radius: 10px;
@@ -81,10 +82,24 @@
   font-weight: 800;
 }
 
+.media-compression-presets button:nth-last-child(-n + 2) { grid-column: span 3; }
+
 .media-compression-presets button.is-selected {
   color: var(--color-sage-dark);
   background: #fff;
   box-shadow: 0 4px 12px rgba(57, 38, 29, 0.08);
+}
+
+.media-compression-limit {
+  margin-top: 5px;
+}
+
+.media-compression-limit input {
+  width: 52px;
+  margin: 0 4px;
+  padding: 5px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 9px;
 }
 
 .media-compression-note {
@@ -101,11 +116,4 @@
 
 .media-compression-note svg {
   margin-top: 1px;
-}
-
-@media (max-width: 360px) {
-  .media-compression-presets button {
-    padding-inline: 3px;
-    font-size: 8.5px;
-  }
 }

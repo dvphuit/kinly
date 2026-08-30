@@ -1,12 +1,12 @@
 import { getImageCompressionProfile } from './mediaCompressionProfiles';
 import { selectSmallestAcceptableImageCandidate, type ImageCompressionCandidate } from './mediaCompressionQuality';
-import type { MediaCompressionPreset } from './mediaCompressionSettings';
+import type { CompressingMediaCompressionPreset } from './mediaCompressionSettings';
 
 const IMAGE_QUALITY_SAMPLE_MAX_DIMENSION = 256;
 
 interface CompressionRequest {
   blob: Blob;
-  preset: MediaCompressionPreset;
+  preset: CompressingMediaCompressionPreset;
 }
 
 type CompressionResponse =

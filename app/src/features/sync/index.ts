@@ -10,7 +10,10 @@ export { SyncSnapshotIntegrityError } from './syncSnapshotEnvelope';
 export { isGoogleOAuthBrokerConfigured } from './googleOAuthBroker';
 export {
   MEDIA_COMPRESSION_PRESETS,
+  MEDIA_INPUT_SIZE_LIMIT_RANGES_MB,
   getMediaCompressionSettings,
+  normalizeMediaInputSizeLimitMb,
+  setMediaInputSizeLimitMb,
   setMediaCompressionPreset,
 } from './mediaCompressionSettings';
 export type {

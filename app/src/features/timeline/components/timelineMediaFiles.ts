@@ -1,6 +1,7 @@
 
 import type { TimelineMediaItem } from '@/features/timeline/domain/types';
 import { removeLocalMedia, setLocalMedia } from '@/data/localDb';
+import { getMediaCompressionSettings } from '@/features/sync';
 
 interface FaceDetectorResult {
   boundingBox: DOMRectReadOnly;
@@ -13,6 +14,7 @@ interface FaceDetectorInstance {
 type FaceDetectorConstructor = new (options?: { fastMode?: boolean; maxDetectedFaces?: number }) => FaceDetectorInstance;
 
 const DEFAULT_FOCAL_POINT = { focalX: 50, focalY: 38 };
+const MEBIBYTE = 1024 * 1024;
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv', '3gp', 'mpeg', 'mpg']);
 const PHOTO_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'avif', 'bmp', 'tif', 'tiff']);
 
@@ -98,14 +100,27 @@ export async function readTimelineMediaFiles(
 ): Promise<TimelineMediaItem[]> {
   const selectedFiles = files ? Array.from(files) : [];
   if (selectedFiles.length === 0) return [];
+  const typedFiles = selectedFiles.map((file) => {
+    const mediaType = detectTimelineMediaType(file.name, file.type);
+    if (!mediaType) throw new Error('Chỉ hỗ trợ tệp ảnh hoặc video.');
+    return { file, mediaType };
+  });
+  const inputLimits = getMediaCompressionSettings().maxInputSizeMb;
+  const oversizedFiles = typedFiles.filter(({ file, mediaType }) => (
+    file.size > inputLimits[mediaType] * MEBIBYTE
+  ));
+  if (oversizedFiles.length > 0) {
+    const details = oversizedFiles.map(({ file, mediaType }) => (
+      `${file.name} vượt giới hạn ${inputLimits[mediaType]} MB cho ${mediaType === 'photo' ? 'ảnh' : 'video'}`
+    ));
+    throw new Error(`${details.join('; ')}.`);
+  }
   const mediaItems: TimelineMediaItem[] = [];
   try {
-    for (const [index, file] of selectedFiles.entries()) {
-      const mediaType = detectTimelineMediaType(file.name, file.type);
-      if (!mediaType) throw new Error('Chỉ hỗ trợ tệp ảnh hoặc video.');
+    for (const [index, { file, mediaType }] of typedFiles.entries()) {
       const progress = {
         completedFiles: index,
-        totalFiles: selectedFiles.length,
+        totalFiles: typedFiles.length,
         fileNumber: index + 1,
         fileName: file.name,
         mediaType,

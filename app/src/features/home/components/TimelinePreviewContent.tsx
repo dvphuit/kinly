@@ -2,8 +2,11 @@ import { useMemo } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { HeartPulse, Layers, Milk, Moon, Pill, Plus, Smile, Sparkles, Thermometer } from 'lucide-react';
 import { getBabyActivitiesForDay, getMomActivitiesForDay } from '@/features/activities/domain/activitySelectors';
-import { HomeMomentStoryItem } from '@/features/timeline/components/HomeMomentStoryItem';
-import { NotebookStory } from '@/features/timeline/components/NotebookStory';
+import {
+  HomeMomentStoryItem,
+  NotebookStory,
+  useRecentlyAddedTimelineAnimation,
+} from '@/features/timeline';
 import { buildBabyTimelineEntry } from '@/features/timeline/domain/timelineSelectors';
 import { useLiveNow } from '@/shared/hooks/useLiveNow';
 import { formatDurationMinutes, formatTimeOfDay, localDateKey } from '@/shared/lib/time';
@@ -70,6 +73,7 @@ function momActivityDetail(record: MomActivity): string {
 }
 
 function BabyTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
+  useRecentlyAddedTimelineAnimation();
   const now = useLiveNow();
   const dayKey = localDateKey(now);
   const { babyActivities: records, timelineItems } = useJournalRange({
@@ -170,6 +174,7 @@ function BabyTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
 }
 
 function MomTimelinePreview({ onAddActivity }: { onAddActivity: () => void }) {
+  useRecentlyAddedTimelineAnimation();
   const now = useLiveNow();
   const dayKey = localDateKey(now);
   const { momActivities: records, timelineItems } = useJournalRange({

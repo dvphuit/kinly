@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setMediaInputSizeLimitMb } from '@/features/sync';
 import { detectTimelineMediaType, readTimelineMediaFiles } from './timelineMediaFiles';
 
 const localMedia = vi.hoisted(() => ({
@@ -8,9 +9,23 @@ const localMedia = vi.hoisted(() => ({
 
 vi.mock('@/data/localDb', () => localMedia);
 
+class SizedFile extends File {
+  private readonly mockedSize: number;
+
+  constructor(name: string, type: string, mockedSize: number) {
+    super([], name, { type });
+    this.mockedSize = mockedSize;
+  }
+
+  override get size(): number {
+    return this.mockedSize;
+  }
+}
+
 describe('timelineMediaFiles', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     localMedia.setLocalMedia.mockResolvedValue(undefined);
     localMedia.removeLocalMedia.mockResolvedValue(undefined);
   });
@@ -26,14 +41,27 @@ describe('timelineMediaFiles', () => {
     expect(media.url).toBeUndefined();
   });
 
-  it('stores large media without an application-level size cap', async () => {
-    const file = new File([new Uint8Array(16 * 1024 * 1024)], 'large.mp4', { type: 'video/mp4' });
-    const files = { 0: file, length: 1, item: () => file, [Symbol.iterator]: function* iterator() { yield file; } } as unknown as FileList;
+  it('stores media that is within the configured input size limit', async () => {
+    setMediaInputSizeLimitMb('video', 20);
+    const file = new SizedFile('large.mp4', 'video/mp4', 16 * 1024 * 1024);
 
-    const [media] = await readTimelineMediaFiles(files);
+    const [media] = await readTimelineMediaFiles([file]);
 
     expect(localMedia.setLocalMedia).toHaveBeenCalledWith(media.blobId, file);
     expect(media.type).toBe('video');
+  });
+
+  it('rejects the whole selection before saving when a file exceeds its media limit', async () => {
+    setMediaInputSizeLimitMb('photo', 1);
+    setMediaInputSizeLimitMb('video', 10);
+    const valid = new SizedFile('small.jpg', 'image/jpeg', 512 * 1024);
+    const largePhoto = new SizedFile('family.jpg', 'image/jpeg', 2 * 1024 * 1024);
+    const largeVideo = new SizedFile('memory.mp4', 'video/mp4', 12 * 1024 * 1024);
+
+    await expect(readTimelineMediaFiles([valid, largePhoto, largeVideo])).rejects.toThrow(
+      'family.jpg vượt giới hạn 1 MB cho ảnh; memory.mp4 vượt giới hạn 10 MB cho video.',
+    );
+    expect(localMedia.setLocalMedia).not.toHaveBeenCalled();
   });
 
   it('keeps every selected file when the live input FileList is cleared during async reads', async () => {

@@ -20,11 +20,13 @@ vi.mock('@/features/sync', () => {
   const compressionSettings = {
     photo: 'balanced' as const,
     video: 'balanced' as const,
+    maxInputSizeMb: { photo: 25, video: 256 },
   };
 
   return {
-    MEDIA_COMPRESSION_PRESETS: ['quality', 'balanced', 'compact'],
+    MEDIA_COMPRESSION_PRESETS: ['original', 'quality', 'balanced', 'compact', 'saver'],
     getMediaCompressionSettings: vi.fn(() => ({ ...compressionSettings })),
+    setMediaInputSizeLimitMb: vi.fn(() => ({ ...compressionSettings })),
     setMediaCompressionPreset: vi.fn(() => ({ ...compressionSettings })),
     getGoogleLinkedAccount: vi.fn(() => account),
     getLastSyncedAt: vi.fn().mockResolvedValue(null),

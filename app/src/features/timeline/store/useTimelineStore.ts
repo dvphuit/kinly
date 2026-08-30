@@ -23,6 +23,7 @@ function reportPersistenceFailure(operation: Promise<void>, action: string, id?:
 
 interface TimelineStoreState {
   timelineItems: TimelineItem[];
+  recentlyAddedTimelineItemId: string | null;
   selectedCalendarDate: string;
   calendarYear: number;
   calendarMonth: number;
@@ -31,6 +32,7 @@ interface TimelineStoreState {
   currentTimelineSubTab: 'feed' | 'mood-history';
 
   addTimelineItem: (item: Partial<TimelineItem>) => void;
+  clearRecentlyAddedTimelineItem: (id: string) => void;
   updateTimelineItem: (id: string, patch: Partial<Pick<TimelineItem, 'date' | 'timeFormatted' | 'title' | 'content' | 'mediaItems' | 'mediaUrl' | 'mediaType' | 'tag' | 'tagType' | 'owner'>>) => void;
   deleteTimelineItem: (id: string) => void;
   toggleLike: (id: string) => void;
@@ -47,6 +49,7 @@ export const useTimelineStore = create<TimelineStoreState>()(
   persist(
     (set) => ({
       timelineItems: INITIAL_TIMELINE_ITEMS,
+      recentlyAddedTimelineItemId: null,
       selectedCalendarDate: todayStr(),
       calendarYear: new Date().getFullYear(),
       calendarMonth: new Date().getMonth(),
@@ -101,9 +104,16 @@ export const useTimelineStore = create<TimelineStoreState>()(
 
         set((state) => ({
           timelineItems: [newItem, ...state.timelineItems],
+          recentlyAddedTimelineItemId: newItem.id,
         }));
         reportPersistenceFailure(saveTimelineItem(newItem), 'lưu', newItem.id);
       },
+
+      clearRecentlyAddedTimelineItem: (id) => set((state) => ({
+        recentlyAddedTimelineItemId: state.recentlyAddedTimelineItemId === id
+          ? null
+          : state.recentlyAddedTimelineItemId,
+      })),
 
       updateTimelineItem: (id, patch) => {
         set((state) => ({
@@ -135,6 +145,9 @@ export const useTimelineStore = create<TimelineStoreState>()(
       deleteTimelineItem: (id) => {
         set((state) => ({
           timelineItems: state.timelineItems.filter((item) => item.id !== id),
+          recentlyAddedTimelineItemId: state.recentlyAddedTimelineItemId === id
+            ? null
+            : state.recentlyAddedTimelineItemId,
         }));
         reportPersistenceFailure(deleteTimelineRecord(id), 'xóa', id);
       },
@@ -168,6 +181,7 @@ export const useTimelineStore = create<TimelineStoreState>()(
       resetTrackingData: () => {
         set({
           timelineItems: [],
+          recentlyAddedTimelineItemId: null,
           selectedCalendarDate: todayStr(),
           calendarYear: new Date().getFullYear(),
           calendarMonth: new Date().getMonth(),

@@ -412,7 +412,7 @@ describe('TimelineView', () => {
     expect(container.querySelector('.journal-story-item.is-moment .journal-story-media')).toBeInTheDocument();
   });
 
-  it('orders a day by time periods without rendering period labels', () => {
+  it('orders a day from newest to oldest without rendering period labels', () => {
     [8, 14, 20].forEach((hour, index) => {
       useActivityStore.getState().addBabyActivity({
         owner: 'baby', type: 'diaper', occurredAt: new Date(2026, 7, 18, hour, 0, 0).toISOString(),
@@ -427,9 +427,14 @@ describe('TimelineView', () => {
     expect(container.querySelectorAll('.journal-period')).toHaveLength(3);
     expect(container.querySelectorAll('.journal-story')).toHaveLength(1);
     expect(container.querySelectorAll('.journal-period-items')).toHaveLength(3);
+    expect([...container.querySelectorAll('.journal-story-detail')].map((node) => node.textContent)).toEqual([
+      'Ghi nhận 3',
+      'Ghi nhận 2',
+      'Ghi nhận 1',
+    ]);
   });
 
-  it('starts the notebook gradient at night when the first entry is at midnight', () => {
+  it('starts the notebook gradient at the newest entry time', () => {
     [0, 7].forEach((hour) => {
       useActivityStore.getState().addBabyActivity({
         owner: 'baby', type: 'diaper', occurredAt: new Date(2026, 7, 18, hour, 0, 0).toISOString(),
@@ -440,11 +445,11 @@ describe('TimelineView', () => {
 
     const story = container.querySelector<HTMLElement>('.journal-story');
     expect(story?.style.getPropertyValue('--journal-time-gradient')).toMatch(
-      /^linear-gradient\(180deg, #e4e6ef 0%/,
+      /^linear-gradient\(180deg, #feeee1 0%/,
     );
   });
 
-  it('starts the notebook gradient at the actual first-entry time', () => {
+  it('keeps the newest late-morning entry at the top of the gradient', () => {
     [7, 11].forEach((hour) => {
       useActivityStore.getState().addBabyActivity({
         owner: 'baby', type: 'diaper', occurredAt: new Date(2026, 7, 18, hour, 0, 0).toISOString(),
@@ -455,7 +460,7 @@ describe('TimelineView', () => {
 
     const gradient = container.querySelector<HTMLElement>('.journal-story')
       ?.style.getPropertyValue('--journal-time-gradient');
-    expect(gradient).toMatch(/^linear-gradient\(180deg, #feeee1 0%/);
+    expect(gradient).toMatch(/^linear-gradient\(180deg, #fff7df 0%/);
     expect(gradient).not.toContain('#e4e6ef 0%');
   });
 
@@ -472,7 +477,7 @@ describe('TimelineView', () => {
       }
       if (this.classList.contains('journal-story-icon')) {
         const occurredAt = this.closest('.journal-story-item')?.querySelector('time')?.dateTime ?? '';
-        const top = new Date(occurredAt).getHours() === 1 ? 40 : 140;
+        const top = new Date(occurredAt).getHours() === 7 ? 40 : 140;
         return { top, bottom: top + 32, left: 70, right: 102, width: 32, height: 32, x: 70, y: top, toJSON: () => ({}) };
       }
       return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) };
@@ -482,8 +487,8 @@ describe('TimelineView', () => {
     const gradient = container.querySelector<HTMLElement>('.journal-story')
       ?.style.getPropertyValue('--journal-time-gradient');
 
-    expect(gradient).toContain('#feeee1 58.3%');
-    expect(gradient).toMatch(/#feeee1 58\.3%, #feeee1 100%\)$/);
+    expect(gradient).toContain('#feeee1 16.7%');
+    expect(gradient).toMatch(/#e6e7f1 58\.3%, #e6e7f1 100%\)$/);
   });
 
   it('filters moments by the app bar profile and opens video media', async () => {

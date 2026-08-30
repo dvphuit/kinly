@@ -13,6 +13,13 @@ export interface DerivedTimelineEntry {
   signs?: string[];
 }
 
+export function compareTimelineEntriesNewestFirst(
+  left: Pick<DerivedTimelineEntry, 'occurredAt'>,
+  right: Pick<DerivedTimelineEntry, 'occurredAt'>,
+): number {
+  return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+}
+
 export function buildBabyTimelineEntry(record: BabyActivity): DerivedTimelineEntry {
   switch (record.type) {
     case 'feeding': {
@@ -146,7 +153,7 @@ export function buildTimelineEntries(input: {
     ...input.babyActivities.map(buildBabyTimelineEntry),
     ...input.momActivities.map(momEntry),
     ...(input.growthHistory ?? []).map(growthEntry).filter((entry): entry is DerivedTimelineEntry => entry !== null),
-  ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+  ].sort(compareTimelineEntriesNewestFirst);
 }
 
 export function filterTimelineByLocalDate(entries: DerivedTimelineEntry[], date: string): DerivedTimelineEntry[] {
