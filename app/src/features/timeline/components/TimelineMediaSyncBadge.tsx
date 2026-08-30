@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { Clock3, Cloud, CloudOff, CloudUpload, HardDrive, LoaderCircle } from 'lucide-react';
 import {
   getTimelineMediaSyncProgress,
@@ -18,8 +18,12 @@ function mediaSyncKey(media: TimelineMediaItem): string {
 
 export function TimelineMediaSyncBadge({ media, className = '' }: TimelineMediaSyncBadgeProps) {
   const mediaId = mediaSyncKey(media);
+  const subscribe = useCallback(
+    (listener: () => void) => subscribeTimelineMediaSyncProgress(mediaId, listener),
+    [mediaId],
+  );
   const liveProgress = useSyncExternalStore(
-    subscribeTimelineMediaSyncProgress,
+    subscribe,
     () => mediaId ? getTimelineMediaSyncProgress(mediaId) : null,
     () => null,
   );

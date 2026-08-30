@@ -27,7 +27,11 @@ describe('TimelineView', () => {
     useActivityStore.getState().resetTrackingData();
     useTimelineStore.getState().resetTrackingData();
     resetChildStoresToDefaults();
-    useUIStore.setState({ profileMode: 'baby' });
+    useUIStore.setState({
+      profileMode: 'baby',
+      timelineDateRange: null,
+      timelineCalendarExpanded: false,
+    });
   });
 
   afterEach(() => {
@@ -80,6 +84,18 @@ describe('TimelineView', () => {
     expect(screen.getByText('Chưa có nhật ký của bé trong khoảng này')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /16 tháng 8, 2026.*18 tháng 8, 2026/i })).toBeInTheDocument();
     expect(container.querySelector('.journal-day-header > div')).not.toBeInTheDocument();
+  });
+
+  it('keeps the selected date range when the timeline tab remounts', () => {
+    const firstView = render(<TimelineView onOpenLightbox={vi.fn()} onOpenAddEntry={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mở lịch' }));
+    fireEvent.click(screen.getByRole('gridcell', { name: /Chủ Nhật, 16 tháng 8, 2026/i }));
+    fireEvent.click(screen.getByRole('gridcell', { name: /Thứ Ba, 18 tháng 8, 2026/i }));
+    firstView.unmount();
+
+    render(<TimelineView onOpenLightbox={vi.fn()} onOpenAddEntry={vi.fn()} />);
+
+    expect(screen.getByRole('heading', { name: /16 tháng 8, 2026.*18 tháng 8, 2026/i })).toBeInTheDocument();
   });
 
   it('shows a modal detail, dismisses outside, and edits the selected record', () => {
@@ -464,31 +480,19 @@ describe('TimelineView', () => {
     expect(gradient).not.toContain('#e4e6ef 0%');
   });
 
-  it('anchors a distant 07:00 entry to its own daytime color', () => {
+  it('keeps distant entry colors without reading notebook layout', () => {
     [1, 7].forEach((hour) => {
       useActivityStore.getState().addBabyActivity({
         owner: 'baby', type: 'diaper', occurredAt: new Date(2026, 7, 18, hour, 0, 0).toISOString(),
         diaperKind: 'wet', note: `Ghi nhận lúc ${hour}h`,
       });
     });
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
-      if (this.classList.contains('journal-story')) {
-        return { top: 0, bottom: 240, left: 0, right: 320, width: 320, height: 240, x: 0, y: 0, toJSON: () => ({}) };
-      }
-      if (this.classList.contains('journal-story-icon')) {
-        const occurredAt = this.closest('.journal-story-item')?.querySelector('time')?.dateTime ?? '';
-        const top = new Date(occurredAt).getHours() === 7 ? 40 : 140;
-        return { top, bottom: top + 32, left: 70, right: 102, width: 32, height: 32, x: 70, y: top, toJSON: () => ({}) };
-      }
-      return { top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) };
-    });
-
     const { container } = render(<TimelineView onOpenLightbox={vi.fn()} onOpenAddEntry={vi.fn()} />);
     const gradient = container.querySelector<HTMLElement>('.journal-story')
       ?.style.getPropertyValue('--journal-time-gradient');
 
-    expect(gradient).toContain('#feeee1 16.7%');
-    expect(gradient).toMatch(/#e6e7f1 58\.3%, #e6e7f1 100%\)$/);
+    expect(gradient).toContain('#feeee1 25%');
+    expect(gradient).toMatch(/#e6e7f1 75%, #e6e7f1 100%\)$/);
   });
 
   it('filters moments by the app bar profile and opens video media', async () => {

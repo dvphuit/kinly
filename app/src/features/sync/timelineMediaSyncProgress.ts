@@ -7,15 +7,24 @@ export interface TimelineMediaSyncProgress {
 }
 
 const progressByMediaId = new Map<string, TimelineMediaSyncProgress>();
-const listeners = new Set<() => void>();
+const listenersByMediaId = new Map<string, Set<() => void>>();
 
 export function getTimelineMediaSyncProgress(mediaId: string): TimelineMediaSyncProgress | null {
   return progressByMediaId.get(mediaId) ?? null;
 }
 
-export function subscribeTimelineMediaSyncProgress(listener: () => void): () => void {
+export function subscribeTimelineMediaSyncProgress(mediaId: string, listener: () => void): () => void {
+  const listeners = listenersByMediaId.get(mediaId) ?? new Set<() => void>();
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  listenersByMediaId.set(mediaId, listeners);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) listenersByMediaId.delete(mediaId);
+  };
+}
+
+function notifyTimelineMediaSyncProgress(mediaId: string): void {
+  listenersByMediaId.get(mediaId)?.forEach((listener) => listener());
 }
 
 export function publishTimelineMediaSyncProgress(
@@ -28,11 +37,12 @@ export function publishTimelineMediaSyncProgress(
     progress: Math.max(0, Math.min(100, patch.progress ?? current?.progress ?? 0)),
     error: patch.error,
   });
-  listeners.forEach((listener) => listener());
+  notifyTimelineMediaSyncProgress(mediaId);
 }
 
 export function resetTimelineMediaSyncProgress(): void {
   if (progressByMediaId.size === 0) return;
+  const changedMediaIds = [...progressByMediaId.keys()];
   progressByMediaId.clear();
-  listeners.forEach((listener) => listener());
+  changedMediaIds.forEach(notifyTimelineMediaSyncProgress);
 }

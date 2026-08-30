@@ -41,23 +41,23 @@ describe('interaction performance audit', () => {
     expect(modals).not.toContain('if (!modals.isQuickLogOpen) return;\n    void Promise.all([');
   });
 
-  it('measures notebook layout only near the viewport', () => {
+  it('keeps notebook decoration off the scroll-time layout path', () => {
     const notebook = source('features/timeline/components/NotebookStory.tsx');
-    expect(notebook).toContain('resizeObserver.observe(story)');
-    expect(notebook).not.toContain("querySelectorAll<HTMLElement>('.journal-story-item').forEach");
-    expect(notebook).toContain('requestAnimationFrame');
-    expect(notebook).toContain('IntersectionObserver');
-    expect(notebook).toContain("rootMargin: '600px 0px'");
+    expect(notebook).toContain('timeGradient(entries)');
+    expect(notebook).not.toContain('getBoundingClientRect');
+    expect(notebook).not.toContain('ResizeObserver');
+    expect(notebook).not.toContain('IntersectionObserver');
   });
 
-  it('virtualizes offscreen timeline day rendering and enforces entry bundle budgets', () => {
+  it('contains timeline day painting without estimated offscreen heights and enforces entry bundle budgets', () => {
     const notebook = source('features/timeline/components/NotebookStory.tsx');
     const virtualTimeline = source('features/timeline/timeline-performance.css');
     const viteConfig = appFile('vite.config.ts');
 
     expect(notebook).toContain("import '../timeline-performance.css'");
-    expect(virtualTimeline).toContain('content-visibility: auto');
-    expect(virtualTimeline).toContain('contain-intrinsic-size: auto 360px');
+    expect(virtualTimeline).toContain('contain: layout paint style');
+    expect(virtualTimeline).not.toContain('content-visibility');
+    expect(virtualTimeline).not.toContain('contain-intrinsic-size');
     expect(viteConfig).toContain('ENTRY_CHUNK_BUDGET_BYTES = 500_000');
     expect(viteConfig).toContain('ENTRY_GZIP_BUDGET_BYTES = 165_000');
     expect(viteConfig).toContain('performanceBudgetPlugin()');

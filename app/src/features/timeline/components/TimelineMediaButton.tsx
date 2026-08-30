@@ -47,7 +47,8 @@ export function TimelineMediaButton({
               data-layout-id={layoutId}
               data-native-transition-id={layoutId}
               src={src}
-              preload="metadata"
+              preload="none"
+              playsInline
               style={{ borderRadius: 11 }}
             />
             <span className="journal-media-play">

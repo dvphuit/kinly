@@ -1,4 +1,3 @@
 .journal-day-group {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 360px;
+  contain: layout paint style;
 }

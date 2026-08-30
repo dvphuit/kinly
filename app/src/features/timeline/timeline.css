@@ -34,7 +34,7 @@
 .journal-week-strip button.selected > i.has-entry { background: #dcedc5; }
 .journal-week-strip button:disabled { opacity: 0.24; cursor: default; }
 
-.journal-feed { display: grid; gap: 22px; padding-top: 1px; animation: havenRouteContentIn 260ms cubic-bezier(0.2, 0.85, 0.25, 1); }
+.journal-feed { display: grid; gap: 22px; padding-top: 1px; touch-action: pan-y; animation: havenRouteContentIn 260ms cubic-bezier(0.2, 0.85, 0.25, 1); }
 @keyframes journal-date-switch { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
 .journal-day-group { display: grid; gap: 11px; }
 .journal-day-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }

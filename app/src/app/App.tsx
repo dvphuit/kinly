@@ -7,6 +7,7 @@ import { installGlobalDiagnosticLogging, logDiagnostic } from '@/app/diagnostics
 import { hasInitializedProfile, markProfileInitialized } from '@/app/lifecycle/profileInitMarker';
 import { useProfileStore } from '@/features/profile/store/useProfileStore';
 import { useUIStore } from '@/store/useUIStore';
+import { useRouteScrollRestoration } from '@/app/hooks/useRouteScrollRestoration';
 
 const PWA_REGISTRATION_DELAY_MS = 10_000;
 
@@ -55,6 +56,8 @@ export const AppContent: React.FC = () => {
   const { toasts, addToast } = useToast();
   const isInitialized = profileHydrated && Boolean(familyData?.isInitialized && familyData?.childName);
 
+  useRouteScrollRestoration(location.pathname);
+
   useEffect(() => {
     if (useProfileStore.persist.hasHydrated()) {
       setProfileHydrated(true);
@@ -62,7 +65,6 @@ export const AppContent: React.FC = () => {
     }
     return useProfileStore.persist.onFinishHydration(() => setProfileHydrated(true));
   }, []);
-  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
   useEffect(() => {
     logDiagnostic('app', 'info', 'App started', {
       version: import.meta.env.VITE_APP_VERSION,
