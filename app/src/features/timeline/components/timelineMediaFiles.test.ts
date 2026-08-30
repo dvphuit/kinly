@@ -10,6 +10,7 @@ vi.mock('@/data/localDb', () => localMedia);
 
 describe('timelineMediaFiles', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     localMedia.setLocalMedia.mockResolvedValue(undefined);
     localMedia.removeLocalMedia.mockResolvedValue(undefined);
   });
@@ -51,6 +52,43 @@ describe('timelineMediaFiles', () => {
     expect(media).toHaveLength(2);
     expect(media.map((item) => item.name)).toEqual(['one.jpg', 'two.mp4']);
     expect(localMedia.setLocalMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports preparation and local-save progress for every selected media item', async () => {
+    const onProgress = vi.fn();
+    const files = [
+      new File(['one'], 'one.jpg', { type: 'image/jpeg' }),
+      new File(['two'], 'two.mp4', { type: 'video/mp4' }),
+    ];
+
+    await readTimelineMediaFiles(files, { onProgress });
+
+    expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
+      {
+        phase: 'preparing', completedFiles: 0, totalFiles: 2, fileNumber: 1,
+        fileName: 'one.jpg', mediaType: 'photo',
+      },
+      {
+        phase: 'saving', completedFiles: 0, totalFiles: 2, fileNumber: 1,
+        fileName: 'one.jpg', mediaType: 'photo',
+      },
+      {
+        phase: 'complete', completedFiles: 1, totalFiles: 2, fileNumber: 1,
+        fileName: 'one.jpg', mediaType: 'photo',
+      },
+      {
+        phase: 'preparing', completedFiles: 1, totalFiles: 2, fileNumber: 2,
+        fileName: 'two.mp4', mediaType: 'video',
+      },
+      {
+        phase: 'saving', completedFiles: 1, totalFiles: 2, fileNumber: 2,
+        fileName: 'two.mp4', mediaType: 'video',
+      },
+      {
+        phase: 'complete', completedFiles: 2, totalFiles: 2, fileNumber: 2,
+        fileName: 'two.mp4', mediaType: 'video',
+      },
+    ]);
   });
 
   it('detects photo and video types from MIME values or file extensions', () => {

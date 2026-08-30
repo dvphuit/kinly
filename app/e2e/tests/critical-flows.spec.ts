@@ -113,6 +113,15 @@ async function runSoftRefresh(page: Page): Promise<void> {
   })).toBe(0);
 }
 
+async function addMomentFromQuickLog(page: Page, title: string): Promise<void> {
+  await page.locator('#fabCenterBtn').click();
+  await page.getByRole('button', { name: 'Khoảnh khắc', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Khoảnh khắc' });
+  await dialog.getByLabel('Tiêu đề').fill(title);
+  await dialog.getByRole('button', { name: 'Lưu ghi nhận' }).click();
+  await expect(dialog).not.toBeVisible();
+}
+
 test.describe('critical browser journeys', () => {
   test('offline onboarding persists across a reload', async ({ page }) => {
     await completeOfflineOnboarding(page);
@@ -305,6 +314,18 @@ test.describe('critical browser journeys', () => {
 
     await expect(dialog.getByText('3 mục · có thể thêm tiếp')).toBeVisible();
     await expect(dialog.getByRole('button', { name: /Bỏ media/ })).toHaveCount(3);
+  });
+
+  test('new moments appear on the current Home and Timeline pages without a tab switch', async ({ page }) => {
+    await completeOfflineOnboarding(page);
+
+    await addMomentFromQuickLog(page, 'Hiện ngay ở Trang chủ');
+    await expect(page.locator('.journal-story-title', { hasText: 'Hiện ngay ở Trang chủ' })).toBeVisible();
+
+    await page.locator('#navTabTimeline').click();
+    await expect(page).toHaveURL(/\/timeline$/);
+    await addMomentFromQuickLog(page, 'Hiện ngay ở Nhật ký');
+    await expect(page.locator('.journal-story-title', { hasText: 'Hiện ngay ở Nhật ký' })).toBeVisible();
   });
 
   test('shared overlay is a bottom sheet on mobile and a centered dialog on desktop', async ({ page }) => {
