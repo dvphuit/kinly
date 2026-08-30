@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Clock3, Pencil, Trash2 } from 'lucide-react';
+import { Check, Clock3, LoaderCircle, Pencil, Trash2 } from 'lucide-react';
 import { useActivityStore, type ActivityRecord } from '@/features/activities';
 import { useGrowthStore } from '@/features/growth';
 import { BottomSheet } from '@/shared/ui/BottomSheet';
@@ -162,6 +162,7 @@ export function TimelineEntryDialog({
 }: TimelineEntryDialogProps) {
   const [editing, setEditing] = useState(initialEditing);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [mediaProcessing, setMediaProcessing] = useState(false);
   const deleteActivity = useActivityStore((state) => state.deleteActivity);
   const deleteGrowthMeasurement = useGrowthStore((state) => state.deleteGrowthMeasurement);
   const deleteTimelineItem = useTimelineStore((state) => state.deleteTimelineItem);
@@ -170,6 +171,7 @@ export function TimelineEntryDialog({
     if (!open) return;
     setEditing(initialEditing);
     setConfirmingDelete(false);
+    setMediaProcessing(false);
   }, [initialEditing, open, rawEntry?.id]);
 
   const { entry: normalizedEntry, source: normalizedSource } = normalizeToEntryAndSource(rawEntry);
@@ -230,9 +232,11 @@ export function TimelineEntryDialog({
               type="submit"
               form="timeline-edit-form"
               className="sheet-action sheet-action-primary"
+              disabled={mediaProcessing}
             >
-              {isFeedingEditor && <Check size={15} />}
-              {creating ? 'Lưu ghi nhận' : 'Lưu thay đổi'}
+              {mediaProcessing
+                ? <><LoaderCircle size={15} className="journal-media-processing-spinner" /> Đang chuẩn bị ảnh/video</>
+                : <>{isFeedingEditor && <Check size={15} />}{creating ? 'Lưu ghi nhận' : 'Lưu thay đổi'}</>}
             </button>
           </>
         ) : !editing && source && confirmingDelete ? (
@@ -277,6 +281,7 @@ export function TimelineEntryDialog({
           key={entry.id}
           source={source}
           creating={creating}
+          onMediaProcessingChange={setMediaProcessing}
           onSaved={(savedTitle) => {
             onSaved?.(savedTitle);
             if (creating) {

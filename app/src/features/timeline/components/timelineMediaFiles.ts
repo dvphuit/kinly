@@ -16,6 +16,21 @@ const DEFAULT_FOCAL_POINT = { focalX: 50, focalY: 38 };
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv', '3gp', 'mpeg', 'mpg']);
 const PHOTO_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'avif', 'bmp', 'tif', 'tiff']);
 
+export type TimelineMediaReadPhase = 'preparing' | 'saving' | 'complete';
+
+export interface TimelineMediaReadProgress {
+  phase: TimelineMediaReadPhase;
+  completedFiles: number;
+  totalFiles: number;
+  fileNumber: number;
+  fileName: string;
+  mediaType: TimelineMediaItem['type'];
+}
+
+interface ReadTimelineMediaFilesOptions {
+  onProgress?: (progress: TimelineMediaReadProgress) => void;
+}
+
 export function detectTimelineMediaType(
   source: string,
   mimeType = '',
@@ -59,12 +74,14 @@ async function detectPhotoFocalPoint(file: File): Promise<{ focalX: number; foca
   }
 }
 
-async function readTimelineMediaFile(file: File): Promise<TimelineMediaItem> {
-  const type = detectTimelineMediaType(file.name, file.type);
-  if (!type) throw new Error('Chỉ hỗ trợ tệp ảnh hoặc video.');
-
+async function readTimelineMediaFile(
+  file: File,
+  type: TimelineMediaItem['type'],
+  onSaving: () => void,
+): Promise<TimelineMediaItem> {
   const id = `media-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const focalPoint = type === 'photo' ? await detectPhotoFocalPoint(file) : {};
+  onSaving();
   await setLocalMedia(id, file);
   return {
     id,
@@ -75,12 +92,35 @@ async function readTimelineMediaFile(file: File): Promise<TimelineMediaItem> {
   };
 }
 
-export async function readTimelineMediaFiles(files?: Iterable<File> | null): Promise<TimelineMediaItem[]> {
+export async function readTimelineMediaFiles(
+  files?: Iterable<File> | null,
+  options: ReadTimelineMediaFilesOptions = {},
+): Promise<TimelineMediaItem[]> {
   const selectedFiles = files ? Array.from(files) : [];
   if (selectedFiles.length === 0) return [];
   const mediaItems: TimelineMediaItem[] = [];
   try {
-    for (const file of selectedFiles) mediaItems.push(await readTimelineMediaFile(file));
+    for (const [index, file] of selectedFiles.entries()) {
+      const mediaType = detectTimelineMediaType(file.name, file.type);
+      if (!mediaType) throw new Error('Chỉ hỗ trợ tệp ảnh hoặc video.');
+      const progress = {
+        completedFiles: index,
+        totalFiles: selectedFiles.length,
+        fileNumber: index + 1,
+        fileName: file.name,
+        mediaType,
+      };
+      options.onProgress?.({ ...progress, phase: 'preparing' });
+      const mediaItem = await readTimelineMediaFile(file, mediaType, () => {
+        options.onProgress?.({ ...progress, phase: 'saving' });
+      });
+      mediaItems.push(mediaItem);
+      options.onProgress?.({
+        ...progress,
+        phase: 'complete',
+        completedFiles: index + 1,
+      });
+    }
     return mediaItems;
   } catch (error) {
     await removeTimelineMediaFiles(mediaItems);

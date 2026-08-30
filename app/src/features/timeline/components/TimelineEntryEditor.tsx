@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   Images,
   Layers,
+  LoaderCircle,
   Milk,
   NotebookPen,
   Package,
@@ -51,6 +52,7 @@ import {
   detectTimelineMediaType,
   readTimelineMediaFiles,
   removeTimelineMediaFiles,
+  type TimelineMediaReadProgress,
 } from './timelineMediaFiles';
 import { getTimelineMediaItems } from '../domain/timelineMedia';
 import type { TimelineItem, TimelineMediaItem } from '../domain/types';
@@ -165,15 +167,57 @@ const MOMENT_TAGS: Array<{ value: TimelineItem['tagType']; label: string }> = [
   { value: 'mom', label: 'Của mẹ' },
 ];
 
+function TimelineMediaReadStatus({ progress }: { progress: TimelineMediaReadProgress }) {
+  const kind = progress.mediaType === 'video' ? 'video' : 'ảnh';
+  const phaseProgress = progress.phase === 'preparing'
+    ? 0.25
+    : progress.phase === 'saving'
+      ? 0.75
+      : 0;
+  const progressUnits = progress.completedFiles + phaseProgress;
+  const percent = Math.round(
+    (progressUnits / progress.totalFiles) * 100,
+  );
+  const statusLabel = progress.phase === 'preparing'
+    ? `Đang chuẩn bị ${kind}`
+    : progress.phase === 'saving'
+      ? `Đang lưu ${kind} trên thiết bị`
+      : `${kind === 'ảnh' ? 'Ảnh' : 'Video'} đã sẵn sàng`;
+
+  return (
+    <div className="journal-live-assessment is-info journal-media-processing" role="status" aria-live="polite" aria-atomic="true">
+      <span className="journal-live-assessment-icon" aria-hidden="true">
+        <LoaderCircle size={17} className="journal-media-processing-spinner" />
+      </span>
+      <div>
+        <strong>{statusLabel} · {progress.fileNumber}/{progress.totalFiles}</strong>
+        <small title={progress.fileName}>{progress.fileName} · {percent}%</small>
+        <div
+          className="journal-media-processing-progress"
+          role="progressbar"
+          aria-label={`Tiến độ chuẩn bị ảnh và video: ${percent}%`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+        >
+          <i style={{ width: `${percent}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export interface TimelineEntryEditorProps {
   source: EditableTimelineSource;
   onSaved: (savedTitle?: string) => void;
+  onMediaProcessingChange?: (processing: boolean) => void;
   creating?: boolean;
 }
 
 export function TimelineEntryEditor({
   source,
   onSaved,
+  onMediaProcessingChange,
   creating = false,
 }: TimelineEntryEditorProps) {
   const addBabyActivity = useActivityStore((state) => state.addBabyActivity);
@@ -208,6 +252,7 @@ export function TimelineEntryEditor({
   const [mediaItems, setMediaItems] = useState<TimelineMediaItem[]>(() =>
     moment ? getTimelineMediaItems(moment) : [],
   );
+  const [mediaReadProgress, setMediaReadProgress] = useState<TimelineMediaReadProgress | null>(null);
   const [momentMediaUrl, setMomentMediaUrl] = useState('');
   const [amount, setAmount] = useState(() =>
     activity && 'amountMl' in activity ? String(activity.amountMl ?? '') : '',
@@ -326,6 +371,7 @@ export function TimelineEntryEditor({
   const pendingBlobIds = useRef(new Set<string>());
   const removedBlobIds = useRef(new Set<string>());
   const editorActive = useRef(true);
+  const mediaProcessing = useRef(false);
 
   const discardPendingMedia = useCallback(async () => {
     const items = [...pendingBlobIds.current].map((blobId) => ({
@@ -340,13 +386,24 @@ export function TimelineEntryEditor({
     editorActive.current = true;
     return () => {
       editorActive.current = false;
+      onMediaProcessingChange?.(false);
       void discardPendingMedia();
     };
-  }, [discardPendingMedia]);
+  }, [discardPendingMedia, onMediaProcessingChange]);
 
   const appendMediaFiles = async (files?: FileList | null) => {
+    if (mediaProcessing.current) {
+      setError('Ảnh/video đang được chuẩn bị. Vui lòng đợi một chút.');
+      return;
+    }
+    mediaProcessing.current = true;
+    onMediaProcessingChange?.(true);
     try {
-      const nextItems = await readTimelineMediaFiles(files);
+      const nextItems = await readTimelineMediaFiles(files, {
+        onProgress: (progress) => {
+          if (editorActive.current) setMediaReadProgress(progress);
+        },
+      });
       if (nextItems.length === 0) return;
       if (!editorActive.current) {
         await removeTimelineMediaFiles(nextItems);
@@ -359,6 +416,10 @@ export function TimelineEntryEditor({
       setError(null);
     } catch (fileError) {
       setError(fileError instanceof Error ? fileError.message : 'Không thể đọc media đã chọn.');
+    } finally {
+      mediaProcessing.current = false;
+      onMediaProcessingChange?.(false);
+      if (editorActive.current) setMediaReadProgress(null);
     }
   };
 
@@ -382,6 +443,11 @@ export function TimelineEntryEditor({
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+
+    if (mediaProcessing.current) {
+      setError('Ảnh/video vẫn đang được chuẩn bị. Vui lòng đợi hoàn tất trước khi lưu.');
+      return;
+    }
 
     if (source.kind === 'moment') {
       if (!title.trim()) {
@@ -654,9 +720,11 @@ export function TimelineEntryEditor({
               <div className="journal-care-heading">
                 <span><Images size={14} /> Ảnh và video</span>
                 <small>
-                  {mediaItems.length > 0
-                    ? `${mediaItems.length} mục · có thể thêm tiếp`
-                    : 'Thêm nhiều, không giới hạn'}
+                  {mediaReadProgress
+                    ? `Đang xử lý ${mediaReadProgress.fileNumber}/${mediaReadProgress.totalFiles}`
+                    : mediaItems.length > 0
+                      ? `${mediaItems.length} mục · có thể thêm tiếp`
+                      : 'Thêm nhiều, không giới hạn'}
                 </small>
               </div>
             <div className="moment-media-source-actions">
@@ -667,6 +735,7 @@ export function TimelineEntryEditor({
                   type="file"
                   accept="image/*,video/*"
                   multiple
+                  disabled={Boolean(mediaReadProgress)}
                   aria-label="Chọn từ thư viện"
                   onChange={(event) => {
                     void appendMediaFiles(event.target.files);
@@ -681,6 +750,7 @@ export function TimelineEntryEditor({
                   type="file"
                   accept="image/*"
                   capture="environment"
+                  disabled={Boolean(mediaReadProgress)}
                   aria-label="Chụp ảnh"
                   onChange={(event) => {
                     void appendMediaFiles(event.target.files);
@@ -689,6 +759,8 @@ export function TimelineEntryEditor({
                 />
               </label>
             </div>
+
+            {mediaReadProgress && <TimelineMediaReadStatus progress={mediaReadProgress} />}
 
             <div className="journal-moment-url-row">
               <input

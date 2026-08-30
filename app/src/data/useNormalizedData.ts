@@ -55,6 +55,22 @@ function fallbackJournalPage(input: {
   return { entries: entries.slice(0, input.limit), hasMore: entries.length > input.limit };
 }
 
+function mergeJournalPages(
+  persistentPage: JournalPage | undefined,
+  optimisticPage: JournalPage,
+  limit: number,
+): JournalPage {
+  if (!persistentPage) return optimisticPage;
+
+  const entriesById = new Map(persistentPage.entries.map((entry) => [entry.id, entry]));
+  optimisticPage.entries.forEach((entry) => entriesById.set(entry.id, entry));
+  const mergedEntries = [...entriesById.values()].sort(journalSortDescending);
+  return {
+    entries: mergedEntries.slice(0, limit),
+    hasMore: persistentPage.hasMore || optimisticPage.hasMore || mergedEntries.length > limit,
+  };
+}
+
 export interface JournalRangeData {
   babyActivities: BabyActivity[];
   momActivities: MomActivity[];
@@ -102,7 +118,10 @@ export function useJournalRange(input: {
     momActivities,
     timelineItems,
   }), [babyActivities, endDate, limit, owner, startDate, momActivities, timelineItems]);
-  const page = persistentPage ?? fallbackPage;
+  const page = useMemo(
+    () => mergeJournalPages(persistentPage, fallbackPage, limit),
+    [fallbackPage, limit, persistentPage],
+  );
 
   return useMemo(() => {
     const partitioned = partitionJournalEntries(page.entries);
